@@ -117,3 +117,22 @@ The codebase has zero tracking identifiers and makes **no analytics requests by 
 Google's basic consent-mode pattern loads tags only after opt-in. Clarity receives explicit `consentv2` grant. Configure Clarity project masking settings appropriately and review regional privacy requirements before activation.
 
 Docs: https://developers.google.com/tag-platform/security/guides/consent and https://learn.microsoft.com/en-us/clarity/setup-and-installation/clarity-masking .
+
+
+## Review Engine v2
+
+IssueLint now uses a structured **Understand → Inspect → Prioritize → Explain → Rewrite** workflow.
+
+1. **Understand:** Infer domain and task type from text. `General` / `Other` are UI placeholders, not confirmed classifications. Explicitly selected fields remain authoritative. A duplicate, auto-derived title is not treated as a defect.
+2. **Inspect:** The model must audit **scope, behavior, completion criteria, dependencies, references, clarity, contradictions, and feasibility**. The Worker rejects incomplete or duplicate audit dimensions and validates every quoted source excerpt.
+3. **Prioritize:** The Worker ranks genuinely actionable, independent gaps by severity and returns **at most five**. A vague, redundant “rewrite this task” finding is filtered out; zero findings is allowed.
+4. **Explain:** Findings contain task-specific impact, an actionable question and literal evidence when available. Contradictions require two verbatim source excerpts. The server derives ready/needs_clarification/blocked from selected findings.
+5. **Rewrite:** The model supplies an objective using confirmed facts only; the Worker appends **only questions already present in selected findings**. Empty/unchanged/obviously unsupported drafts are repaired once or honestly labeled `clarification_draft`/`unavailable`.
+
+Code: `worker/prompt.ts` (rubric), `worker/review-v2.ts` (audit schema, validation, ranking, context hints), `worker/inference.ts` (Workers AI + aligned rewrite).
+
+The public API still returns `status`, `summary`, `findings`, `suggestedRewrite` and `rewriteStatus`, plus `reviewContext` (inferred domain/type) and `reviewCoverage` (checked/gaps/reported counts). The UI shows which work context the review used. The 8-dimensional audit increases inference output tokens, and therefore Neuron usage; private preview remains rate-protected only by its access token, not by a public-facing limiter.
+
+**Scope of guarantees:** the backend guarantees schema completeness, quoted-source validity and question alignment, not that a model can detect every semantic problem or independently prove every claim in a rewrite. The rule-based audit and targeted fixtures reduce omissions but are not a replacement for qualitative model evaluation.
+
+Golden task fixtures: software dark-mode scope/behavior/Figma checks, sales approval contradiction, marketing no-forced-AC case, falsified evidence, duplicate/missing audit dimensions.
