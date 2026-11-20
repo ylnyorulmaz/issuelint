@@ -6,8 +6,8 @@
 export type AnalyticsConsent = 'accepted' | 'declined' | 'unset';
 export type AnalyticsEvent = 'review_started' | 'review_completed' | 'review_failed' | 'example_loaded' | 'theme_changed';
 export const CONSENT_STORAGE_KEY = 'issuelint.analytics-consent.v1';
-const GA_ID = (import.meta.env.VITE_GA4_MEASUREMENT_ID ?? '').trim();
-const CLARITY_ID = (import.meta.env.VITE_CLARITY_PROJECT_ID ?? '').trim();
+const GA_ID = (import.meta.env?.VITE_GA4_MEASUREMENT_ID ?? '').trim();
+const CLARITY_ID = (import.meta.env?.VITE_CLARITY_PROJECT_ID ?? '').trim();
 
 export const analyticsConfigured = /^G-[A-Z0-9]{6,20}$/i.test(GA_ID) || /^[a-z0-9]{5,30}$/i.test(CLARITY_ID);
 let loaded = false;
