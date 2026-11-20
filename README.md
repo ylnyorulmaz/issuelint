@@ -6,7 +6,7 @@ Platform-independent AI review of work requests. **SolidJS + TypeScript + Cloudf
 
 - Frontend: **Minimalist by default**, paste-first task review, optional detail fields, findings and validated rewrite.
 - Backend: `POST /api/analyze` → native Workers AI binding → validated structured response.
-- Default AI model: **`@cf/openai/gpt-oss-120b`**, **medium** reasoning effort, 4,000 max output tokens for the eight-dimension review.
+- Default AI model: **`@cf/openai/gpt-oss-120b`**, **medium** reasoning effort, 4,700 max output tokens for the 11-dimension review.
 - A private preview token is required for model inference. This is **not** a public AI API.
 - Demo examples and basic structural checks work without AI.
 - No auth accounts, database, platform integration, or stored task text.
@@ -159,3 +159,22 @@ ISSUELINT_EVAL_TOKEN='<private-access-code>' npm run eval:live -- --case softwar
 The script prints expected vs. detected dimensions, missed critical questions, findings outside the human-allowed set, status accuracy, per-request wall-clock latency, reported Neurons and estimated USD based on the 120B token rates. Repeats measure dimension-level consistency. **Golden labels are subjective**, not absolute truth; this is a quality regression instrument, not a guarantee of full semantic recall. Live evaluation is **opt-in**, does not run as part of CI and consumes paid Workers AI inference. Unit tests for the scoring logic do run in CI. No secret is stored in GitHub.
 
 The 120B published rates when this was configured: $0.35 per million input tokens and $0.75 per million output tokens. Verify current Cloudflare pricing before estimating monthly use.
+
+
+## Review Engine 2.2 — actionable, right-sized, outcome-driven work
+
+This update preserves all 2.1 safeguards, Workers AI GPT-OSS 120B, private auth, the frontend themes and the paste-first flow. The primary structured review now evaluates **11 context-sensitive dimensions**: the original eight plus:
+
+- **Actionability** — Is there a concrete action or deliverable (anywhere in the task)? A title is not required to start with a verb. A vague topic without an executable next action is a gap.
+- **Granularity** — Is it realistically one executable task, or an epic comprising independently deliverable work? Suggest identifying the first manageable slice if needed. Do not impose arbitrary hours or days, and do not split simply because execution is difficult.
+- **Purpose / outcome** (`outcome`) — Is the intended effect clear enough to decide what to produce? Do not require separate business goals or metrics for simple atomic tasks with an obvious outcome.
+
+The existing **completion** dimension now emphasizes an *observable done state*, rather than requiring a checklist or numeric test cases for every type of task. Source-verified contradictions, contextual scope and behavior, domain-aware ranking and five-finding maximum remain.
+
+Autonomous-agent tasks may require a **real** workspace/repository/tool prerequisite and way to verify output, assessed through existing dependencies/feasibility/completion dimensions. Normal human work requests do not inherit these requirements.
+
+The conditional quality gate can also challenge overoptimistic `clear` assessments on actionability, granularity and outcome when they materially affect execution. It still makes at most one additional targeted call for two dimensions, not eleven additional calls. The server validates the exact set of eleven distinct checks, without forcing eleven findings.
+
+**Evaluation:** `eval/golden.json` now has 23 human-labeled cases, including oversized epics, atomic well-defined tasks, vague topics, ambiguous campaign outcomes, explicit agent access constraints and Turkish examples. `npm run eval:live` remains an opt-in paid model experiment; the automated suite checks contracts and test fixtures, not human-level accuracy. Review coverage in the API/UI is now 11 checks.
+
+The primary inference output budget increases to 4,700 tokens to accommodate the wider audit. A larger response may mean more latency and Neuron usage. Monitor live `modelUsage`; 2.2 is not guaranteed to outperform 2.1 without real golden-set evaluation.
