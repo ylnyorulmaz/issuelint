@@ -67,6 +67,7 @@ function App() {
     trackAnalyticsEvent('theme_changed');
   }
   function chooseAnalyticsConsent(value: 'accepted' | 'declined') {
+    const previouslyAccepted = analyticsConsent() === 'accepted';
     saveAnalyticsConsent(value);
     setAnalyticsConsent(value);
     setShowPrivacyChoices(false);
@@ -75,7 +76,7 @@ function App() {
       // Scripts already loaded cannot be undone. Reload immediately with tracking disabled.
       const w = window as Window & { clarity?: (...args: unknown[]) => void };
       w.clarity?.('consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' });
-      if (analyticsConsent() === 'accepted') window.location.reload();
+      if (previouslyAccepted) window.location.reload();
     }
   }
 
