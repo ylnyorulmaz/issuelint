@@ -119,7 +119,7 @@ test("valid analysis calls the native AI binding once and returns validated JSON
   assert.deepEqual(data.analysis.findings, validAnalysis.findings);
   assert.equal(data.analysis.rewriteStatus, "rewritten");
   assert.match(data.analysis.suggestedRewrite, /Open questions:/);
-  assert.equal(data.analysis.reviewCoverage.checked, 8);
+  assert.equal(data.analysis.reviewCoverage.checked, REVIEW_DIMENSIONS.length);
   assert.equal(data.analysis.reviewCoverage.reported, 1);
   assert.equal(data.analysis.reviewContext.domain, "Sales");
   assert.deepEqual(data.analysis.findingDimensions,["contradictions"]);
@@ -131,7 +131,7 @@ test("valid analysis calls the native AI binding once and returns validated JSON
   assert.equal(calls[0].options.response_format.type, "json_schema");
   assert.equal(calls[0].options.stream, false);
   assert.equal(calls[0].options.reasoning_effort, "medium");
-  assert.equal(calls[0].options.max_tokens, 4000);
+  assert.equal(calls[0].options.max_tokens, 4700);
   assert.match(calls[0].options.messages[1].content, /Contact all leads today/);
 });
 
@@ -343,7 +343,7 @@ test("v2 audits all dimensions and ranks multiple important gaps ahead of generi
   assert.deepEqual(review.analysis.findings.map(f=>f.title),[
     "Unspecified screens","Undefined theme switching","Figma reference not identifiable","No verification criteria"
   ]);
-  assert.equal(review.reviewCoverage.checked,8);
+  assert.equal(review.reviewCoverage.checked,REVIEW_DIMENSIONS.length);
   assert.equal(review.context.domain,"Software");
   assert.equal(review.context.type,"Feature");
 });
@@ -391,7 +391,7 @@ test("critical source-verifiable deadline and audience conflicts survive an AI o
   const output=parseReviewV2(audit,task);
   assert.equal(output.analysis.status,"blocked");
   assert.equal(output.analysis.findings.filter(f=>f.kind==="contradiction").length,2);
-  assert.equal(output.reviewCoverage.checked,8);
+  assert.equal(output.reviewCoverage.checked,REVIEW_DIMENSIONS.length);
 });
 
 test("conflict guard does not invent issues in unrelated work",()=>{
@@ -475,7 +475,7 @@ test("v2.1 does not force optional gaps on detailed work and rejects invented ci
     {dimension:"scope",assessment:"gap",title:"Invented missing source",detail:"A fictitious comment says some screens lack a theme.",question:"What else is in scope?",evidence:["nonexistent source quote"]}
   ]});
   assert.deepEqual(inspected,audit.checks);
-  assert.deepEqual(dimensionPriority(task).slice(0,3),["contradictions","scope","behavior"]);
+  assert.deepEqual(dimensionPriority(task).slice(0,3),["contradictions","actionability","scope"]);
 });
 
 test("v2.1 end-to-end rechecks missing feature scope/behavior, not AC alone",async()=>{
@@ -500,7 +500,7 @@ test("v2.1 end-to-end rechecks missing feature scope/behavior, not AC alone",asy
   const a=(await res.json()).analysis;
   assert.equal(calls,2);
   assert.deepEqual(a.findingDimensions,["scope","behavior","completion"]);
-  assert.equal(a.reviewCoverage.checked,8);
+  assert.equal(a.reviewCoverage.checked,REVIEW_DIMENSIONS.length);
   assert.match(a.suggestedRewrite,/Which screens and UI components/);
   assert.equal(a.modelUsage.neurons,40);
   assert.equal(a.modelUsage.promptTokens,780);
