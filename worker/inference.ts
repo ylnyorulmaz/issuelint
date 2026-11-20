@@ -199,7 +199,7 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
             })}
           ],
           response_format:{type:"json_schema",json_schema:QUALITY_GATE_SCHEMA},
-          reasoning_effort:"medium",max_tokens:1450,temperature:0.1,stream:false
+          reasoning_effort:"low",max_tokens:1000,temperature:0.1,stream:false
         });
         onUsage(gateRaw);
         const revisedChecks=applyQualityGate(task,reviewed.checks,uncertain,extractJsonResponse(gateRaw));
