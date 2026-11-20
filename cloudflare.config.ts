@@ -1,9 +1,8 @@
 import { bindings, defineConfig } from "cf/config";
 
 /**
- * Iteration 1: isolated development Worker, not the production domain.
- * The Cloudflare Vite plugin supplies the Vite build's static assets.
- * Only /api/* routes run Worker code first; frontend assets are served directly.
+ * Development Worker. AI access stays disabled by default and requires a
+ * server-side secret. This is NOT the public, rate-limited beta.
  */
 export default defineConfig({
   worker: {
@@ -17,6 +16,9 @@ export default defineConfig({
     env: {
       AI: bindings.ai(),
       ASSETS: bindings.assets(),
+      ANALYZE_ENABLED: bindings.text("false"),
+      PREVIEW_TOKEN: bindings.secret(),
+      AI_MODEL: bindings.text("@cf/google/gemma-4-26b-a4b-it"),
     },
     observability: {
       enabled: true,

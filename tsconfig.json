@@ -1,1 +1,16 @@
-{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","lib":["ES2022","DOM","DOM.Iterable"],"strict":true,"noEmit":true,"jsx":"preserve","jsxImportSource":"solid-js","skipLibCheck":true,"isolatedModules":true},"include":["src","vite.config.ts"]}
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "skipLibCheck": true,
+    "isolatedModules": true
+  },
+  "include": ["src", "worker", "vite.config.ts", "cloudflare.config.ts"]
+}
