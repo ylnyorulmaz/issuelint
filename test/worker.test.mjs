@@ -489,7 +489,7 @@ test("v2.1 end-to-end rechecks missing feature scope/behavior, not AC alone",asy
     calls++;
     if(calls===1)return {choices:[{message:{content:JSON.stringify(audit)},finish_reason:"stop"}],
       usage:{prompt_tokens:600,completion_tokens:800,neurons:30}};
-    assert.equal(options.reasoning_effort,"medium");
+    assert.equal(options.reasoning_effort,"low");
     return {choices:[{message:{content:JSON.stringify({checks:[
       {dimension:"scope",assessment:"gap",title:"Scope of dark mode is unspecified",detail:"Web and mobile are mentioned, but no specific screens or reusable components are included.",question:"Which screens and UI components should support dark mode?",evidence:[]},
       {dimension:"behavior",assessment:"gap",title:"Theme switching is unspecified",detail:"No interaction is described for selecting dark mode or remembering the choice across sessions.",question:"Should the mode follow system settings, use a manual toggle, or persist?",evidence:[]}
