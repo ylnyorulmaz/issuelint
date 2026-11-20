@@ -184,6 +184,13 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
   const base = {...analysis, reviewContext:context, reviewCoverage};
   const candidate=coreOnly(rewriteCore);
 
+  // When the model itself missed a demonstrable conflict, do not let its rewrite
+  // silently choose one side of mutually incompatible instructions.
+  if(reviewed.contradictionGuardTriggered) {
+    const clarification=clarificationDraft(task,analysis.findings);
+    return {...base,suggestedRewrite:clarification,rewriteStatus:clarification?"clarification_draft":"unavailable"};
+  }
+
   if (isMeaningfulRewrite(candidate, task) && isGroundedCore(candidate, task)) {
     return { ...base, suggestedRewrite:assembleRewrite(candidate,analysis.findings), rewriteStatus:"rewritten" };
   }
