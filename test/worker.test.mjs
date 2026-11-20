@@ -234,7 +234,7 @@ test("empty primary draft triggers one focused AI rewrite repair", async () => {
 
 test("verbatim copy in primary output triggers rewrite repair", async () => {
   let calls = 0;
-  const same = [originalTask.title, originalTask.description].join("\\n\\n");
+  const same = [originalTask.title, originalTask.description].join("\n\n");
   const { env } = makeEnv({ AI: { run: async () => {
     calls++;
     return { choices: [{ message: { content: JSON.stringify(calls === 1
