@@ -5,7 +5,7 @@ import {scoreEvaluation,evaluateSummary,repeatConsistency} from "../scripts/eval
 
 test("golden fixtures cover four domains and distinguish ready from incomplete work",async()=>{
   const golden=JSON.parse(await readFile(new URL("../eval/golden.json",import.meta.url),"utf8"));
-  assert.equal(golden.version,"2.1");
+  assert.equal(golden.version,"2.2");
   assert.ok(golden.cases.length>=12);
   for(const domain of ["Software","Sales","Marketing","Operations"]){
     assert.ok(golden.cases.some(x=>x.domain===domain),"missing domain "+domain);
