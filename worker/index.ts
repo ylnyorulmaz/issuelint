@@ -130,7 +130,7 @@ export default {
         // Never log prompts, task content, authorization or raw provider errors.
         console.warn("issuelint.inference_failed", {
           category: kind,
-          model: env.AI_MODEL === "@cf/openai/gpt-oss-20b" ? "gpt-oss-20b" : "configured-model",
+          model: env.AI_MODEL === "@cf/openai/gpt-oss-120b" ? "gpt-oss-120b" : "configured-model",
         });
         if (kind === "truncated") {
           return error("AI_TRUNCATED", "The model ran out of output tokens. Please retry.", 502);
