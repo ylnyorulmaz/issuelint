@@ -6,7 +6,10 @@ import './style.css';
 import './styles.neobrutalist.css';
 import './styles.zen.css';
 import { readDesignTheme, saveDesignTheme, type DesignTheme } from './design-theme';
-import { BrandEmblem, SectionIndex, PosterGeometry, FindingMark, ScreenLabel } from './components/Constructivist';
+import { BrandEmblem, SectionIndex, FindingMark, ScreenLabel } from './components/Constructivist';
+import { prepareReviewTask, reviewTextLength, reviewInputValid } from './review-task';
+import { analyticsConfigured, readAnalyticsConsent, saveAnalyticsConsent, enableAnalytics, trackAnalyticsEvent, type AnalyticsConsent } from './analytics';
+import './styles.entry.css';
 
 const types: TaskType[] = ['General', 'Bug', 'Feature', 'Improvement', 'Request'];
 const domains: Domain[] = ['Software', 'Marketing', 'Sales', 'Operations', 'Other'];
@@ -44,10 +47,13 @@ function App() {
   const [copied, setCopied] = createSignal(false);
   const [dark, setDark] = createSignal(window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
   const [designTheme, setDesignTheme] = createSignal<DesignTheme>(readDesignTheme());
+  const [analyticsConsent, setAnalyticsConsent] = createSignal<AnalyticsConsent>(readAnalyticsConsent());
+  const [showPrivacyChoices, setShowPrivacyChoices] = createSignal(false);
   let requestController: AbortController | undefined;
   let requestTimeout: ReturnType<typeof setTimeout> | undefined;
 
   onMount(() => {
+    if (analyticsConfigured && analyticsConsent() === 'accepted') enableAnalytics();
     let active = true;
     getHealth().then(health => {
       if (active) setAvailable(health.aiEnabled && health.aiBindingConfigured ? 'private' : 'demo');
@@ -58,6 +64,19 @@ function App() {
   function chooseDesignTheme(next: DesignTheme) {
     setDesignTheme(next);
     saveDesignTheme(next);
+    trackAnalyticsEvent('theme_changed');
+  }
+  function chooseAnalyticsConsent(value: 'accepted' | 'declined') {
+    saveAnalyticsConsent(value);
+    setAnalyticsConsent(value);
+    setShowPrivacyChoices(false);
+    if (value === 'accepted') enableAnalytics();
+    else {
+      // Scripts already loaded cannot be undone. Reload immediately with tracking disabled.
+      const w = window as Window & { clarity?: (...args: unknown[]) => void };
+      w.clarity?.('consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' });
+      window.location.reload();
+    }
   }
 
   function revealResults() {
@@ -87,6 +106,7 @@ function App() {
     cancelRequest();
     setTask({ ...example.task }); setResult(null); setError('');
     setSelected(id); setTab('findings'); setCopied(false);
+    trackAnalyticsEvent('example_loaded');
     document.getElementById('analyze')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function reset() {
@@ -96,11 +116,12 @@ function App() {
   function reviewDemo() {
     cancelRequest();
     setError(''); setTab('findings'); setCopied(false);
-    setResult(fromDemo(task()));
+    setResult(fromDemo(prepareReviewTask(task())));
+    trackAnalyticsEvent('review_completed');
     revealResults();
   }
   async function runAI() {
-    if (loading()) return;
+    if (loading() || !reviewInputValid(task())) return;
     if (available() !== 'private') {
       reviewDemo();
       return;
@@ -110,15 +131,17 @@ function App() {
       return;
     }
     setError(''); setResult(null); setLoading(true); setCopied(false);
+    trackAnalyticsEvent('review_started');
     setTab('findings');
     revealResults();
     const controller = new AbortController();
     requestController = controller;
     requestTimeout = setTimeout(() => controller.abort(), 45000);
     try {
-      const output = await analyzeLive(task(), accessCode().trim(), controller.signal);
+      const output = await analyzeLive(prepareReviewTask(task()), accessCode().trim(), controller.signal);
       if (requestController === controller) {
         setResult(fromLive(output));
+        trackAnalyticsEvent('review_completed');
         revealResults();
       }
     } catch (cause) {
@@ -126,6 +149,7 @@ function App() {
       const message = cause instanceof ApiError ? cause.message :
         controller.signal.aborted ? 'Analysis timed out. Please retry.' : 'Network error. Check your connection and retry.';
       setError(message);
+      trackAnalyticsEvent('review_failed');
       revealResults();
     } finally {
       if (requestController === controller) {
@@ -142,10 +166,8 @@ function App() {
     try { await navigator.clipboard.writeText(output.draft); setCopied(true); setError(''); }
     catch { setError('Clipboard access failed. Select the text in the draft panel to copy manually.'); }
   }
-  const totalLength = () => task().title.length + task().description.length + task().criteria.length + task().context.length;
-  const inputValid = () => !!task().title.trim() && !!task().description.trim() &&
-    task().title.length <= 180 && task().description.length <= 6500 &&
-    task().criteria.length <= 1200 && task().context.length <= 1200 && totalLength() <= 8000;
+  const totalLength = () => reviewTextLength(task());
+  const inputValid = () => reviewInputValid(task());
 
   return <div class="app" data-theme={dark() ? 'dark' : 'light'} data-design={designTheme()}>
     <header class="header"><div class="header-inner">
@@ -155,52 +177,50 @@ function App() {
         <div class="design-switcher" role="group" aria-label="Choose a visual design theme">
           <span class="design-switcher-caption" aria-hidden="true">STYLE</span>
           <button type="button" class="design-option" aria-pressed={designTheme() === 'constructivist'} title="Minimal Constructivism" onClick={() => chooseDesignTheme('constructivist')}>
-            <span class="design-name-long">Constructivist</span><span class="design-name-short">Minimal</span>
+            <span class="design-name-long">Constructivist</span><span class="design-name-short">Construct.</span>
           </button>
           <button type="button" class="design-option" aria-pressed={designTheme() === 'neobrutalist'} title="Neobrutalism" onClick={() => chooseDesignTheme('neobrutalist')}>
             <span class="design-name-long">Neobrutalist</span><span class="design-name-short">Neo</span>
           </button>
-          <button type="button" class="design-option" aria-pressed={designTheme() === 'zen'} title="Minimalist Zen" onClick={() => chooseDesignTheme('zen')}>
-            <span class="design-name-long">Zen</span><span class="design-name-short">Zen</span>
+          <button type="button" class="design-option" aria-pressed={designTheme() === 'zen'} title="Minimalist (calm design)" onClick={() => chooseDesignTheme('zen')}>
+            <span class="design-name-long">Minimalist</span><span class="design-name-short">Minimal</span>
           </button>
         </div>
         <button class="theme" type="button" onClick={() => setDark(!dark())} aria-label={dark() ? 'Switch to light mode' : 'Switch to dark mode'} title={dark() ? 'Light mode' : 'Dark mode'}>{dark() ? '☀' : '☾'}</button>
       </div>
     </div></header>
 
-    <main id="top"><section class="hero" aria-label="IssueLint introduction">
-      <div class="hero-topline"><SectionIndex number="01" label="Work quality / independent review"/><span>SPECIFICATION BEFORE EXECUTION — 2026</span></div>
-      <div class="hero-body">
-        <div class="hero-copy">
-          <h1>MAKE EVERY<br/>TASK <em>CLEAR.</em></h1>
-          <p>Turn unclear requests into work that can actually get done. Expose missing information, contradictions and vague requirements before execution.</p>
-          <div class="hero-meta"><span>ANY PLATFORM</span><span>ANY TEAM</span><span>NO ACCOUNT</span></div>
-        </div>
-        <div class="hero-art"><PosterGeometry/></div>
+    <main id="top">
+    <section class="entry-intro" aria-label="Start reviewing a task">
+      <div>
+        <span class="entry-eyebrow">THE SECOND OPINION FOR EVERY TASK</span>
+        <h1>Paste a task. Make it clear.</h1>
+        <p>Copy any ticket, brief or request. Find gaps and contradictions before work begins.</p>
       </div>
-      <div class="hero-bottomline"><span>◢ CLARITY IS A PRODUCTION TOOL.</span><span>ISSUE/LINT — TASK INTELLIGENCE SYSTEM</span></div>
+      <a class="entry-example-link" href="#examples">Need an example? <span aria-hidden="true">↗</span></a>
     </section>
 
     <section id="analyze" class="workspace" aria-label="Task analyzer">
-      <div class="card input-card">
-        <div class="card-intro"><span class="intro-icon">02</span><div><h2>DEFINE THE WORK.</h2><p>Start with a title and a concrete description.</p></div><span class="panel-code">INPUT / 01</span></div>
+      <div class="card input-card" data-clarity-mask="true">
+        <div class="card-intro"><span class="intro-icon">01</span><div><h2>Review your task</h2><p>Paste your task below. A title is optional.</p></div><span class="panel-code">PASTE → REVIEW</span></div>
         <div class="availability" role="status">
           <span class={available() === 'private' ? 'status-dot active-dot' : 'status-dot'}/>
           <span>{available() === 'checking' ? 'Checking analysis availability…' :
             available() === 'private' ? 'AI review · private preview' : 'Demo review · AI not enabled'}</span>
         </div>
         <form onSubmit={e => { e.preventDefault(); void runAI(); }}>
-          <label for="title">Task title <span class="req">*</span></label>
-          <input id="title" value={task().title} required maxLength={180} disabled={loading()} placeholder="What needs to be done?" onInput={e => edit('title', e.currentTarget.value)}/>
-          <label for="description">Description <span class="req">*</span></label>
-          <textarea id="description" required rows={4} maxLength={6500} disabled={loading()} placeholder="Describe the problem, goal, or requested work. It doesn't need to be perfect." value={task().description} onInput={e => edit('description', e.currentTarget.value)}/>
+          <label for="description">Paste your task, ticket or brief <span class="req">*</span></label>
+          <textarea id="description" required rows={5} maxLength={6500} disabled={loading()} placeholder="Paste a Jira or GitHub ticket, a meeting note, a sales request, a marketing brief… or simply describe the work in your own words." value={task().description} onInput={e => edit('description', e.currentTarget.value)}/>
+          <div class="paste-helper"><span>Any team. Any tool. Plain text is enough.</span><span>Ctrl / ⌘ + V</span></div>
+          <label for="title">Task title <span class="optional-field">(optional)</span></label>
+          <input id="title" value={task().title} maxLength={180} disabled={loading()} placeholder="Optional — derived from your text if blank" onInput={e => edit('title', e.currentTarget.value)}/>
           <div class="form-grid"><div><label for="type">Task type</label><select id="type" value={task().type} disabled={loading()} onChange={e => edit('type', e.currentTarget.value as TaskType)}><For each={types}>{t => <option>{t}</option>}</For></select></div>
           <div><label for="domain">Area</label><select id="domain" value={task().domain} disabled={loading()} onChange={e => edit('domain', e.currentTarget.value as Domain)}><For each={domains}>{d => <option>{d}</option>}</For></select></div></div>
-          <div class="counter" classList={{ 'over-budget': totalLength() > 8000 }}>{totalLength().toLocaleString()} / 8,000 characters</div>
+          <div class="counter" classList={{ 'over-budget': totalLength() > 8000 }}>{totalLength().toLocaleString()} / 8,000 characters (including derived title)</div>
           <Show when={available() === 'private'}>
             <div class="preview-code"><label for="preview-code">Private AI access code</label>
               <input id="preview-code" type="password" autocomplete="off" value={accessCode()} placeholder="Paste your preview code" onInput={e => { setAccessCode(e.currentTarget.value); setError(''); }}/>
-              <p>{accessCode().trim() ? 'Code entered. Click “Analyze with AI” to run the review.' : 'Enter your access code, then click Analyze. Entering a code alone does not start a review.'}</p>
+              <p>{accessCode().trim() ? 'Access code entered.' : 'Private preview requires a code. Or use demo review.'}</p>
             </div>
           </Show>
           <Show when={error()}><div class="api-error" role="alert">{error()}</div></Show>
@@ -227,7 +247,7 @@ function App() {
         </form>
       </div>
 
-      <div class="card result-card" id="results" aria-live="polite" aria-busy={loading()}>
+      <div class="card result-card" id="results" data-clarity-mask="true" aria-live="polite" aria-busy={loading()}>
         <div class="result-section-head"><ScreenLabel index="03">REVIEW / FINDINGS</ScreenLabel><span class="result-section-line" aria-hidden="true"/></div>
         <Show when={!loading()} fallback={<div class="empty loading-state"><div class="empty-icon spin">↗</div><h2>RUNNING REVIEW.</h2><p>Checking for missing information, ambiguity and contradictions…</p><button class="secondary-action" type="button" onClick={cancelRequest}>Cancel</button></div>}>
           <Show when={result()} fallback={
@@ -308,7 +328,20 @@ function App() {
 
     <section id="guide" class="guide"><SectionIndex number="05" label="The method"/><h2>FROM NOISE TO ACTION.</h2><div class="steps"><div><span>01</span><h3>Describe</h3><p>Enter a title, description, and type. Add context if it matters.</p></div><div><span>02</span><h3>Inspect</h3><p>Review questions, missing details, and possible conflicts.</p></div><div><span>03</span><h3>Refine</h3><p>Copy your improved task into whatever tool your team uses.</p></div></div><p class="disclaimer">AI preview access is restricted. Demo reviews use examples or simple checks; they are not semantic AI analysis.</p></section>
     </main>
-    <footer><div><b>ISSUE/LINT ↗</b><span>Clarity is a production tool.</span></div><span>NO ACCOUNT · NO STORED TASKS · LIVE REVIEWS PROCESSED BY CLOUDFLARE AI</span></footer>
+    <footer><div><b>ISSUE/LINT ↗</b><span>Clear work starts here.</span></div>
+      <div class="footer-meta"><span>NO ACCOUNT · NO STORED TASKS · LIVE REVIEWS PROCESSED BY CLOUDFLARE AI</span>
+        <Show when={analyticsConfigured}><button type="button" class="privacy-settings" onClick={() => setShowPrivacyChoices(true)}>Analytics preferences</button></Show>
+      </div>
+    </footer>
+    <Show when={analyticsConfigured && (analyticsConsent() === 'unset' || showPrivacyChoices())}>
+      <div class="consent-banner" role="region" aria-label="Optional analytics consent">
+        <div><strong>Optional analytics</strong><p>Allow anonymous product usage metrics and masked Clarity session recordings? Your task text, results and access code are never sent as analytics events. No analytics scripts load unless you accept.</p></div>
+        <div class="consent-actions">
+          <button type="button" class="consent-decline" onClick={() => chooseAnalyticsConsent('declined')}>Decline</button>
+          <button type="button" class="consent-accept" onClick={() => chooseAnalyticsConsent('accepted')}>Allow analytics</button>
+        </div>
+      </div>
+    </Show>
   </div>;
 }
 render(() => <App/>, document.getElementById('root')!);
