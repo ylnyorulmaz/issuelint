@@ -6,7 +6,7 @@ Platform-independent AI review of work requests. **SolidJS + TypeScript + Cloudf
 
 - Frontend: **Minimalist by default**, paste-first task review, optional detail fields, findings and validated rewrite.
 - Backend: `POST /api/analyze` → native Workers AI binding → validated structured response.
-- Default AI model: `@cf/openai/gpt-oss-20b`, **low** reasoning effort, 1,600 max output tokens.
+- Default AI model: **`@cf/openai/gpt-oss-120b`**, **medium** reasoning effort, 4,000 max output tokens for the eight-dimension review.
 - A private preview token is required for model inference. This is **not** a public AI API.
 - Demo examples and basic structural checks work without AI.
 - No auth accounts, database, platform integration, or stored task text.
@@ -52,7 +52,7 @@ All production updates must preserve the existing `PREVIEW_TOKEN` binding. Do no
 
 ## Inference failures and observability
 
-Initial Gemma 4 tests exhausted `max_completion_tokens=1500` in reasoning, returning `finish_reason=length` and `content=null`. We switched to the verified GPT-OSS 20B low-reasoning configuration.
+Initial Gemma 4 tests exhausted `max_completion_tokens=1500` in reasoning, returning `finish_reason=length` and `content=null`. We switched first to GPT-OSS 20B low reasoning, then permanently to GPT-OSS **120B medium reasoning** for Review Engine 2.1.
 
 The API now distinguishes:
 - `AI_TRUNCATED` — model exceeded output budget
@@ -136,3 +136,26 @@ The public API still returns `status`, `summary`, `findings`, `suggestedRewrite`
 **Scope of guarantees:** the backend guarantees schema completeness, quoted-source validity and question alignment, not that a model can detect every semantic problem or independently prove every claim in a rewrite. The rule-based audit and targeted fixtures reduce omissions but are not a replacement for qualitative model evaluation.
 
 Golden task fixtures: software dark-mode scope/behavior/Figma checks, sales approval contradiction, marketing no-forced-AC case, falsified evidence, duplicate/missing audit dimensions.
+
+
+## Review Engine 2.1 — quality gate, domain priorities, evaluation
+
+**Permanent model**: `@cf/openai/gpt-oss-120b` (Cloudflare Workers AI), medium reasoning for the primary audit and optional quality gate. The inference allowlist no longer silently falls back to 20B or Gemma. Both `cloudflare.config.ts` and the live Worker `AI_MODEL` binding must agree.
+
+**Contextual completeness gate**: after the first eight-dimension audit, `worker/quality-gate.ts` identifies important dimensions that the first pass marked clear on a short, underspecified task (software feature: scope and behavior; other domains: context-specific dimensions). It makes **one conditional independent 120B call** for at most two such dimensions. The server accepts a gap only when it has a specific explanation/question, nonduplicate content and authentic source quotes if provided. A failed optional gate preserves the validated initial analysis. No gate call is needed for a confirmed critical contradiction. Some additional inferences can run for low-detail tasks, increasing cost.
+
+**Priorities**: `worker/review-v2.ts` ranks meaningful, verified findings by severity and domain. For software, scope/behavior outrank generic delivery dates or completion boilerplate at the same severity; contradictions remain first. The existing literal-evidence and contradiction guards stay active.
+
+**Evaluation and telemetry**: `worker/usage.ts` provides non-sensitive per-review metadata (`modelUsage`: calls, latency, reported prompt/completion tokens and Neurons). `findingDimensions` aligns one-for-one with findings to make evaluation reproducible. Neither task text, raw prompts, credentials, nor responses are logged.
+
+The **14 human-labeled golden tasks** in `eval/golden.json` span software, sales, marketing, operations and Turkish. To evaluate the **deployed** private Worker with real model calls:
+
+```bash
+ISSUELINT_EVAL_TOKEN='<private-access-code>' npm run eval:live
+ISSUELINT_EVAL_TOKEN='<private-access-code>' npm run eval:live -- --repeat 2
+ISSUELINT_EVAL_TOKEN='<private-access-code>' npm run eval:live -- --case software-dark-mode-vague
+```
+
+The script prints expected vs. detected dimensions, missed critical questions, findings outside the human-allowed set, status accuracy, per-request wall-clock latency, reported Neurons and estimated USD based on the 120B token rates. Repeats measure dimension-level consistency. **Golden labels are subjective**, not absolute truth; this is a quality regression instrument, not a guarantee of full semantic recall. Live evaluation is **opt-in**, does not run as part of CI and consumes paid Workers AI inference. Unit tests for the scoring logic do run in CI. No secret is stored in GitHub.
+
+The 120B published rates when this was configured: $0.35 per million input tokens and $0.75 per million output tokens. Verify current Cloudflare pricing before estimating monthly use.
