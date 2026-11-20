@@ -1,6 +1,7 @@
 import { type Task, type Finding } from "./schema.ts";
 import { parseReviewV2, REVIEW_V2_JSON_SCHEMA, type ReviewContext } from "./review-v2.ts";
 import { SYSTEM_PROMPT, taskMessage } from "./prompt.ts";
+import { suspiciousClearDimensions, applyQualityGate, QUALITY_GATE_SCHEMA, QUALITY_GATE_PROMPT } from "./quality-gate.ts";
 
 /** A rewrite is not an identical copy of the submitted task. */
 export type RewriteStatus = "rewritten" | "clarification_draft" | "unavailable";
@@ -13,8 +14,8 @@ export type ReviewedAnalysis = {
   reviewContext: ReviewContext;
   reviewCoverage: { checked: number; gaps: number; reported: number };
 };
-export const DEFAULT_MODEL = "@cf/openai/gpt-oss-20b";
-export const ALLOWED_MODELS = [DEFAULT_MODEL, "@cf/google/gemma-4-26b-a4b-it"] as const;
+export const DEFAULT_MODEL = "@cf/openai/gpt-oss-120b";
+export const ALLOWED_MODELS = [DEFAULT_MODEL] as const;
 const REWRITE_SCHEMA = {
   type: "object",
   properties: { suggestedRewrite: { type: "string" } },
@@ -27,7 +28,7 @@ export interface AiRunner {
     response_format: { type: "json_schema"; json_schema: unknown };
     temperature: number;
     max_tokens: number;
-    reasoning_effort: "low";
+    reasoning_effort: "low" | "medium";
     stream: false;
   }): Promise<unknown>;
 }
@@ -163,7 +164,7 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
         { role: "user", content: taskMessage(task) },
       ],
       response_format: { type: "json_schema", json_schema: REVIEW_V2_JSON_SCHEMA },
-      reasoning_effort: "low", max_tokens: 2800, temperature: 0.1, stream: false,
+      reasoning_effort: "medium", max_tokens: 4000, temperature: 0.1, stream: false,
     });
   } catch {
     throw new InferenceError("upstream");
@@ -171,7 +172,31 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
 
   let reviewed: ReturnType<typeof parseReviewV2>;
   try {
-    reviewed = parseReviewV2(extractJsonResponse(raw), task);
+    const parsed=extractJsonResponse(raw);
+    reviewed = parseReviewV2(parsed, task);
+    const uncertain=suspiciousClearDimensions(task,reviewed.checks);
+    if(uncertain.length && record(parsed)) {
+      try {
+        // One optional second opinion only on context-critical potentially missed gaps.
+        const gateRaw=await ai.run(selected,{
+          messages:[
+            {role:"system",content:QUALITY_GATE_PROMPT},
+            {role:"user",content:JSON.stringify({
+              task,focus:uncertain,
+              existingFindings:reviewed.analysis.findings.map(f=>({title:f.title,question:f.question})),
+              previousChecks:reviewed.checks.filter(c=>uncertain.includes(c.dimension))
+            })}
+          ],
+          response_format:{type:"json_schema",json_schema:QUALITY_GATE_SCHEMA},
+          reasoning_effort:"medium",max_tokens:1450,temperature:0.1,stream:false
+        });
+        const revisedChecks=applyQualityGate(task,reviewed.checks,uncertain,extractJsonResponse(gateRaw));
+        reviewed=parseReviewV2({...parsed,checks:revisedChecks},task);
+      }catch{
+        // Failure of the optional quality gate must not suppress useful findings.
+        // No prompts, task data or raw provider errors are written to logs.
+      }
+    }
   } catch (cause) {
     if (cause instanceof InferenceError && cause.kind === "truncated") throw cause;
     throw new InferenceError("invalid_response");
