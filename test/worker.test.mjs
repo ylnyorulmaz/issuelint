@@ -3,7 +3,7 @@ import { test } from "node:test";
 import worker from "../worker/index.ts";
 import { parseTask, parseAnalysis, ValidationError } from "../worker/schema.ts";
 import { extractJsonResponse, selectModel, isGroundedCore } from "../worker/inference.ts";
-import { REVIEW_DIMENSIONS, parseReviewV2, contextHints } from "../worker/review-v2.ts";
+import { REVIEW_DIMENSIONS, parseReviewV2, contextHints, highConfidenceContradictions } from "../worker/review-v2.ts";
 
 const url = "https://issuelint.example";
 const originalTask = {
@@ -297,7 +297,11 @@ test("no findings and no revised text shows unavailable, not a fake rewrite", as
     return { choices: [{ message: { content: JSON.stringify(calls === 1
       ? toV2(review) : { suggestedRewrite: "" }) }, finish_reason: "stop" }] };
   } } });
-  const res = await worker.fetch(post(), env);
+  const res = await worker.fetch(post({
+    ...originalTask,
+    title: "Send newsletter tomorrow",
+    description: "Send the prepared newsletter to subscribers tomorrow."
+  }), env);
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.analysis.rewriteStatus, "unavailable");
@@ -367,4 +371,25 @@ test("rewrites reject unsupported claims that source never confirmed",()=>{
   const task=parseTask({...originalTask,description:"Implement dark mode from the Figma design.",domain:"Software"});
   assert.equal(isGroundedCore("Implement the approved Figma design, fully tested and production-ready.",task),false);
   assert.equal(isGroundedCore("Implement dark mode using the referenced Figma design.",task),true);
+});
+
+test("critical source-verifiable deadline and audience conflicts survive an AI omission",()=>{
+  const task=parseTask({
+    title:"Follow up with every lead today",
+    description:"Only contact qualified leads. Do not send messages before the new copy is approved tomorrow. Everyone must be contacted by end of today.",
+    type:"General",domain:"Sales",criteria:"",context:"",
+  });
+  const conflicts=highConfidenceContradictions(task);
+  assert.equal(conflicts.length,2);
+  assert.ok(conflicts.every(c=>c.kind==="contradiction"&&c.severity==="critical"&&c.evidence.length===2));
+  const audit=toV2({summary:"The request contains several unresolved issues.",findings:[],suggestedRewrite:""});
+  const output=parseReviewV2(audit,task);
+  assert.equal(output.analysis.status,"blocked");
+  assert.equal(output.analysis.findings.filter(f=>f.kind==="contradiction").length,2);
+  assert.equal(output.reviewCoverage.checked,8);
+});
+
+test("conflict guard does not invent issues in unrelated work",()=>{
+  const task=parseTask({...originalTask,title:"Create two newsletter variants",description:"Design email versions for the next campaign.",domain:"Marketing"});
+  assert.deepEqual(highConfidenceContradictions(task),[]);
 });
