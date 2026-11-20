@@ -24,6 +24,11 @@ jobs:
           grep -q 'MAKE EVERY' /tmp/issue.html
           grep -q 'poster-geometry' /tmp/issue.html
           grep -q 'brand-word' /tmp/issue.html
+          grep -q 'design-switcher' /tmp/issue.html
+          grep -q 'data-design' /tmp/issue.html
+          grep -q 'issuelint.design-theme.v1' /tmp/issue.html
+          grep -q 'neobrutalist' /tmp/issue.html
+          echo 'Both design themes and the preference control are in the live bundle'
           curl -fsS --max-time 20 "$BASE/api/health" | node -e '
             let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
               const x=JSON.parse(s);
