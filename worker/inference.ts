@@ -93,7 +93,18 @@ export function isGroundedCore(text: string, task: Task): boolean {
     /\bguarantee(?:d)?\b|\bverified\b|\bcertified\b/,
     /\b(toggle|manual switch|theme switch|system preference|follow system settings)\b/,
   ];
-  return unsupported.every(re=>!re.test(claimed) || re.test(original));
+  if (!unsupported.every(re=>!re.test(claimed) || re.test(original))) return false;
+  // Reject newly inserted exact quantities/URLs and unrelated rewrite objectives.
+  const urls = claimed.match(/https?:\/\/[^\s)]+/gu) ?? [];
+  if (urls.some(url=>!original.includes(url))) return false;
+  const quantities = claimed.match(/\b\d+(?:[.,]\d+)?\b/gu) ?? [];
+  if (quantities.some(value=>!original.includes(value))) return false;
+  const insignificant = /^(?:this|that|with|from|into|your|then|when|which|where|their|there|would|should|could|about|before|after|only|task|work|user|users|must|will|need|needs|have|been|also|using)$/iu;
+  const keyWords = (text:string) => (text.match(/[\p{L}]{4,}/gu) ?? []).filter(word=>!insignificant.test(word));
+  const originalWords = new Set(keyWords(original));
+  const claimedWords = keyWords(claimed);
+  if (originalWords.size && !claimedWords.some(word=>originalWords.has(word))) return false;
+  return true;
 }
 function coreOnly(draft: string): string {
   return draft.split(/(?:^|\n)\s*(?:open questions|unresolved questions|questions to clarify|açık sorular|netleştirilecek sorular)\s*:/i)[0].trim();
@@ -123,7 +134,11 @@ export function assembleRewrite(core: string, findings: Finding[], task: Task): 
   // Omit the duplicated source description first so questions remain visible.
   const shorter = sections.filter(v => !v.startsWith("Confirmed requirements (from the request):"));
   if (task.criteria.trim()) shorter.splice(1,0,"Completion / acceptance criteria:\n" + task.criteria.trim());
-  return shorter.join("\n\n").slice(0,6500);
+  const questionSection = questions.length ? "Open questions:\n" + questions.map(q=>"- "+q).join("\n") : "";
+  const prefix = shorter.filter(v=>!v.startsWith("Open questions:")).join("\n\n");
+  const note = "\n\n[Draft shortened to fit the export limit; verify the original request.]";
+  const remaining = 6500 - questionSection.length - note.length - 4;
+  return prefix.slice(0,Math.max(0,remaining)) + note + (questionSection ? "\n\n" + questionSection : "");
 }
 
 export function isMeaningfulRewrite(draft: unknown, task: Task): draft is string {
@@ -139,7 +154,8 @@ export function clarificationDraft(task: Task, findings: Finding[]): string {
   if (!questions.length) return "";
   // Source-preserving clarification checklist; never labeled as an AI rewrite.
   const original = assembleRewrite(task.description, findings, task);
-  return task.title.trim() ? "Task: " + task.title.trim() + "\n\n" + original : original;
+  const headed = task.title.trim() ? "Task: " + task.title.trim() + "\n\n" + original : original;
+  return headed.length <= 6500 ? headed : original;
 }
 
 const REWRITE_PROMPT = [
