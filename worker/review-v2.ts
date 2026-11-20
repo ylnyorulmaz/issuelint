@@ -164,7 +164,7 @@ export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
       const original=text(q,260);
       // Models occasionally add typographic wrapper quotes. These are not part
       // of the cited source; strip wrappers, never fabricate missing excerpts.
-      return original.replace(/^[\"“”'‘’]+|[\"“”'‘’]+$/gu,"").trim();
+      return original.replace(/^["“”'‘’]+|["“”'‘’]+$/gu,"").trim();
     }).filter(Boolean);
     if(evidence.some(q=>!sourceHas(task,q)))throw new ValidationError("evidence","Review evidence not found in source.");
     const c:ReviewCheck={
