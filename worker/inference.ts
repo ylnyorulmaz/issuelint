@@ -75,8 +75,26 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
     // No exception messages: provider errors may include request content.
     throw new InferenceError("upstream");
   }
-  try { return parseAnalysis(extractJsonResponse(raw), task); }
-  catch (cause) {
+  try {
+    const output = extractJsonResponse(raw);
+    // Some models return valid findings but an empty rewrite. Preserve the
+    // user's source text rather than invent details or fail the whole review.
+    const normalized = output !== null && typeof output === "object" && !Array.isArray(output)
+      ? { ...output as Record<string, unknown> }
+      : output;
+    if (normalized !== null && typeof normalized === "object" && !Array.isArray(normalized)) {
+      const item = normalized as Record<string, unknown>;
+      if (typeof item.suggestedRewrite !== "string" || item.suggestedRewrite.trim().length < 5) {
+        item.suggestedRewrite = [
+          task.title,
+          task.description,
+          task.criteria ? "Completion criteria:\n" + task.criteria : "",
+          task.context ? "Additional context:\n" + task.context : "",
+        ].filter(Boolean).join("\n\n");
+      }
+    }
+    return parseAnalysis(normalized, task);
+  } catch (cause) {
     if (cause instanceof InferenceError && cause.kind === "truncated") throw cause;
     throw new InferenceError("invalid_response");
   }
