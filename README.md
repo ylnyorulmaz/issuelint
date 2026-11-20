@@ -4,7 +4,7 @@ Platform-independent AI review of work requests. **SolidJS + TypeScript + Cloudf
 
 ## Current preview
 
-- Frontend: minimalist Constructivist design, responsive task form, findings and suggested rewrite.
+- Frontend: **Minimalist by default**, paste-first task review, optional detail fields, findings and validated rewrite.
 - Backend: `POST /api/analyze` → native Workers AI binding → validated structured response.
 - Default AI model: `@cf/openai/gpt-oss-20b`, **low** reasoning effort, 1,600 max output tokens.
 - A private preview token is required for model inference. This is **not** a public AI API.
@@ -95,4 +95,25 @@ The response includes `rewriteStatus` of `rewritten`, `clarification_draft`, or 
 
 ## Minimalist Zen (third visual theme)
 
-The design selector now offers **Minimal Constructivism**, **Neobrutalism** and **Zen**, independent of light/dark mode. The Zen layer is defined in `src/styles.zen.css`: sage/stone palette, open whitespace, calm forms and subdued typography. Existing themes remain unchanged. The selected style name alone is persisted; task data and preview code are never stored.
+The design selector offers **Minimalist (default)**, **Constructivist**, and **Neobrutalism**, independent of light/dark mode. The former Zen design is renamed and refined as Minimalist in `src/styles.minimalist.css`. Existing themes remain unchanged. The selected style name alone is persisted; task data and preview code are never stored.
+
+## Paste-first onboarding (November 2026)
+
+The entry screen intentionally has no oversized marketing hero. A short headline, one large textarea and **Analyze with AI** are immediately visible. Visitors can paste Jira issues, GitHub tickets, briefs, meeting notes or plain-text requests without any integration.
+
+**Only task text is required in the UI.** The task title is derived from the first nonempty source line (at most 120 characters) when the optional title field is blank. Type, area, title, acceptance criteria and context are editable under *Add title, type or criteria (optional)*. The default classification is `General / Other`. The existing API retains its required `title` field; no server contract change. Derived text counts toward the 8,000-character API limit.
+
+Minimalist is the new initial/default design, including in existing browsers through `issuelint.design-theme.v2`. The other two themes remain selectable and persistent.
+
+## Optional Google Analytics 4 + Microsoft Clarity (prepared, not activated)
+
+The codebase has zero tracking identifiers and makes **no analytics requests by default**.
+
+1. Populate `VITE_GA4_MEASUREMENT_ID=G-...` and/or `VITE_CLARITY_PROJECT_ID=...` in your build environment. See `.env.example`. These are public Vite **build-time** IDs, not secrets; redeploy after setting them. Never place API keys, preview tokens or customer text in Vite environment variables.
+2. When a valid ID is present, IssueLint displays a simple opt-in banner. Before acceptance, no GA4/Clarity script is loaded. Declining keeps tracking off; the user can later change this from the footer. Granting consent initializes each configured service.
+3. Tracking is limited to allowlisted, payload-free UI events: `review_started`, `review_completed`, `review_failed`, `example_loaded`, `theme_changed`. There is no text, title, findings, auth code, domain/category or user identifier in custom event payloads. `data-clarity-mask="true"` covers all task-form and results content.
+4. Revoking consent disables future event calls and reloads to remove the scripts from the current page; external analytics records already sent are not retroactively erased.
+
+Google's basic consent-mode pattern loads tags only after opt-in. Clarity receives explicit `consentv2` grant. Configure Clarity project masking settings appropriately and review regional privacy requirements before activation.
+
+Docs: https://developers.google.com/tag-platform/security/guides/consent and https://learn.microsoft.com/en-us/clarity/setup-and-installation/clarity-masking .
