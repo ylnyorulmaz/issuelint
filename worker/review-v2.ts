@@ -142,6 +142,7 @@ function hasSourceDependency(task: Task): boolean {
     taskSource(task));
 }
 function hasSourceReference(task: Task): boolean {
+  if (task.references?.trim()) return true;
   return /\b(figma|link|url|document|doc|file|attachment|reference|specification|design file|template)\b|doküman|bağlantı|ek dosya|tasarım dosyası/iu.test(
     [task.title,task.description,task.criteria,task.context].join(" "));
 }
