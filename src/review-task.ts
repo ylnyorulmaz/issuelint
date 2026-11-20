@@ -10,7 +10,8 @@ export function prepareReviewTask(task: Task): Task {
 
 export function reviewTextLength(task: Task): number {
   const prepared = prepareReviewTask(task);
-  return prepared.title.length + prepared.description.length + prepared.criteria.length + prepared.context.length;
+  return prepared.title.length + prepared.description.length + prepared.criteria.length + prepared.context.length +
+    (prepared.scope?.length ?? 0) + (prepared.outcome?.length ?? 0) + (prepared.references?.length ?? 0);
 }
 
 export function reviewInputValid(task: Task): boolean {
@@ -18,5 +19,7 @@ export function reviewInputValid(task: Task): boolean {
   return prepared.title.length > 0 && prepared.title.length <= 180 &&
     prepared.description.length > 0 && prepared.description.length <= 6500 &&
     prepared.criteria.length <= 1200 && prepared.context.length <= 1200 &&
+    (prepared.scope?.length ?? 0) <= 1000 && (prepared.outcome?.length ?? 0) <= 1000 &&
+    (prepared.references?.length ?? 0) <= 1000 &&
     reviewTextLength(task) <= 8000;
 }
