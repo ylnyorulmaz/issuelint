@@ -4,7 +4,7 @@ import { analyze, blank, examples, type Task, type TaskType, type Domain } from 
 import { analyzeLive, getHealth, ApiError, type ApiAnalysis, type ApiFinding } from './api';
 import './style.css';
 import './styles.neobrutalist.css';
-import './styles.zen.css';
+import './styles.minimalist.css';
 import { readDesignTheme, saveDesignTheme, type DesignTheme } from './design-theme';
 import { BrandEmblem, SectionIndex, FindingMark, ScreenLabel } from './components/Constructivist';
 import { prepareReviewTask, reviewTextLength, reviewInputValid } from './review-task';
@@ -75,7 +75,7 @@ function App() {
       // Scripts already loaded cannot be undone. Reload immediately with tracking disabled.
       const w = window as Window & { clarity?: (...args: unknown[]) => void };
       w.clarity?.('consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' });
-      window.location.reload();
+      if (analyticsConsent() === 'accepted') window.location.reload();
     }
   }
 
@@ -182,7 +182,7 @@ function App() {
           <button type="button" class="design-option" aria-pressed={designTheme() === 'neobrutalist'} title="Neobrutalism" onClick={() => chooseDesignTheme('neobrutalist')}>
             <span class="design-name-long">Neobrutalist</span><span class="design-name-short">Neo</span>
           </button>
-          <button type="button" class="design-option" aria-pressed={designTheme() === 'zen'} title="Minimalist (calm design)" onClick={() => chooseDesignTheme('zen')}>
+          <button type="button" class="design-option" aria-pressed={designTheme() === 'minimalist'} title="Minimalist (calm design)" onClick={() => chooseDesignTheme('minimalist')}>
             <span class="design-name-long">Minimalist</span><span class="design-name-short">Minimal</span>
           </button>
         </div>
@@ -212,11 +212,7 @@ function App() {
           <label for="description">Paste your task, ticket or brief <span class="req">*</span></label>
           <textarea id="description" required rows={5} maxLength={6500} disabled={loading()} placeholder="Paste a Jira or GitHub ticket, a meeting note, a sales request, a marketing brief… or simply describe the work in your own words." value={task().description} onInput={e => edit('description', e.currentTarget.value)}/>
           <div class="paste-helper"><span>Any team. Any tool. Plain text is enough.</span><span>Ctrl / ⌘ + V</span></div>
-          <label for="title">Task title <span class="optional-field">(optional)</span></label>
-          <input id="title" value={task().title} maxLength={180} disabled={loading()} placeholder="Optional — derived from your text if blank" onInput={e => edit('title', e.currentTarget.value)}/>
-          <div class="form-grid"><div><label for="type">Task type</label><select id="type" value={task().type} disabled={loading()} onChange={e => edit('type', e.currentTarget.value as TaskType)}><For each={types}>{t => <option>{t}</option>}</For></select></div>
-          <div><label for="domain">Area</label><select id="domain" value={task().domain} disabled={loading()} onChange={e => edit('domain', e.currentTarget.value as Domain)}><For each={domains}>{d => <option>{d}</option>}</For></select></div></div>
-          <div class="counter" classList={{ 'over-budget': totalLength() > 8000 }}>{totalLength().toLocaleString()} / 8,000 characters (including derived title)</div>
+          <div class="counter" classList={{ 'over-budget': totalLength() > 8000 }}>{totalLength().toLocaleString()} / 8,000 characters</div>
           <Show when={available() === 'private'}>
             <div class="preview-code"><label for="preview-code">Private AI access code</label>
               <input id="preview-code" type="password" autocomplete="off" value={accessCode()} placeholder="Paste your preview code" onInput={e => { setAccessCode(e.currentTarget.value); setError(''); }}/>
@@ -234,9 +230,13 @@ function App() {
             <button class="secondary-action" type="button" disabled={!inputValid() || loading()} onClick={reviewDemo}>Run a demo review instead</button>
           </Show>
           <button type="button" class="disclosure details-disclosure" aria-expanded={details()} onClick={() => setDetails(!details())}>
-            <span><b>{details() ? 'Hide optional details' : '+ Add optional details'}</b><small>Acceptance criteria, constraints and context</small></span><span class="plus">{details() ? '−' : '+'}</span>
+            <span><b>{details() ? 'Hide additional fields' : 'Add title, type or criteria (optional)'}</b><small>Only if the task needs more context</small></span><span class="plus">{details() ? '−' : '+'}</span>
           </button>
           <Show when={details()}><div class="extra">
+            <label for="title">Task title <span class="optional-field">(optional)</span></label>
+            <input id="title" value={task().title} maxLength={180} disabled={loading()} placeholder="Derived from pasted task if left blank" onInput={e => edit('title', e.currentTarget.value)}/>
+            <div class="form-grid"><div><label for="type">Task type</label><select id="type" value={task().type} disabled={loading()} onChange={e => edit('type', e.currentTarget.value as TaskType)}><For each={types}>{t => <option>{t}</option>}</For></select></div>
+            <div><label for="domain">Area</label><select id="domain" value={task().domain} disabled={loading()} onChange={e => edit('domain', e.currentTarget.value as Domain)}><For each={domains}>{d => <option>{d}</option>}</For></select></div></div>
             <label for="criteria">Completion / acceptance criteria</label><textarea id="criteria" rows={3} maxLength={1200} value={task().criteria} onInput={e => edit('criteria', e.currentTarget.value)}/>
             <label for="context">Constraints and context</label><textarea id="context" rows={3} maxLength={1200} value={task().context} onInput={e => edit('context', e.currentTarget.value)}/>
             <button class="optional-analyze" type="submit" disabled={!inputValid() || loading() || available() === 'checking'}>
