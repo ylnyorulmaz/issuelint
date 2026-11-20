@@ -18,7 +18,7 @@ jobs:
           done
           grep -q '<div id="root"></div>' /tmp/issue.html
           grep -q '<script type="module">' /tmp/issue.html
-          grep -q 'No review yet' /tmp/issue.html
+          grep -q 'AWAITING INPUT.' /tmp/issue.html
           grep -q 'Analyze with AI' /tmp/issue.html
           grep -q 'Private AI access code' /tmp/issue.html
           grep -q 'MAKE EVERY' /tmp/issue.html
