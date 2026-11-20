@@ -6,11 +6,16 @@ import {scoreEvaluation,evaluateSummary,repeatConsistency} from "../scripts/eval
 test("golden fixtures cover four domains and distinguish ready from incomplete work",async()=>{
   const golden=JSON.parse(await readFile(new URL("../eval/golden.json",import.meta.url),"utf8"));
   assert.equal(golden.version,"2.2");
-  assert.ok(golden.cases.length>=12);
+  assert.ok(golden.cases.length>=20);
   for(const domain of ["Software","Sales","Marketing","Operations"]){
     assert.ok(golden.cases.some(x=>x.domain===domain),"missing domain "+domain);
   }
   assert.ok(golden.cases.some(x=>x.task.description.includes("koyu tema")));
+  for(const dimension of ["actionability","granularity","outcome"]){
+    assert.ok(golden.cases.some(x=>x.expected.includes(dimension)),"Missing quality fixture: "+dimension);
+  }
+  const atomic=golden.cases.filter(x=>x.id.includes("specific")||x.id.includes("atomic"));
+  assert.ok(atomic.some(x=>x.expected.length===0),"Need well-scoped controls");
   const ids=new Set();
   for(const example of golden.cases){
     assert.ok(example.id&&!ids.has(example.id),"duplicate fixture ID");
