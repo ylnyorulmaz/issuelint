@@ -1,0 +1,290 @@
+{
+  "version": "2.1",
+  "labelPolicy": "Human-authored expected and allowed dimensions; review and revise as product requirements evolve",
+  "cases": [
+    {
+      "id": "software-dark-mode-vague",
+      "domain": "Software",
+      "task": {
+        "title": "Add dark mode",
+        "description": "Users want dark mode on web and mobile. Follow the design from Figma and ship it in the next sprint.",
+        "type": "General",
+        "domain": "Other",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "scope",
+        "behavior",
+        "references",
+        "completion"
+      ],
+      "allowed": [
+        "scope",
+        "behavior",
+        "references",
+        "completion",
+        "clarity"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "software-dark-mode-specific",
+      "domain": "Software",
+      "task": {
+        "title": "Add dark mode to web settings",
+        "description": "Add a manual Light/Dark toggle on the Settings screen only. Keep the user choice after refresh. This task does not cover mobile.",
+        "type": "Feature",
+        "domain": "Software",
+        "criteria": "Toggle works; choice persists after refresh; Settings screen only; no other screens are changed.",
+        "context": "The visual tokens are provided in the attached approved design specification."
+      },
+      "expected": [],
+      "allowed": [],
+      "status": "ready"
+    },
+    {
+      "id": "software-export-vague",
+      "domain": "Software",
+      "task": {
+        "title": "Add export",
+        "description": "Users should be able to export their information from the application.",
+        "type": "Feature",
+        "domain": "Software",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "scope",
+        "behavior"
+      ],
+      "allowed": [
+        "scope",
+        "behavior",
+        "completion"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "software-bug-vague",
+      "domain": "Software",
+      "task": {
+        "title": "App crashes",
+        "description": "Users say that the app sometimes crashes when opening it. Please fix this soon.",
+        "type": "Bug",
+        "domain": "Software",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "behavior"
+      ],
+      "allowed": [
+        "scope",
+        "behavior",
+        "completion",
+        "clarity"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "software-bug-specific",
+      "domain": "Software",
+      "task": {
+        "title": "Fix Settings crash on Android 14",
+        "description": "On Android 14, open Settings, tap Notifications, and the app crashes. Expected: Notifications screen opens. Actual: app exits. Exception logged as NullPointerException in SettingsFragment at line 42.",
+        "type": "Bug",
+        "domain": "Software",
+        "criteria": "On Android 14 the steps above open Notifications without a crash. Regression test covers this path.",
+        "context": "The stack trace and reproduction steps are included above."
+      },
+      "expected": [],
+      "allowed": [],
+      "status": "ready"
+    },
+    {
+      "id": "sales-conflicting-deadline",
+      "domain": "Sales",
+      "task": {
+        "title": "Contact every lead today",
+        "description": "Only qualified leads should be contacted. Do not send the new outreach copy until it is approved tomorrow. Everyone must be contacted by end of today.",
+        "type": "General",
+        "domain": "Sales",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "contradictions"
+      ],
+      "allowed": [
+        "contradictions",
+        "scope",
+        "dependencies"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "sales-prospect-segment-vague",
+      "domain": "Sales",
+      "task": {
+        "title": "Follow up leads",
+        "description": "Follow up the leads and get more demos scheduled this week.",
+        "type": "General",
+        "domain": "Sales",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "scope"
+      ],
+      "allowed": [
+        "scope",
+        "behavior",
+        "completion",
+        "clarity"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "sales-specific",
+      "domain": "Sales",
+      "task": {
+        "title": "Follow up qualified Q4 leads",
+        "description": "Contact the 20 Q4 qualified leads already tagged Ready in CRM through their registered email addresses on Tuesday. Do not contact leads marked Unsubscribed.",
+        "type": "General",
+        "domain": "Sales",
+        "criteria": "Log each outreach in the CRM and hand interested replies to the account executive.",
+        "context": "Use the approved Q4 outreach template."
+      },
+      "expected": [],
+      "allowed": [],
+      "status": "ready"
+    },
+    {
+      "id": "marketing-campaign-vague",
+      "domain": "Marketing",
+      "task": {
+        "title": "Launch social campaign",
+        "description": "Create a social media campaign that improves awareness for the new product next month.",
+        "type": "Request",
+        "domain": "Marketing",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "scope",
+        "completion"
+      ],
+      "allowed": [
+        "scope",
+        "behavior",
+        "completion",
+        "clarity"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "marketing-specific",
+      "domain": "Marketing",
+      "task": {
+        "title": "Publish webinar reminder",
+        "description": "Publish the approved 2-paragraph webinar reminder as a LinkedIn post on 24 November at 10:00 using the existing graphic and approved link.",
+        "type": "General",
+        "domain": "Marketing",
+        "criteria": "Confirm that the text, graphic and event URL appear correctly in the published post.",
+        "context": "Assets and copy are in the current campaign folder."
+      },
+      "expected": [],
+      "allowed": [
+        "references"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "operations-procurement-vague",
+      "domain": "Operations",
+      "task": {
+        "title": "Purchase replacement laptops",
+        "description": "Order new laptops for the team as soon as possible.",
+        "type": "Request",
+        "domain": "Operations",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "scope"
+      ],
+      "allowed": [
+        "scope",
+        "dependencies",
+        "completion",
+        "clarity"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "operations-specific",
+      "domain": "Operations",
+      "task": {
+        "title": "Order 3 replacement laptops",
+        "description": "Order three laptops with configuration SKU-L14 from the approved supplier for the Istanbul office. Total spending cap is 90,000 TRY. Manager approval has already been recorded.",
+        "type": "Request",
+        "domain": "Operations",
+        "criteria": "Order confirmation is sent to the office coordinator by 25 November.",
+        "context": "Supplier and delivery address are in the procurement system."
+      },
+      "expected": [],
+      "allowed": [
+        "references"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "turkish-feature-vague",
+      "domain": "Software",
+      "task": {
+        "title": "Koyu tema ekle",
+        "description": "Web ve mobil uygulamaya koyu tema ekleyelim. Figma'ya uygun olsun ve gelecek sprintte bitsin.",
+        "type": "General",
+        "domain": "Other",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "scope",
+        "behavior"
+      ],
+      "allowed": [
+        "scope",
+        "behavior",
+        "references",
+        "completion",
+        "clarity"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "turkish-marketing-vague",
+      "domain": "Marketing",
+      "task": {
+        "title": "Yeni kampanya",
+        "description": "Yeni müşteriler için bir kampanya hazırlayalım. Sosyal medyada yayınlayacağız ve iyi sonuç alalım.",
+        "type": "General",
+        "domain": "Other",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "scope",
+        "completion"
+      ],
+      "allowed": [
+        "scope",
+        "behavior",
+        "completion",
+        "clarity"
+      ],
+      "status": "needs_clarification"
+    }
+  ]
+}
