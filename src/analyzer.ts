@@ -4,7 +4,7 @@ export type Kind='missing'|'ambiguity'|'contradiction'|'suggestion';
 export type Task={title:string;description:string;type:TaskType;domain:Domain;criteria:string;context:string};
 export type Finding={kind:Kind;title:string;detail:string;question?:string};
 export type Analysis={mode:'demo'|'basic';score:number|null;summary:string;findings:Finding[];draft:string};
-export const blank=():Task=>({title:'',description:'',type:'General',domain:'Software',criteria:'',context:''});
+export const blank=():Task=>({title:'',description:'',type:'General',domain:'Other',criteria:'',context:''});
 export const examples:{id:string;label:string;task:Task;result:Analysis}[]=[
 {id:'software',label:'Software · Dark mode',task:{title:'Add dark mode',description:'Users want dark mode on web and mobile. Follow the design from Figma and ship it in the next sprint.',type:'Feature',domain:'Software',criteria:'',context:''},result:{mode:'demo',score:72,summary:'Useful starting point, but the scope and completion criteria are unclear.',findings:[
 {kind:'missing',title:'Completion criteria are missing',detail:'No testable definition of done is specified.',question:'What must work to consider the feature finished?'},
