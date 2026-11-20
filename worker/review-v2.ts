@@ -5,8 +5,8 @@ import {
 
 /** Explicit quality audit; a single missing checkbox is not an acceptable review. */
 export const REVIEW_DIMENSIONS = [
-  "scope", "behavior", "completion", "dependencies",
-  "references", "clarity", "contradictions", "feasibility",
+  "contradictions", "scope", "behavior", "completion",
+  "references", "dependencies", "clarity", "feasibility",
 ] as const;
 export type ReviewDimension = typeof REVIEW_DIMENSIONS[number];
 export type CheckAssessment = "clear" | "gap" | "not_applicable";
@@ -98,6 +98,28 @@ export function contextHints(task: Task): {domain: typeof DOMAINS[number]; type:
 }
 
 /** Remove generalized filler rather than treating it as a real finding. */
+function hasSourceDependency(task: Task): boolean {
+  return /\b(after|before|until|pending|approval|approved|blocked|depend|waiting|sign.off|requires)\b|onay|bekle|bağımlılık/iu.test(
+    [task.title,task.description,task.criteria,task.context].join(" "));
+}
+function hasSourceReference(task: Task): boolean {
+  return /\b(figma|link|url|document|doc|file|attachment|reference|specification|design file|template)\b|doküman|bağlantı|ek dosya|tasarım dosyası/iu.test(
+    [task.title,task.description,task.criteria,task.context].join(" "));
+}
+function hasSourceFeasibilityConcern(task: Task): boolean {
+  return /\b(impossible|cannot|can't|unsupported|unavailable|no access|not feasible|blocked by|doesn't support)\b|imkansız|mümkün değil|erişim yok|desteklemiyor/iu.test(
+    [task.title,task.description,task.criteria,task.context].join(" "));
+}
+function isUnsupportedGap(c: ReviewCheck, task: Task): boolean {
+  if(c.assessment !== "gap")return false;
+  if(c.dimension==="dependencies" && !hasSourceDependency(task))return true;
+  if(c.dimension==="references" && !hasSourceReference(task))return true;
+  if(c.dimension==="feasibility" && !hasSourceFeasibilityConcern(task))return true;
+  // A generic request to prove completion isn't always a blocker.
+  if(c.dimension==="completion" && /what evidence will prove|how will you prove/i.test(c.question) && c.evidence.length===0)return true;
+  return false;
+}
+
 function isGenericClarity(c: ReviewCheck): boolean {
   if (c.dimension !== "clarity" || c.evidence.length) return false;
   const content = norm(c.title+" "+c.question);
@@ -107,7 +129,7 @@ function isGenericClarity(c: ReviewCheck): boolean {
 /** A priority gate: all 8 checks were inspected and the most important distinct gaps become findings. */
 export function prioritizeChecks(checks: ReviewCheck[], task: Task): Finding[] {
   const rank: Record<ReviewCheck["severity"],number>={critical:0,important:1,suggestion:2};
-  const candidates=checks.filter(c=>c.assessment==="gap" && !isGenericClarity(c))
+  const candidates=checks.filter(c=>c.assessment==="gap" && !isGenericClarity(c) && !isUnsupportedGap(c,task))
     .sort((a,b)=>rank[a.severity]-rank[b.severity]||REVIEW_DIMENSIONS.indexOf(a.dimension)-REVIEW_DIMENSIONS.indexOf(b.dimension));
   const findings: Finding[]=[];
   const seen=new Set<string>();
@@ -138,7 +160,12 @@ export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
     if(seen.has(raw.dimension))throw new ValidationError("checks","Duplicate review dimension.");
     seen.add(raw.dimension);
     if(!Array.isArray(raw.evidence) || raw.evidence.length>2 || raw.evidence.some(e=>typeof e!=="string"))throw new ValidationError("evidence","Invalid review evidence.");
-    const evidence=raw.evidence.map(q=>text(q,260)).filter(Boolean);
+    const evidence=raw.evidence.map(q=>{
+      const original=text(q,260);
+      // Models occasionally add typographic wrapper quotes. These are not part
+      // of the cited source; strip wrappers, never fabricate missing excerpts.
+      return original.replace(/^[\"“”'‘’]+|[\"“”'‘’]+$/gu,"").trim();
+    }).filter(Boolean);
     if(evidence.some(q=>!sourceHas(task,q)))throw new ValidationError("evidence","Review evidence not found in source.");
     const c:ReviewCheck={
       dimension:raw.dimension, assessment:raw.assessment, severity:raw.severity,kind:raw.kind,
