@@ -10,6 +10,8 @@ import { BrandEmblem, SectionIndex, FindingMark, ScreenLabel } from './component
 import { prepareReviewTask, reviewTextLength, reviewInputValid } from './review-task';
 import { analyticsConfigured, readAnalyticsConsent, saveAnalyticsConsent, enableAnalytics, trackAnalyticsEvent, type AnalyticsConsent } from './analytics';
 import './styles.entry.css';
+import './styles.review-loading.css';
+import { ReviewLoading } from './components/ReviewLoading';
 
 const types: TaskType[] = ['General', 'Bug', 'Feature', 'Improvement', 'Request'];
 const domains: Domain[] = ['Software', 'Marketing', 'Sales', 'Operations', 'Other'];
@@ -286,7 +288,7 @@ function App() {
 
       <div class="card result-card" id="results" data-clarity-mask="true" aria-live="polite" aria-busy={loading()}>
         <div class="result-section-head"><ScreenLabel index="03">REVIEW / FINDINGS</ScreenLabel><span class="result-section-line" aria-hidden="true"/></div>
-        <Show when={!loading()} fallback={<div class="empty loading-state"><div class="empty-icon spin">↗</div><h2>RUNNING REVIEW.</h2><p>Deep review: checking scope, behavior, completion and contradictions. This may take longer with the larger model…</p><button class="secondary-action" type="button" onClick={cancelRequest}>Cancel</button></div>}>
+        <Show when={!loading()} fallback={<ReviewLoading onCancel={cancelRequest}/>}>
           <Show when={result()} fallback={
             <Show when={error()} fallback={<div class="empty">
               <div class="empty-icon">↗</div><h2>AWAITING INPUT.</h2>

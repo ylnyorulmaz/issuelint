@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import worker from "../worker/index.ts";
 import { parseTask, parseAnalysis, ValidationError } from "../worker/schema.ts";
-import { extractJsonResponse, selectModel, isGroundedCore } from "../worker/inference.ts";
+import { extractJsonResponse, selectModel, isGroundedCore, assembleRewrite, polishRewriteCore, containsAdditionalRequirements } from "../worker/inference.ts";
 import { REVIEW_DIMENSIONS, parseReviewV2, contextHints, highConfidenceContradictions, dimensionPriority } from "../worker/review-v2.ts";
 import { suspiciousClearDimensions, applyQualityGate } from "../worker/quality-gate.ts";
 
@@ -96,7 +96,7 @@ test("GET /api/health reports Iteration 2 without running AI", async () => {
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.equal(data.iteration, 2);
-  assert.equal(data.reviewEngineVersion,"2.3");
+  assert.equal(data.reviewEngineVersion,"2.4");
   assert.equal(data.aiEnabled, false);
   assert.equal(data.aiBindingConfigured, true);
   assert.equal(calls.length, 0);
@@ -132,13 +132,16 @@ test("valid analysis calls the native AI binding once and returns validated JSON
   assert.equal(data.mode, "ai");
   assert.equal(data.analyzed, true);
   assert.equal(data.analysis.status, "blocked");
-  assert.deepEqual(data.analysis.findings, validAnalysis.findings);
+  assert.deepEqual(data.analysis.findings.map(f=>f.title),[
+    "Deadline conflicts with prerequisite", "Audience instructions conflict"
+  ]);
+  assert.ok(data.analysis.findings.every(f=>f.evidence.length===2));
   assert.equal(data.analysis.rewriteStatus, "clarification_draft");
   assert.match(data.analysis.suggestedRewrite, /Open questions:/);
   assert.equal(data.analysis.reviewCoverage.checked, REVIEW_DIMENSIONS.length);
-  assert.equal(data.analysis.reviewCoverage.reported, 1);
+  assert.equal(data.analysis.reviewCoverage.reported, 2);
   assert.equal(data.analysis.reviewContext.domain, "Sales");
-  assert.deepEqual(data.analysis.findingDimensions,["contradictions"]);
+  assert.deepEqual(data.analysis.findingDimensions,["contradictions","contradictions"]);
   assert.equal(data.analysis.modelUsage.calls,1);
   assert.equal(data.analysis.modelUsage.neurons,null);
   assert.equal(res.headers.get("cache-control"), "no-store");
@@ -702,4 +705,120 @@ test("2.3 rejects unrelated or newly invented rewrite facts", () => {
   assert.equal(isGroundedCore("Write a welcome note for volunteers at https://invented.example",task),false);
   assert.equal(isGroundedCore("Send 500 welcome notes to volunteers.",task),false);
   assert.equal(isGroundedCore("Prepare a welcome note for new volunteers.",task),true);
+});
+
+
+test("2.4 merges repeated sales contradictions and approval dependency into two distinct root issues", () => {
+  const task=parseTask({
+    title:"Follow up with every lead today",
+    description:"Only contact qualified leads. Do not send messages before the new copy is approved tomorrow. Everyone must be contacted by end of today.",
+    type:"General",domain:"Sales",criteria:"",context:"",
+  });
+  const audit=toV2({summary:"Four problems with outreach.",findings:[],suggestedRewrite:""});
+  const gap=(dimension,kind,severity,title,detail,question,evidence)=>({
+    dimension,assessment:"gap",kind,severity,title,detail,question,evidence,
+  });
+  const replacements={
+    contradictions:gap("contradictions","contradiction","critical",
+      "Conflicting instructions on lead contact",
+      "The task says only contact qualified leads but everyone must be contacted today.",
+      "Which instruction takes priority: contacting all leads or qualified leads?",
+      ["Only contact qualified leads.","Everyone must be contacted by end of today."]),
+    dependencies:gap("dependencies","missing","important",
+      "Pending copy approval",
+      "Copy cannot be sent until approval tomorrow, blocking today's required deadline.",
+      "Will the copy be approved in time or should the deadline move?",
+      ["Do not send messages before the new copy is approved tomorrow."]),
+    scope:gap("scope","missing","important",
+      "Unclear audience",
+      "The recipient decision between all leads and qualified leads is unresolved.",
+      "Should outreach target all leads or qualified leads only?",
+      ["Only contact qualified leads."]),
+  };
+  audit.checks=audit.checks.map(c=>replacements[c.dimension]??c);
+  const output=parseReviewV2(audit,task);
+  assert.equal(output.analysis.status,"blocked");
+  assert.deepEqual(output.analysis.findings.map(f=>f.title),[
+    "Deadline conflicts with prerequisite","Audience instructions conflict"
+  ]);
+  assert.deepEqual(output.findingDimensions,["contradictions","contradictions"]);
+  assert.equal(output.reviewCoverage.reported,2);
+  assert.equal(output.reviewCoverage.checked,11);
+});
+
+test("2.4 blocked review keeps one genuinely independent supporting issue", () => {
+  const task=parseTask({
+    title:"Follow up with every lead today",
+    description:"Only contact qualified leads. Do not send messages before the new copy is approved tomorrow. Everyone must be contacted by end of today. Use the Figma file for message copy.",
+    type:"General",domain:"Sales",criteria:"",context:"",
+  });
+  const audit=toV2({summary:"Conflicts and reference.",findings:[],suggestedRewrite:""});
+  audit.checks=audit.checks.map(c=>c.dimension==="references"?
+    {...c,assessment:"gap",kind:"missing",severity:"important",
+      title:"Message copy reference is unclear",detail:"The Figma file referenced for copy cannot be identified.",
+      question:"Which Figma file contains the message copy?",evidence:["Use the Figma file for message copy."]}:c);
+  const output=parseReviewV2(audit,task);
+  assert.equal(output.analysis.status,"blocked");
+  assert.deepEqual(output.analysis.findings.map(f=>f.title),[
+    "Deadline conflicts with prerequisite","Audience instructions conflict","Message copy reference is unclear"
+  ]);
+});
+
+test("2.4 does not merge distinct software scope, behavior and design questions", () => {
+  const task=parseTask({title:"Add dark mode",
+    description:"Users want dark mode on web and mobile. Follow the design from Figma and ship it next sprint.",
+    type:"Feature",domain:"Software",criteria:"",context:""});
+  const audit=toV2({summary:"Three decisions are needed.",findings:[],suggestedRewrite:""});
+  const issues={
+    scope:["Unspecified target screens/components","Which screens and components should support dark mode?","dark mode on web and mobile"],
+    behavior:["Unclear theme behavior","Should dark mode be toggled or follow system preferences?","Users want dark mode"],
+    references:["Missing design reference link","Which Figma design file should developers use?","Follow the design from Figma"],
+  };
+  audit.checks=audit.checks.map(c=>issues[c.dimension]?{
+    ...c,assessment:"gap",kind:"missing",severity:"important",
+    title:issues[c.dimension][0],detail:"This decision needs clarification before implementation.",
+    question:issues[c.dimension][1],evidence:[issues[c.dimension][2]]
+  }:c);
+  const review=parseReviewV2(audit,task);
+  assert.deepEqual(review.findingDimensions,["scope","behavior","references"]);
+  assert.equal(review.analysis.findings.length,3);
+});
+
+test("2.4 rewrites a named but unprovided Figma design conservatively and reduces echoes", () => {
+  const task=parseTask({
+    title:"Implement dark mode",
+    description:"Users want dark mode on web and mobile. Follow the design from Figma and ship it in the next sprint.",
+    type:"Feature",domain:"Software",criteria:"",context:"",
+  });
+  const core="Implement dark mode for web and mobile following the specified Figma design, and ship it in the next sprint.";
+  assert.equal(polishRewriteCore(core,task).includes("specified Figma design"),false);
+  const draft=assembleRewrite(core,[],task);
+  assert.match(draft,/the referenced Figma design/);
+  assert.doesNotMatch(draft,/Confirmed requirements/);
+  assert.match(draft,/Goal:/);
+  const withCriteria=assembleRewrite(core,[],{...task,criteria:"Verify contrast accessibility."});
+  assert.match(withCriteria,/Confirmed requirements/);
+  assert.match(withCriteria,/Verify contrast accessibility/);
+});
+
+test("2.4 retains source requirements that are missing from the rewrite core", () => {
+  const task=parseTask({
+    title:"Create an onboarding page",
+    description:"Create an onboarding page. Do not collect payment card details. Keep translations for French and Turkish.",
+    type:"Feature",domain:"Software",criteria:"",context:"",
+  });
+  const draft=assembleRewrite("Create an onboarding page.",[],task);
+  assert.match(draft,/Confirmed requirements/);
+  assert.match(draft,/Do not collect payment card details/);
+  assert.equal(containsAdditionalRequirements(task.description,"Create an onboarding page."),true);
+});
+
+
+test("2.4 retains separate audience and timing roots even when they cite the same two sentences",()=>{
+  const task=parseTask(originalTask);
+  const output=parseReviewV2(toV2(validAnalysis),task);
+  assert.deepEqual(output.analysis.findings.map(f=>f.title),[
+    "Deadline conflicts with prerequisite","Audience instructions conflict"
+  ]);
+  assert.equal(output.reviewCoverage.reported,2);
 });

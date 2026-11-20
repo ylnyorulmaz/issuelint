@@ -31,12 +31,12 @@ jobs:
           grep -q 'zen-pale' /tmp/issue.html
           grep -q 'rewriteStatus' /tmp/issue.html
           grep -q 'Minimalist' /tmp/issue.html
-          echo 'Task review UI and rewrite contract present in deployed Worker (2.2/2.3 transition)'
+          echo 'Task review UI and rewrite contract present in deployed Worker (2.3/2.4 transition)'
           echo 'Three design themes and the preference control are in the live bundle'
           curl -fsS --max-time 20 "$BASE/api/health" | node -e '
             let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
               const x=JSON.parse(s);
-              if(x.status!=="ok"||x.iteration!==2||!["2.2","2.3"].includes(x.reviewEngineVersion)||!x.aiBindingConfigured||!x.aiEnabled){
+              if(x.status!=="ok"||x.iteration!==2||!["2.3","2.4"].includes(x.reviewEngineVersion)||!x.aiBindingConfigured||!x.aiEnabled){
                 process.exit(1);
               }
               console.log("Healthy live AI Worker ("+x.reviewEngineVersion+") with private preview gate");
