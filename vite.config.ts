@@ -1,3 +1,8 @@
-import { defineConfig } from 'vite';
-import solid from 'vite-plugin-solid';
-export default defineConfig({ plugins: [solid()], build: { target: 'es2022' } });
+import { defineConfig } from "vite";
+import solid from "vite-plugin-solid";
+import { cloudflare } from "@cloudflare/vite-plugin";
+
+export default defineConfig({
+  plugins: [solid(), cloudflare()],
+  build: { target: "es2022" },
+});
