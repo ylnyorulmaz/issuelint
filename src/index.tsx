@@ -159,7 +159,7 @@ function App() {
           <div class="counter" classList={{ 'over-budget': totalLength() > 8000 }}>{totalLength().toLocaleString()} / 8,000 characters</div>
           <Show when={available() === 'private'}>
             <div class="preview-code"><label for="preview-code">Private preview access code</label>
-              <input id="preview-code" type="password" autoComplete="off" value={accessCode()} placeholder="Enter access code" onInput={e => setAccessCode(e.currentTarget.value)}/>
+              <input id="preview-code" type="password" autocomplete="off" value={accessCode()} placeholder="Enter access code" onInput={e => setAccessCode(e.currentTarget.value)}/>
               <p>Kept in this tab only, never saved. Required for private AI calls.</p>
             </div>
           </Show>
