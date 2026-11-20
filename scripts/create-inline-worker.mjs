@@ -14,8 +14,8 @@ let html = read('assets/index.html');
 const scriptMatch = html.match(/<script[^>]+src="(\/assets\/[^"]+\.js)"[^>]*><\/script>/);
 const styleMatch = html.match(/<link[^>]+href="(\/assets\/[^"]+\.css)"[^>]*>/);
 if (!scriptMatch || !styleMatch) throw new Error('Vite asset template changed; inline build refused');
-const js = read('assets' + scriptMatch[1].replace(/^\/assets/, '')).replace(/<\/script/gi, '<\\/script');
-const css = read('assets' + styleMatch[1].replace(/^\/assets/, '')).replace(/<\/style/gi, '<\\/style');
+const js = read('assets' + scriptMatch[1]).replace(/<\/script/gi, '<\\/script');
+const css = read('assets' + styleMatch[1]).replace(/<\/style/gi, '<\\/style');
 html = html.replace(scriptMatch[0], '<script type="module">' + js + '</script>')
   .replace(styleMatch[0], '<style>' + css + '</style>');
 if (html.includes('src="/assets/') || html.includes('href="/assets/')) {
