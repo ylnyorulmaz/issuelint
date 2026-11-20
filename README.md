@@ -178,3 +178,16 @@ The conditional quality gate can also challenge overoptimistic `clear` assessmen
 **Evaluation:** `eval/golden.json` now has 23 human-labeled cases, including oversized epics, atomic well-defined tasks, vague topics, ambiguous campaign outcomes, explicit agent access constraints and Turkish examples. `npm run eval:live` remains an opt-in paid model experiment; the automated suite checks contracts and test fixtures, not human-level accuracy. Review coverage in the API/UI is now 11 checks.
 
 The primary inference output budget increases to 4,700 tokens to accommodate the wider audit. A larger response may mean more latency and Neuron usage. Monitor live `modelUsage`; 2.2 is not guaranteed to outperform 2.1 without real golden-set evaluation.
+
+
+## Review Engine 2.3 — dual input, final verdict integrity and actionable drafts
+
+**Input methods:** *Paste existing task* keeps the one-field, paste-first audit experience. *Build a task* exposes title, type, area and description plus three optional fields: **scope / audience**, **expected outcome** and **references**. Both modes retain optional completion criteria and constraints/context. Switching modes preserves entered text; the same backend runs the review. No field besides a task description is mandatory in the browser; a missing title is still derived from its first line.
+
+**API compatibility:** Older six-field requests remain accepted. The optional \`scope\`, \`outcome\` and \`references\` fields are independently limited to 1,000 characters and count toward the existing 8,000-character aggregate budget. All fields may provide source evidence, and the Worker rejects fabricated quotations.
+
+**Verdict consistency:** The Worker derives \`ready\` / \`needs_clarification\` / \`blocked\` from the final selected findings, then writes the displayed summary from **that same final set**, not an earlier model-written summary. This prevents the first-pass summary from claiming there are no missing details when the second-pass QA gate discovers important gaps.
+
+**Copy-ready output:** A grounded goal is assembled with optional Scope, Expected outcome, Confirmed requirements copied from the source, Constraints/context, References supplied (not verified by fetching), and Open questions taken from selected findings. Empty headings are omitted. Conflicting/blocked requests produce a source-preserving clarification checklist rather than a rewrite that arbitrarily picks a side. Source grounding includes anti-hallucination checks for asserted completion, fabricated quantities and URLs, and unrelated goals.
+
+**Testing:** \`npm run check\` covers TypeScript, Worker and client contracts, and the Vite build. New regression cases check contradictory summaries, optional evidence inputs, structured rewrites and backward compatibility. Golden-set live model evaluation remains separate and is not replaced by contract tests.
