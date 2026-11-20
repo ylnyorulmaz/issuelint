@@ -3,7 +3,8 @@ import { test } from "node:test";
 import worker from "../worker/index.ts";
 import { parseTask, parseAnalysis, ValidationError } from "../worker/schema.ts";
 import { extractJsonResponse, selectModel, isGroundedCore } from "../worker/inference.ts";
-import { REVIEW_DIMENSIONS, parseReviewV2, contextHints, highConfidenceContradictions } from "../worker/review-v2.ts";
+import { REVIEW_DIMENSIONS, parseReviewV2, contextHints, highConfidenceContradictions, dimensionPriority } from "../worker/review-v2.ts";
+import { suspiciousClearDimensions, applyQualityGate } from "../worker/quality-gate.ts";
 
 const url = "https://issuelint.example";
 const originalTask = {
@@ -48,7 +49,7 @@ function makeEnv(overrides = {}) {
   const env = {
     ANALYZE_ENABLED: "true",
     PREVIEW_TOKEN: "test-preview-secret-with-24-plus-characters",
-    AI_MODEL: "@cf/openai/gpt-oss-20b",
+    AI_MODEL: "@cf/openai/gpt-oss-120b",
     AI: {
       async run(model, options) {
         calls.push({ model, options });
@@ -79,6 +80,7 @@ test("GET /api/health reports Iteration 2 without running AI", async () => {
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.equal(data.iteration, 2);
+  assert.equal(data.reviewEngineVersion,"2.1");
   assert.equal(data.aiEnabled, false);
   assert.equal(data.aiBindingConfigured, true);
   assert.equal(calls.length, 0);
@@ -120,13 +122,16 @@ test("valid analysis calls the native AI binding once and returns validated JSON
   assert.equal(data.analysis.reviewCoverage.checked, 8);
   assert.equal(data.analysis.reviewCoverage.reported, 1);
   assert.equal(data.analysis.reviewContext.domain, "Sales");
+  assert.deepEqual(data.analysis.findingDimensions,["contradictions"]);
+  assert.equal(data.analysis.modelUsage.calls,1);
+  assert.equal(data.analysis.modelUsage.neurons,null);
   assert.equal(res.headers.get("cache-control"), "no-store");
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].model, "@cf/openai/gpt-oss-20b");
+  assert.equal(calls[0].model, "@cf/openai/gpt-oss-120b");
   assert.equal(calls[0].options.response_format.type, "json_schema");
   assert.equal(calls[0].options.stream, false);
-  assert.equal(calls[0].options.reasoning_effort, "low");
-  assert.equal(calls[0].options.max_tokens, 2800);
+  assert.equal(calls[0].options.reasoning_effort, "medium");
+  assert.equal(calls[0].options.max_tokens, 4000);
   assert.match(calls[0].options.messages[1].content, /Contact all leads today/);
 });
 
@@ -194,8 +199,8 @@ test("upstream failure is not retried and exposes no provider details", async ()
 });
 
 test("unsupported model configuration falls back to allowlisted default", () => {
-  assert.equal(selectModel("@cf/attacker/arbitrary-expensive-model"), "@cf/openai/gpt-oss-20b");
-  assert.equal(selectModel("@cf/openai/gpt-oss-20b"), "@cf/openai/gpt-oss-20b");
+  assert.equal(selectModel("@cf/attacker/arbitrary-expensive-model"), "@cf/openai/gpt-oss-120b");
+  assert.equal(selectModel("@cf/openai/gpt-oss-120b"), "@cf/openai/gpt-oss-120b");
 });
 
 test("accepts object response variants from Workers AI", () => {
@@ -306,7 +311,7 @@ test("no findings and no revised text shows unavailable, not a fake rewrite", as
   const body = await res.json();
   assert.equal(body.analysis.rewriteStatus, "unavailable");
   assert.equal(body.analysis.suggestedRewrite, "");
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
 });
 
 test("v2 audits all dimensions and ranks multiple important gaps ahead of generic AC-only feedback", () => {
@@ -336,7 +341,7 @@ test("v2 audits all dimensions and ranks multiple important gaps ahead of generi
   assert.equal(review.analysis.status,"needs_clarification");
   assert.equal(review.analysis.findings.length,4);
   assert.deepEqual(review.analysis.findings.map(f=>f.title),[
-    "Unspecified screens","Undefined theme switching","No verification criteria","Figma reference not identifiable"
+    "Unspecified screens","Undefined theme switching","Figma reference not identifiable","No verification criteria"
   ]);
   assert.equal(review.reviewCoverage.checked,8);
   assert.equal(review.context.domain,"Software");
@@ -432,4 +437,84 @@ test("guard-added contradiction prevents the model from silently committing to i
   assert.equal(body.analysis.findings.filter(f=>f.kind==="contradiction").length,2);
   assert.match(body.analysis.suggestedRewrite,/Open questions/);
   assert.equal(calls,1);
+});
+
+test("v2.1 flags suspicious optimistic clear assessments for software features",()=>{
+  const task=parseTask({title:"Add dark mode",description:"Users want dark mode on web and mobile, following Figma.",type:"Feature",domain:"Software",criteria:"",context:""});
+  const sample=toV2({summary:"Needs more detail.",findings:[],suggestedRewrite:"Implement dark mode for web and mobile using the referenced Figma design."});
+  const audit=parseReviewV2({...sample,detectedDomain:"Software",detectedType:"Feature"},task);
+  assert.deepEqual(suspiciousClearDimensions(task,audit.checks),["scope","behavior"]);
+});
+
+test("v2.1 quality gate promotes only grounded nonduplicated high-value gaps",()=>{
+  const task=parseTask({title:"Add dark mode",description:"Users want dark mode on web and mobile, following Figma.",type:"Feature",domain:"Software",criteria:"",context:""});
+  const sample=toV2({summary:"Needs completion criteria.",findings:[],suggestedRewrite:"Implement dark mode for web and mobile."});
+  const audit=parseReviewV2({...sample,detectedDomain:"Software",detectedType:"Feature"},task);
+  const checked=applyQualityGate(task,audit.checks,["scope","behavior"],{
+    checks:[
+      {dimension:"scope",assessment:"gap",title:"Screens and components not specified",
+        detail:"Web and mobile are named, but individual screens/components for implementation are not established.",
+        question:"Which web pages and mobile screens should dark mode cover?",evidence:["dark mode on web and mobile"]},
+      {dimension:"behavior",assessment:"gap",title:"Theme interaction not defined",
+        detail:"The task does not describe how the user chooses dark or light or whether the choice persists.",
+        question:"Should the theme follow system preferences or be selected manually?",evidence:[]},
+    ]
+  });
+  const output=parseReviewV2({...sample,detectedDomain:"Software",detectedType:"Feature",checks:checked},task);
+  assert.equal(output.analysis.findings.length,2);
+  assert.deepEqual(output.findingDimensions,["scope","behavior"]);
+  assert.equal(output.analysis.status,"needs_clarification");
+  assert.ok(output.analysis.findings.every(f=>f.severity==="important"));
+});
+
+test("v2.1 does not force optional gaps on detailed work and rejects invented citations",()=>{
+  const task=parseTask({title:"Add dark mode",description:"Add a manual toggle on Settings only; save the choice after reload.",type:"Feature",domain:"Software",criteria:"Toggle works on Settings after refresh.",context:""});
+  const sample=toV2({summary:"Ready to implement.",findings:[],suggestedRewrite:"Implement the Settings dark-mode toggle and persist the user's choice."});
+  const audit=parseReviewV2({...sample,detectedDomain:"Software",detectedType:"Feature"},task);
+  const inspected=applyQualityGate(task,audit.checks,["scope","behavior"],{checks:[
+    {dimension:"scope",assessment:"gap",title:"Invented missing source",detail:"A fictitious comment says some screens lack a theme.",question:"What else is in scope?",evidence:["nonexistent source quote"]}
+  ]});
+  assert.deepEqual(inspected,audit.checks);
+  assert.deepEqual(dimensionPriority(task).slice(0,3),["contradictions","scope","behavior"]);
+});
+
+test("v2.1 end-to-end rechecks missing feature scope/behavior, not AC alone",async()=>{
+  const task={title:"Add dark mode",description:"Users want dark mode on web and mobile. Follow the design from Figma and ship it next sprint.",type:"Feature",domain:"Software",criteria:"",context:""};
+  const audit=toV2({summary:"Missing completion criteria and design reference.",findings:[],suggestedRewrite:"Implement dark mode for web and mobile as referenced by Figma."});
+  audit.detectedDomain="Software";audit.detectedType="Feature";
+  const completion=audit.checks.find(c=>c.dimension==="completion");
+  Object.assign(completion,{assessment:"gap",kind:"missing",severity:"important",title:"Missing completion criteria",detail:"It is unclear how to confirm dark mode works.",question:"What tests confirm dark mode is complete?"});
+  let calls=0;
+  const {env}=makeEnv({AI:{run:async(_model,options)=>{
+    calls++;
+    if(calls===1)return {choices:[{message:{content:JSON.stringify(audit)},finish_reason:"stop"}],
+      usage:{prompt_tokens:600,completion_tokens:800,neurons:30}};
+    assert.equal(options.reasoning_effort,"low");
+    return {choices:[{message:{content:JSON.stringify({checks:[
+      {dimension:"scope",assessment:"gap",title:"Scope of dark mode is unspecified",detail:"Web and mobile are mentioned, but no specific screens or reusable components are included.",question:"Which screens and UI components should support dark mode?",evidence:[]},
+      {dimension:"behavior",assessment:"gap",title:"Theme switching is unspecified",detail:"No interaction is described for selecting dark mode or remembering the choice across sessions.",question:"Should the mode follow system settings, use a manual toggle, or persist?",evidence:[]}
+    ]})},finish_reason:"stop"}],usage:{prompt_tokens:180,completion_tokens:270,neurons:10}};
+  }}});
+  const res=await worker.fetch(post(task),env);
+  assert.equal(res.status,200);
+  const a=(await res.json()).analysis;
+  assert.equal(calls,2);
+  assert.deepEqual(a.findingDimensions,["scope","behavior","completion"]);
+  assert.equal(a.reviewCoverage.checked,8);
+  assert.match(a.suggestedRewrite,/Which screens and UI components/);
+  assert.equal(a.modelUsage.neurons,40);
+  assert.equal(a.modelUsage.promptTokens,780);
+  assert.equal(a.modelUsage.completionTokens,1070);
+  assert.equal(a.modelUsage.calls,2);
+});
+
+test("2.1 rejects invented toggle and release-readiness commitments in rewrite",()=>{
+  const task=parseTask({
+    title:"Add dark mode",
+    description:"Users want dark mode on web and mobile. Follow the Figma design.",
+    type:"Feature",domain:"Software",criteria:"",context:"",
+  });
+  assert.equal(isGroundedCore("Implement dark mode with a manual toggle.",task),false);
+  assert.equal(isGroundedCore("Implement dark mode, ready for release at the end of the sprint.",task),false);
+  assert.equal(isGroundedCore("Implement dark mode on web and mobile following Figma.",task),true);
 });

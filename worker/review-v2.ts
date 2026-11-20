@@ -31,6 +31,7 @@ export type ReviewedV2 = {
   checks: ReviewCheck[];
   rewriteCore: string;
   reviewCoverage: { checked: number; gaps: number; reported: number };
+  findingDimensions: ReviewDimension[];
   contradictionGuardTriggered: boolean;
 };
 
@@ -163,11 +164,30 @@ function isGenericClarity(c: ReviewCheck): boolean {
   return /(rewrite|rephrase|reword|clarify the task|explicitly state the deliverables|improve the wording|state the requirements)/i.test(content);
 }
 
-/** A priority gate: all 8 checks were inspected and the most important distinct gaps become findings. */
+/** Prioritize execution-blocking decisions for each domain; chronology/wording last. */
+export function dimensionPriority(task:Task): readonly ReviewDimension[] {
+  const hint=contextHints(task);
+  const domain=task.domain==="Other"?hint.domain:task.domain;
+  switch(domain) {
+    case "Software":
+      return ["contradictions","scope","behavior","references","completion","dependencies","feasibility","clarity"];
+    case "Sales":
+      return ["contradictions","scope","behavior","dependencies","completion","references","feasibility","clarity"];
+    case "Marketing":
+      return ["contradictions","scope","behavior","completion","references","dependencies","feasibility","clarity"];
+    case "Operations":
+      return ["contradictions","dependencies","scope","behavior","completion","references","feasibility","clarity"];
+    default:
+      return ["contradictions","scope","behavior","completion","references","dependencies","feasibility","clarity"];
+  }
+}
+
+/** A priority gate: prioritize validated impact, not the order a model happened to write. */
 export function prioritizeChecks(checks: ReviewCheck[], task: Task): Finding[] {
   const rank: Record<ReviewCheck["severity"],number>={critical:0,important:1,suggestion:2};
+  const order=dimensionPriority(task);
   const candidates=checks.filter(c=>c.assessment==="gap" && !isGenericClarity(c) && !isUnsupportedGap(c,task))
-    .sort((a,b)=>rank[a.severity]-rank[b.severity]||REVIEW_DIMENSIONS.indexOf(a.dimension)-REVIEW_DIMENSIONS.indexOf(b.dimension));
+    .sort((a,b)=>rank[a.severity]-rank[b.severity]||order.indexOf(a.dimension)-order.indexOf(b.dimension));
   const findings: Finding[]=[];
   const seen=new Set<string>();
   for(const c of candidates) {
@@ -241,6 +261,12 @@ export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
   const summary=text(value.summary,700);
   const rewriteCore=text(value.rewriteCore,6500);
   const analysis=parseAnalysis({status,summary,findings,suggestedRewrite:""},task);
+  const findingDimensions=findings.map(f=>{
+    const corresponding=checks.find(c=>c.assessment==="gap" &&
+      norm(c.title)===norm(f.title) && norm(c.question)===norm(f.question));
+    return corresponding?.dimension ?? "contradictions";
+  });
   return {analysis,checks,context:{domain,type,inferred:task.domain==="Other"||task.type==="General"},
-    rewriteCore,contradictionGuardTriggered,reviewCoverage:{checked:8,gaps:checks.filter(c=>c.assessment==="gap").length,reported:findings.length}};
+    rewriteCore,contradictionGuardTriggered,findingDimensions,
+    reviewCoverage:{checked:8,gaps:checks.filter(c=>c.assessment==="gap").length,reported:findings.length}};
 }

@@ -36,7 +36,7 @@ jobs:
           curl -fsS --max-time 20 "$BASE/api/health" | node -e '
             let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
               const x=JSON.parse(s);
-              if(x.status!=="ok"||x.iteration!==2||x.reviewEngineVersion!=="2.0"||!x.aiBindingConfigured||!x.aiEnabled){
+              if(x.status!=="ok"||x.iteration!==2||x.reviewEngineVersion!=="2.1"||!x.aiBindingConfigured||!x.aiEnabled){
                 process.exit(1);
               }
               console.log("Healthy live AI Worker with private preview gate");

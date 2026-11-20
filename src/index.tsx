@@ -140,7 +140,7 @@ function App() {
     revealResults();
     const controller = new AbortController();
     requestController = controller;
-    requestTimeout = setTimeout(() => controller.abort(), 45000);
+    requestTimeout = setTimeout(() => controller.abort(), 180000);
     try {
       const output = await analyzeLive(prepareReviewTask(task()), accessCode().trim(), controller.signal);
       if (requestController === controller) {
@@ -253,7 +253,7 @@ function App() {
 
       <div class="card result-card" id="results" data-clarity-mask="true" aria-live="polite" aria-busy={loading()}>
         <div class="result-section-head"><ScreenLabel index="03">REVIEW / FINDINGS</ScreenLabel><span class="result-section-line" aria-hidden="true"/></div>
-        <Show when={!loading()} fallback={<div class="empty loading-state"><div class="empty-icon spin">↗</div><h2>RUNNING REVIEW.</h2><p>Checking for missing information, ambiguity and contradictions…</p><button class="secondary-action" type="button" onClick={cancelRequest}>Cancel</button></div>}>
+        <Show when={!loading()} fallback={<div class="empty loading-state"><div class="empty-icon spin">↗</div><h2>RUNNING REVIEW.</h2><p>Deep review: checking scope, behavior, completion and contradictions. This may take longer with the larger model…</p><button class="secondary-action" type="button" onClick={cancelRequest}>Cancel</button></div>}>
           <Show when={result()} fallback={
             <Show when={error()} fallback={<div class="empty">
               <div class="empty-icon">↗</div><h2>AWAITING INPUT.</h2>
