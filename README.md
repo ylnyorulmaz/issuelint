@@ -1,20 +1,24 @@
 # IssueLint
 
-Platform-independent task clarity reviewer — SolidJS + TypeScript + Vite. Currently a **frontend prototype** with Cloudflare Worker routing groundwork.
+Platform-independent issue/task review — SolidJS + TypeScript + Cloudflare Workers.
 
-## Iteration 1: Worker foundation
+## Iteration 2 — Real Workers AI integration (backend only)
 
-- Workers Static Assets are configured to serve the existing SolidJS SPA.
-- `/api/*` routes run first in a small Worker.
-- `GET /api/health` reports health and whether the `AI` binding is configured.
-- `POST /api/analyze` is a **fixed transport stub** and intentionally **does not inspect user text or call Workers AI**.
-- Other API paths return JSON 404; non-API requests serve static assets.
-- There is **no live AI analysis, auth, database, or Jira integration**.
-- The frontend deliberately continues to display the v0.1 demo/basic checks. Wiring it to the endpoint is Iteration 3.
+**The frontend is unchanged.** It still runs the v0.1 demo analyzer until Iteration 3 connects `Analyze` to `/api/analyze`.
 
-## Local development
+### What is implemented
+- `POST /api/analyze`: validated task input → single native Workers AI invocation → strict validated result.
+- Gemma 4 26B A4B default model. GPT-OSS 20B optional allowlisted model via `AI_MODEL`.
+- Task validation: title, description, type, domain, optional criteria and context. 8,000-character limit; 32 KiB HTTP body limit, streamed.
+- JSON schema requested from Workers AI **and validated independently** after inference. Invalid provider output is rejected (502); it never becomes an invented score.
+- Output: `status`, `summary`, `findings` (max 5), `suggestedRewrite`. Contradiction evidence must contain two literal quotes from the user's task.
+- Prompt enforces domain-specific assessment, no imagined requirements, no mandatory acceptance criteria, and same-language feedback.
+- No inference retries, no logging task content, no database, no extra backend or AI SDK.
+- API remains **disabled by default** and requires a server-side `PREVIEW_TOKEN` even when enabled.
 
-Requires Node.js **22.23+** (Cloudflare CLI `cf` typed config requirement).
+### Run and verify
+
+Node.js >= 22.23.0.
 
 ```bash
 npm install
@@ -22,38 +26,82 @@ npm run check
 npm run dev
 ```
 
-In a second terminal, test the endpoint:
+`npm run check` runs Worker unit tests, TypeScript checks and the production Vite build.
+
+Unprotected requests fail closed:
 
 ```bash
-curl http://localhost:5173/api/health
-curl -i -X POST http://localhost:5173/api/analyze -H 'content-type: application/json' -d '{"title":"Example","description":"A test request"}'
+curl -i -X POST http://localhost:5173/api/analyze \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Example","description":"Some details","type":"General","domain":"Other"}'
 ```
 
-The test response must contain `"mode":"stub"` and `"analyzed":false`.
-To test the Worker independently without model calls: `npm run test:worker`.
+Expected until explicitly enabled: `503 AI_DISABLED`.
 
-## Cloudflare
+For **private staging only**, configure `PREVIEW_TOKEN` as a **Cloudflare secret** (at least 24 characters) in the Worker environment and set `ANALYZE_ENABLED=true` through an environment setting. Do not commit or expose the token in SolidJS/Vite code. Then send the token in the `Authorization: Bearer <token>` header. Default `ANALYZE_ENABLED=false` in `cloudflare.config.ts`; do not enable the public endpoint before rate limits and usage controls are added in Iteration 4.
 
-The repo uses [Cloudflare CLI `cf`](https://developers.cloudflare.com/cf/) and the Cloudflare Vite plugin, with typed `cloudflare.config.ts` configuration. The development Worker is **`issuelint-dev`**, not the production domain.
+### Request
 
-```bash
-npm run build
-npm run deploy
+```json
+{
+  "title": "Follow up with leads",
+  "description": "Only contact qualified leads after approval tomorrow.",
+  "type": "General",
+  "domain": "Sales",
+  "criteria": "",
+  "context": ""
+}
 ```
 
-Deploy requires Cloudflare authentication and an account selection. The Workers AI binding is defined as `AI`; do **not** add API keys to client-side Vite variables. The `ASSETS` binding is for fallback serving.
+### Success response
 
-Configuration:
-- `cloudflare.config.ts`: Worker name, AI binding, static routing, observability.
-- `vite.config.ts`: SolidJS and Cloudflare Vite plugins.
-- `worker/index.ts`: small HTTP handler; no model calls.
+```json
+{
+  "mode": "ai",
+  "analyzed": true,
+  "analysis": {
+    "status": "needs_clarification",
+    "summary": "Some details are missing.",
+    "findings": [
+      {
+        "kind": "missing",
+        "severity": "important",
+        "title": "Lead qualification is unspecified",
+        "detail": "The qualifying criteria aren't described.",
+        "evidence": [],
+        "question": "What makes a lead qualified?"
+      }
+    ],
+    "suggestedRewrite": "Follow up with qualified leads after approval tomorrow. Clarify how leads qualify."
+  }
+}
+```
 
-**Deployment scope:** No custom domain or production Worker is changed. Do not enable public user-facing analysis until the real AI endpoint, input limits, and abuse safeguards are implemented.
+The response above illustrates the **schema**, not a guaranteed inference result.
 
-## Frontend demo
+### Contract and error codes
 
-Three prewritten examples (software, marketing, sales); other text gets basic structural checks only. The application does not invent contradiction findings or quality scores for arbitrary input.
+- `401 PREVIEW_AUTH_REQUIRED`
+- `400 INVALID_JSON`
+- `413 PAYLOAD_TOO_LARGE`
+- `415 UNSUPPORTED_MEDIA_TYPE`
+- `422 INVALID_TASK`
+- `502 AI_INVALID_RESPONSE` / `AI_UNAVAILABLE`
+- `503 AI_DISABLED` / `AI_UNAVAILABLE`
 
-## Next
+All API responses use `Cache-Control: no-store`. There is no permissive CORS policy.
 
-**Iteration 2**: add validated JSON request/response schemas, prompt and real Workers AI model invocation. **Iteration 3**: switch frontend Analyze to the API with loading and error states.
+### Files
+
+- `cloudflare.config.ts` — static assets, API routing, native AI binding, default-off flag, preview-only secret.
+- `worker/index.ts` — HTTP routing, authorization and bounded body reading.
+- `worker/schema.ts` — task & analysis contracts and runtime validators.
+- `worker/prompt.ts` — task review instructions.
+- `worker/inference.ts` — Workers AI invocation and response extraction.
+- `test/worker.test.mjs` — mock-backed HTTP, safety and model output tests.
+
+### Deployment
+
+Only the isolated development Worker `issuelint-dev` is targeted. **Do not deploy or merge into a public production domain yet.** The previous iteration's remote Worker may still be API-only; `npm run build` must produce both asset and Worker bundles, followed by a verified combined deployment.
+
+**Iteration 3:** connect frontend to the live endpoint, loading/error states and privacy copy. **Iteration 4:** abuse/rate limiting, daily consumption controls, production launch.
