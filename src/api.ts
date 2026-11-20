@@ -14,6 +14,8 @@ export type ApiAnalysis = {
   findings: ApiFinding[];
   suggestedRewrite: string;
   rewriteStatus: 'rewritten' | 'clarification_draft' | 'unavailable';
+  reviewContext?: { domain: string; type: string; inferred: boolean };
+  reviewCoverage?: { checked: number; gaps: number; reported: number };
 };
 export type LiveResponse = { mode: 'ai'; analyzed: true; analysis: ApiAnalysis };
 export type Health = { status: string; aiEnabled: boolean; aiBindingConfigured: boolean };
@@ -87,6 +89,14 @@ export async function analyzeLive(task: Task, token: string, signal: AbortSignal
     }
     findings.push(raw as ApiFinding);
   }
+  const context = object(a.reviewContext) && typeof a.reviewContext.domain === 'string' &&
+    typeof a.reviewContext.type === 'string' && typeof a.reviewContext.inferred === 'boolean'
+    ? {domain:a.reviewContext.domain,type:a.reviewContext.type,inferred:a.reviewContext.inferred}
+    : undefined;
+  const coverage = object(a.reviewCoverage) &&
+    [a.reviewCoverage.checked,a.reviewCoverage.gaps,a.reviewCoverage.reported].every(x=>typeof x==='number' && Number.isInteger(x) && x>=0)
+    ? {checked:a.reviewCoverage.checked as number,gaps:a.reviewCoverage.gaps as number,reported:a.reviewCoverage.reported as number}
+    : undefined;
   return { status: a.status as ApiAnalysis['status'], summary: a.summary, findings, suggestedRewrite: a.suggestedRewrite,
-    rewriteStatus: a.rewriteStatus as ApiAnalysis['rewriteStatus'] };
+    rewriteStatus: a.rewriteStatus as ApiAnalysis['rewriteStatus'], reviewContext: context, reviewCoverage: coverage };
 }
