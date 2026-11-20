@@ -97,7 +97,7 @@ test("valid analysis calls the native AI binding once and returns validated JSON
   const data = await res.json();
   assert.equal(data.mode, "ai");
   assert.equal(data.analyzed, true);
-  assert.deepEqual(data.analysis, validAnalysis);
+  assert.deepEqual(data.analysis, { ...validAnalysis, rewriteStatus: 'rewritten' });
   assert.equal(res.headers.get("cache-control"), "no-store");
   assert.equal(calls.length, 1);
   assert.equal(calls[0].model, "@cf/openai/gpt-oss-20b");
@@ -214,14 +214,71 @@ test("GET /api/analyze is rejected", async () => {
   assert.equal(res.headers.get("allow"), "POST");
 });
 
-test("empty model rewrite is replaced with factual source text, not a 502", async () => {
-  const analysis = { ...validAnalysis, suggestedRewrite: "" };
-  const { env } = makeEnv({ AI: { run: async () => ({ choices: [{
-    message: { content: JSON.stringify(analysis) }, finish_reason: "stop"
-  }] }) } });
+test("empty primary draft triggers one focused AI rewrite repair", async () => {
+  let calls = 0;
+  const first = { ...validAnalysis, suggestedRewrite: "" };
+  const { env } = makeEnv({ AI: { run: async (_model, input) => {
+    calls++;
+    assert.equal(input.response_format.type, "json_schema");
+    return { choices: [{ message: { content: JSON.stringify(calls === 1
+      ? first
+      : { suggestedRewrite: "Follow up with qualified leads after copy approval tomorrow. Open questions: Should the original today deadline be changed? Which leads qualify?" }) }, finish_reason: "stop" }] };
+  } } });
   const res = await worker.fetch(post(), env);
   assert.equal(res.status, 200);
-  const data = await res.json();
-  assert.match(data.analysis.suggestedRewrite, /Contact all leads today/);
-  assert.match(data.analysis.suggestedRewrite, /Only qualified leads/);
+  const body = await res.json();
+  assert.equal(body.analysis.rewriteStatus, "rewritten");
+  assert.match(body.analysis.suggestedRewrite, /Open questions/);
+  assert.equal(calls, 2);
+});
+
+test("verbatim copy in primary output triggers rewrite repair", async () => {
+  let calls = 0;
+  const same = [originalTask.title, originalTask.description].join("\n\n");
+  const { env } = makeEnv({ AI: { run: async () => {
+    calls++;
+    return { choices: [{ message: { content: JSON.stringify(calls === 1
+      ? { ...validAnalysis, suggestedRewrite: same }
+      : { suggestedRewrite: "Task: Contact qualified leads once outreach copy has been approved. Clarify whether the deadline should move from today to tomorrow." }) }, finish_reason: "stop" }] };
+  } } });
+  const res = await worker.fetch(post(), env);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(calls, 2);
+  assert.equal(body.analysis.rewriteStatus, "rewritten");
+  assert.notEqual(body.analysis.suggestedRewrite, same);
+});
+
+test("failed second rewrite retains findings and labels a question checklist", async () => {
+  let calls = 0;
+  const { env } = makeEnv({ AI: { run: async () => {
+    calls++;
+    return { choices: [{ message: { content: JSON.stringify(calls === 1
+      ? { ...validAnalysis, suggestedRewrite: "" }
+      : { suggestedRewrite: "" }) }, finish_reason: "stop" }] };
+  } } });
+  const res = await worker.fetch(post(), env);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(calls, 2);
+  assert.equal(body.analysis.rewriteStatus, "clarification_draft");
+  assert.match(body.analysis.suggestedRewrite, /Open questions/);
+  assert.match(body.analysis.suggestedRewrite, /Should the deadline move/);
+  assert.equal(body.analysis.findings.length, 1);
+});
+
+test("no findings and no revised text shows unavailable, not a fake rewrite", async () => {
+  let calls = 0;
+  const review = { ...validAnalysis, status: "ready", findings: [], suggestedRewrite: "" };
+  const { env } = makeEnv({ AI: { run: async () => {
+    calls++;
+    return { choices: [{ message: { content: JSON.stringify(calls === 1
+      ? review : { suggestedRewrite: "" }) }, finish_reason: "stop" }] };
+  } } });
+  const res = await worker.fetch(post(), env);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.analysis.rewriteStatus, "unavailable");
+  assert.equal(body.analysis.suggestedRewrite, "");
+  assert.equal(calls, 2);
 });

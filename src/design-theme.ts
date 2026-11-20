@@ -1,5 +1,5 @@
 /** Visual themes are presentation-only. Never persist task text or preview access. */
-export type DesignTheme = 'constructivist' | 'neobrutalist';
+export type DesignTheme = 'constructivist' | 'neobrutalist' | 'zen';
 export const DEFAULT_DESIGN_THEME: DesignTheme = 'constructivist';
 export const DESIGN_THEME_STORAGE_KEY = 'issuelint.design-theme.v1';
 
@@ -9,7 +9,7 @@ export interface DesignThemeStorage {
 }
 
 export function normalizeDesignTheme(value: unknown): DesignTheme {
-  return value === 'neobrutalist' ? 'neobrutalist' : DEFAULT_DESIGN_THEME;
+  return value === 'neobrutalist' || value === 'zen' ? value : DEFAULT_DESIGN_THEME;
 }
 
 function browserStorage(): DesignThemeStorage | undefined {

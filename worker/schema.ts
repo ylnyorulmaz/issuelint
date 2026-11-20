@@ -118,7 +118,7 @@ export function parseAnalysis(value: unknown, task: Task): Analysis {
   if (!record(value)) throw new ValidationError("model", "AI output is not a JSON object.");
   const status = enumValue(value.status, "status", STATUSES);
   const summary = outputString(value.summary, "summary", 5, 700);
-  const suggestedRewrite = outputString(value.suggestedRewrite, "suggestedRewrite", 5, 6500);
+  const suggestedRewrite = outputString(value.suggestedRewrite, "suggestedRewrite", 0, 6500);
   if (!Array.isArray(value.findings) || value.findings.length > 5) {
     throw new ValidationError("findings", "AI output has too many findings or an invalid list.");
   }
