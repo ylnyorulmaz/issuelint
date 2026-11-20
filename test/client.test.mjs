@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { analyzeLive, ApiError, getHealth } from '../src/api.ts';
 
 const validTask = { title:'Check sales task', description:'Contact qualified leads on Friday.', type:'General', domain:'Sales', criteria:'', context:'' };
-const analysis = { status:'ready', summary:'Clear task', findings:[], suggestedRewrite:'Contact qualified leads on Friday.' };
+const analysis = { status:'ready', summary:'Clear task', findings:[], suggestedRewrite:'Contact qualified leads on Friday.', rewriteStatus:'rewritten' };
 const originalFetch = globalThis.fetch;
 
 test('health distinguishes demo and private preview mode', async () => {
@@ -45,6 +45,7 @@ test('Minimal Constructivism stays the default, including unknown preferences', 
   assert.equal(normalizeDesignTheme(null), 'constructivist');
   assert.equal(normalizeDesignTheme('not-a-design'), 'constructivist');
   assert.equal(normalizeDesignTheme('neobrutalist'), 'neobrutalist');
+  assert.equal(normalizeDesignTheme('zen'), 'zen');
 });
 
 test('design theme preference survives a reload via storage', () => {
@@ -57,6 +58,8 @@ test('design theme preference survives a reload via storage', () => {
   saveDesignTheme('neobrutalist', storage);
   assert.equal(values.get(DESIGN_THEME_STORAGE_KEY), 'neobrutalist');
   assert.equal(readDesignTheme(storage), 'neobrutalist');
+  saveDesignTheme('zen', storage);
+  assert.equal(readDesignTheme(storage), 'zen');
   saveDesignTheme('constructivist', storage);
   assert.equal(readDesignTheme(storage), 'constructivist');
   assert.equal(values.size, 1);
@@ -70,4 +73,27 @@ test('blocked or unavailable localStorage does not break the analyzer', () => {
   assert.equal(readDesignTheme(inaccessible), 'constructivist');
   assert.doesNotThrow(() => saveDesignTheme('neobrutalist', inaccessible));
   assert.equal(readDesignTheme(), 'constructivist');
+});
+
+test('clarification-only draft is labeled instead of silently presented as improved copy', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ mode:'ai', analyzed:true, analysis:{
+    ...analysis, rewriteStatus:'clarification_draft',
+    suggestedRewrite:'Contact qualified leads on Friday. Open questions: Which leads qualify?'
+  }}), {status:200});
+  try {
+    const result = await analyzeLive(validTask,'preview-code',new AbortController().signal);
+    assert.equal(result.rewriteStatus,'clarification_draft');
+    assert.match(result.suggestedRewrite, /Open questions/);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('server may explicitly mark a rewrite as unavailable', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({mode:'ai', analyzed:true, analysis:{
+    ...analysis, rewriteStatus:'unavailable', suggestedRewrite:''
+  }}), {status:200});
+  try {
+    const result = await analyzeLive(validTask,'preview-code',new AbortController().signal);
+    assert.equal(result.rewriteStatus,'unavailable');
+    assert.equal(result.suggestedRewrite,'');
+  } finally { globalThis.fetch = originalFetch; }
 });
