@@ -3,7 +3,7 @@ import { render } from 'solid-js/web';
 import { analyze, blank, examples, type Task, type TaskType, type Domain } from './analyzer';
 import { analyzeLive, getHealth, ApiError, type ApiAnalysis, type ApiFinding } from './api';
 import './style.css';
-import './styles.iteration3.css';
+import { BrandEmblem, SectionIndex, PosterGeometry, FindingMark, ScreenLabel } from './components/Constructivist';
 
 const types: TaskType[] = ['General', 'Bug', 'Feature', 'Improvement', 'Request'];
 const domains: Domain[] = ['Software', 'Marketing', 'Sales', 'Operations', 'Other'];
@@ -139,21 +139,27 @@ function App() {
 
   return <div class="app" data-theme={dark() ? 'dark' : 'light'}>
     <header class="header"><div class="header-inner">
-      <a class="brand" href="#top"><span class="logo">✓</span><span>Issue<b>Lint</b></span></a>
-      <nav aria-label="Primary"><a href="#analyze" class="nav-current">Analyze</a><a href="#examples">Examples</a><a href="#guide">How it works</a></nav>
-      <div class="header-right"><span class="version">v0.2 preview</span><button class="theme" type="button" onClick={() => setDark(!dark())} aria-label={dark() ? 'Switch to light mode' : 'Switch to dark mode'}>{dark() ? '☀' : '☾'}</button></div>
+      <a class="brand" href="#top" aria-label="IssueLint home"><BrandEmblem/><span class="brand-word">ISSUE<strong>LINT</strong></span></a>
+      <nav aria-label="Primary"><a href="#analyze" class="nav-current">01 / Analyze</a><a href="#examples">02 / Examples</a><a href="#guide">03 / Process</a></nav>
+      <div class="header-right"><span class="version">Independent task intelligence · v0.3</span><button class="theme" type="button" onClick={() => setDark(!dark())} aria-label={dark() ? 'Switch to light mode' : 'Switch to dark mode'}>{dark() ? '☀' : '☾'}</button></div>
     </div></header>
 
-    <main id="top"><section class="hero">
-      <div class="eyebrow"><span class="dot"/> CLEAR WORK STARTS HERE</div>
-      <h1>Make every task <em>clear.</em></h1>
-      <p>Find missing details, vague requirements and contradictions before anyone starts work. No Jira or project management integration needed.</p>
-      <div class="hero-meta">Any team <span>·</span> Any task <span>·</span> No account</div>
+    <main id="top"><section class="hero" aria-label="IssueLint introduction">
+      <div class="hero-topline"><SectionIndex number="01" label="Work quality / independent review"/><span>SPECIFICATION BEFORE EXECUTION — 2026</span></div>
+      <div class="hero-body">
+        <div class="hero-copy">
+          <h1>MAKE EVERY<br/>TASK <em>CLEAR.</em></h1>
+          <p>Turn unclear requests into work that can actually get done. Expose missing information, contradictions and vague requirements before execution.</p>
+          <div class="hero-meta"><span>ANY PLATFORM</span><span>ANY TEAM</span><span>NO ACCOUNT</span></div>
+        </div>
+        <div class="hero-art"><PosterGeometry/></div>
+      </div>
+      <div class="hero-bottomline"><span>◢ CLARITY IS A PRODUCTION TOOL.</span><span>ISSUE/LINT — TASK INTELLIGENCE SYSTEM</span></div>
     </section>
 
     <section id="analyze" class="workspace" aria-label="Task analyzer">
       <div class="card input-card">
-        <div class="card-intro"><span class="intro-icon">✎</span><div><h2>Describe your task</h2><p>Start with a title and description.</p></div></div>
+        <div class="card-intro"><span class="intro-icon">02</span><div><h2>DEFINE THE WORK.</h2><p>Start with a title and a concrete description.</p></div><span class="panel-code">INPUT / 01</span></div>
         <div class="availability" role="status">
           <span class={available() === 'private' ? 'status-dot active-dot' : 'status-dot'}/>
           <span>{available() === 'checking' ? 'Checking analysis availability…' :
@@ -198,10 +204,11 @@ function App() {
       </div>
 
       <div class="card result-card" id="results" aria-live="polite" aria-busy={loading()}>
-        <Show when={!loading()} fallback={<div class="empty loading-state"><div class="empty-icon spin">✦</div><h2>Reviewing your task</h2><p>Checking for missing information, ambiguity and contradictions…</p><button class="secondary-action" type="button" onClick={cancelRequest}>Cancel</button></div>}>
+        <div class="result-section-head"><ScreenLabel index="03">REVIEW / FINDINGS</ScreenLabel><span class="result-section-line" aria-hidden="true"/></div>
+        <Show when={!loading()} fallback={<div class="empty loading-state"><div class="empty-icon spin">↗</div><h2>RUNNING REVIEW.</h2><p>Checking for missing information, ambiguity and contradictions…</p><button class="secondary-action" type="button" onClick={cancelRequest}>Cancel</button></div>}>
           <Show when={result()} fallback={
             <Show when={error()} fallback={<div class="empty">
-              <div class="empty-icon">✦</div><h2>No review yet</h2>
+              <div class="empty-icon">↗</div><h2>AWAITING INPUT.</h2>
               <p>{available() === 'private' ? 'Enter your access code, then click “Analyze with AI” to see findings here. The code alone does not start a review.' : 'Fill in the task and press “Review task”. Your findings will appear here.'}</p>
               <button class="result-start" type="button" disabled={!inputValid() || loading() || available() === 'checking'} onClick={() => void runAI()}>
                 {available() === 'private' ? 'Analyze with AI →' : 'Review task →'}
@@ -230,7 +237,7 @@ function App() {
               </div>
               <Show when={tab() === 'findings'} fallback={<div class="draft"><div class="draft-head"><strong>{a().mode === 'basic' ? 'Structured copy of your input' : 'Suggested rewrite'}</strong><button type="button" onClick={() => void copy()}>{copied() ? '✓ Copied' : '▢ Copy'}</button></div><pre>{a().draft}</pre><p>Verify the rewrite before using it. Unconfirmed details should remain questions.</p></div>}>
                 <div class="findings"><Show when={a().findings.length === 0}><div class="no-findings">No issues identified. Verify the task details yourself before proceeding.</div></Show>
-                  <For each={a().findings}>{f => <article class="finding"><div class={'finding-icon ' + f.kind}>{f.kind === 'contradiction' ? '↯' : f.kind === 'ambiguity' ? '?' : f.kind === 'missing' ? '!' : 'i'}</div><div class="finding-content">
+                  <For each={a().findings}>{f => <article class="finding"><FindingMark kind={f.kind}/><div class="finding-content">
                     <span class={'kind ' + f.kind}>{f.kind}{f.severity ? ' · ' + f.severity : ''}</span>
                     <h3>{f.title}</h3><p>{f.detail}</p>
                     <Show when={f.evidence?.length}><div class="evidence"><b>Evidence:</b><For each={f.evidence}>{quote => <q>{quote}</q>}</For></div></Show>
@@ -247,13 +254,15 @@ function App() {
       </div>
     </section>
 
-    <section id="examples" class="examples"><span class="kicker">SEE IT IN ACTION</span><h2>Try an example</h2><p class="section-sub">Start with software, marketing or sales tasks.</p><div class="example-grid"><For each={examples}>{(ex, i) =>
+    <section id="examples" class="examples">
+      <div class="section-heading"><div><SectionIndex number="04" label="Field exercises"/><h2>TEST THE SYSTEM.</h2></div><p>Three cases. Three domains. One standard: the work must be clear.</p></div>
+      <div class="example-grid"><For each={examples}>{(ex, i) =>
       <button type="button" onClick={() => load(ex.id)} class={'example ' + (selected() === ex.id ? 'selected' : '')}><span class="example-number">0{i() + 1}</span><strong>{ex.label}</strong><p>{ex.task.description}</p><span class="example-link">Load example →</span></button>
     }</For></div></section>
 
-    <section id="guide" class="guide"><span class="kicker">HOW IT WORKS</span><h2>Clarity in three steps.</h2><div class="steps"><div><span>01</span><h3>Describe</h3><p>Enter a title, description, and type. Add context if it matters.</p></div><div><span>02</span><h3>Inspect</h3><p>Review questions, missing details, and possible conflicts.</p></div><div><span>03</span><h3>Refine</h3><p>Copy your improved task into whatever tool your team uses.</p></div></div><p class="disclaimer">AI preview access is restricted. Demo reviews use examples or simple checks; they are not semantic AI analysis.</p></section>
+    <section id="guide" class="guide"><SectionIndex number="05" label="The method"/><h2>FROM NOISE TO ACTION.</h2><div class="steps"><div><span>01</span><h3>Describe</h3><p>Enter a title, description, and type. Add context if it matters.</p></div><div><span>02</span><h3>Inspect</h3><p>Review questions, missing details, and possible conflicts.</p></div><div><span>03</span><h3>Refine</h3><p>Copy your improved task into whatever tool your team uses.</p></div></div><p class="disclaimer">AI preview access is restricted. Demo reviews use examples or simple checks; they are not semantic AI analysis.</p></section>
     </main>
-    <footer><div><b>IssueLint</b><span>Clear work starts with clear thinking.</span></div><span>No account · No stored tasks · Live reviews processed by Cloudflare AI</span></footer>
+    <footer><div><b>ISSUE/LINT ↗</b><span>Clarity is a production tool.</span></div><span>NO ACCOUNT · NO STORED TASKS · LIVE REVIEWS PROCESSED BY CLOUDFLARE AI</span></footer>
   </div>;
 }
 render(() => <App/>, document.getElementById('root')!);
