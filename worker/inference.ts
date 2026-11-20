@@ -87,9 +87,9 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
         normalized.suggestedRewrite = [
           task.title,
           task.description,
-          task.criteria ? "Completion criteria:\\n" + task.criteria : "",
-          task.context ? "Additional context:\\n" + task.context : "",
-        ].filter(Boolean).join("\\n\\n");
+          task.criteria ? "Completion criteria:\n" + task.criteria : "",
+          task.context ? "Additional context:\n" + task.context : "",
+        ].filter(Boolean).join("\n\n");
       }
     }
     return parseAnalysis(normalized, task);
