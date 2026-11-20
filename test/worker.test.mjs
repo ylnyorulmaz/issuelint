@@ -393,3 +393,43 @@ test("conflict guard does not invent issues in unrelated work",()=>{
   const task=parseTask({...originalTask,title:"Create two newsletter variants",description:"Design email versions for the next campaign.",domain:"Marketing"});
   assert.deepEqual(highConfidenceContradictions(task),[]);
 });
+
+test("wrapped model evidence quotes are normalized but still source-verified",()=>{
+  const task=parseTask({...originalTask,title:"Add dark mode",description:"Follow the design from Figma.",domain:"Software"});
+  const sample=toV2({summary:"The Figma reference needs identifying.",findings:[],suggestedRewrite:""});
+  sample.detectedDomain="Software";
+  sample.checks[0]={
+    dimension:REVIEW_DIMENSIONS[0],assessment:"clear",severity:"suggestion",kind:"suggestion",
+    title:"",detail:"",question:"",evidence:[],
+  };
+  const refs=sample.checks.find(c=>c.dimension==="references");
+  Object.assign(refs,{
+    assessment:"gap",severity:"important",kind:"missing",title:"Figma reference unclear",
+    detail:"The cited design is not identifiable.",question:"Which Figma file should be used?",
+    evidence:['"Follow the design from Figma."'],
+  });
+  const parsed=parseReviewV2(sample,task);
+  assert.deepEqual(parsed.analysis.findings[0].evidence,["Follow the design from Figma."]);
+});
+
+test("guard-added contradiction prevents the model from silently committing to impossible timing",async()=>{
+  const conflict={
+    title:"Follow up with every lead today",
+    description:"Only contact qualified leads. Do not send messages before the new copy is approved tomorrow. Everyone must be contacted by end of today.",
+    type:"General",domain:"Sales",criteria:"",context:"",
+  };
+  const missed=toV2({
+    status:"ready",summary:"Several details need clarifying.",findings:[],
+    suggestedRewrite:"Contact all qualified leads today using the approved copy.",
+  });
+  let calls=0;
+  const {env}=makeEnv({AI:{run:async()=>{calls++;return {choices:[{message:{content:JSON.stringify(missed)},finish_reason:"stop"}]};}}});
+  const response=await worker.fetch(post(conflict),env);
+  assert.equal(response.status,200);
+  const body=await response.json();
+  assert.equal(body.analysis.status,"blocked");
+  assert.equal(body.analysis.rewriteStatus,"clarification_draft");
+  assert.equal(body.analysis.findings.filter(f=>f.kind==="contradiction").length,2);
+  assert.match(body.analysis.suggestedRewrite,/Open questions/);
+  assert.equal(calls,1);
+});
