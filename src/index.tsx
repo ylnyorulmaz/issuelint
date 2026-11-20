@@ -50,6 +50,15 @@ function App() {
     onCleanup(() => { active = false; requestController?.abort(); if (requestTimeout) clearTimeout(requestTimeout); });
   });
 
+  function revealResults() {
+    // The result panel is beneath the form on phones/tablets.
+    if (window.matchMedia('(max-width: 900px)').matches) {
+      window.setTimeout(() => document.getElementById('results')?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start',
+      }), 80);
+    }
+  }
   function cancelRequest() {
     requestController?.abort();
     requestController = undefined;
@@ -78,6 +87,7 @@ function App() {
     cancelRequest();
     setError(''); setTab('findings'); setCopied(false);
     setResult(fromDemo(task()));
+    revealResults();
   }
   async function runAI() {
     if (loading()) return;
@@ -91,17 +101,22 @@ function App() {
     }
     setError(''); setResult(null); setLoading(true); setCopied(false);
     setTab('findings');
+    revealResults();
     const controller = new AbortController();
     requestController = controller;
     requestTimeout = setTimeout(() => controller.abort(), 45000);
     try {
       const output = await analyzeLive(task(), accessCode().trim(), controller.signal);
-      if (requestController === controller) setResult(fromLive(output));
+      if (requestController === controller) {
+        setResult(fromLive(output));
+        revealResults();
+      }
     } catch (cause) {
       if (requestController !== controller) return;
       const message = cause instanceof ApiError ? cause.message :
         controller.signal.aborted ? 'Analysis timed out. Please retry.' : 'Network error. Check your connection and retry.';
       setError(message);
+      revealResults();
     } finally {
       if (requestController === controller) {
         requestController = undefined;
@@ -148,38 +163,59 @@ function App() {
           <label for="title">Task title <span class="req">*</span></label>
           <input id="title" value={task().title} required maxLength={180} disabled={loading()} placeholder="What needs to be done?" onInput={e => edit('title', e.currentTarget.value)}/>
           <label for="description">Description <span class="req">*</span></label>
-          <textarea id="description" required rows={7} maxLength={6500} disabled={loading()} placeholder="Describe the problem, goal, or requested work. It doesn't need to be perfect." value={task().description} onInput={e => edit('description', e.currentTarget.value)}/>
+          <textarea id="description" required rows={4} maxLength={6500} disabled={loading()} placeholder="Describe the problem, goal, or requested work. It doesn't need to be perfect." value={task().description} onInput={e => edit('description', e.currentTarget.value)}/>
           <div class="form-grid"><div><label for="type">Task type</label><select id="type" value={task().type} disabled={loading()} onChange={e => edit('type', e.currentTarget.value as TaskType)}><For each={types}>{t => <option>{t}</option>}</For></select></div>
           <div><label for="domain">Area</label><select id="domain" value={task().domain} disabled={loading()} onChange={e => edit('domain', e.currentTarget.value as Domain)}><For each={domains}>{d => <option>{d}</option>}</For></select></div></div>
-          <button type="button" class="disclosure" aria-expanded={details()} onClick={() => setDetails(!details())}><span><b>Additional details</b><small>Completion criteria and context (optional)</small></span><span class="plus">{details() ? '−' : '+'}</span></button>
-          <Show when={details()}><div class="extra">
-            <label for="criteria">Completion / acceptance criteria</label><textarea id="criteria" rows={3} maxLength={1200} value={task().criteria} onInput={e => edit('criteria', e.currentTarget.value)}/>
-            <label for="context">Constraints and context</label><textarea id="context" rows={3} maxLength={1200} value={task().context} onInput={e => edit('context', e.currentTarget.value)}/>
-          </div></Show>
           <div class="counter" classList={{ 'over-budget': totalLength() > 8000 }}>{totalLength().toLocaleString()} / 8,000 characters</div>
           <Show when={available() === 'private'}>
-            <div class="preview-code"><label for="preview-code">Private preview access code</label>
-              <input id="preview-code" type="password" autocomplete="off" value={accessCode()} placeholder="Enter access code" onInput={e => setAccessCode(e.currentTarget.value)}/>
-              <p>Kept in this tab only, never saved. Required for private AI calls.</p>
+            <div class="preview-code"><label for="preview-code">Private AI access code</label>
+              <input id="preview-code" type="password" autocomplete="off" value={accessCode()} placeholder="Paste your preview code" onInput={e => { setAccessCode(e.currentTarget.value); setError(''); }}/>
+              <p>{accessCode().trim() ? 'Code entered. Click “Analyze with AI” to run the review.' : 'Enter your access code, then click Analyze. Entering a code alone does not start a review.'}</p>
             </div>
           </Show>
           <Show when={error()}><div class="api-error" role="alert">{error()}</div></Show>
-          <div class="actions">
+          <div class="actions primary-actions">
             <button class="primary" type="submit" disabled={!inputValid() || loading() || available() === 'checking'}>
-              {loading() ? '◌  Analyzing…' : available() === 'private' ? '✦  Analyze with AI' : '✦  Review demo'} <span>→</span>
+              {loading() ? '◌  Analyzing…' : available() === 'private' ? '✦  Analyze with AI' : '✦  Review task'} <span>→</span>
             </button>
             <button class="reset" type="button" disabled={loading()} onClick={reset} aria-label="Clear task">↺</button>
           </div>
           <Show when={available() === 'private'}>
-            <button class="secondary-action" type="button" disabled={!inputValid() || loading()} onClick={reviewDemo}>Use demo review instead</button>
+            <button class="secondary-action" type="button" disabled={!inputValid() || loading()} onClick={reviewDemo}>Run a demo review instead</button>
           </Show>
+          <button type="button" class="disclosure details-disclosure" aria-expanded={details()} onClick={() => setDetails(!details())}>
+            <span><b>{details() ? 'Hide optional details' : '+ Add optional details'}</b><small>Acceptance criteria, constraints and context</small></span><span class="plus">{details() ? '−' : '+'}</span>
+          </button>
+          <Show when={details()}><div class="extra">
+            <label for="criteria">Completion / acceptance criteria</label><textarea id="criteria" rows={3} maxLength={1200} value={task().criteria} onInput={e => edit('criteria', e.currentTarget.value)}/>
+            <label for="context">Constraints and context</label><textarea id="context" rows={3} maxLength={1200} value={task().context} onInput={e => edit('context', e.currentTarget.value)}/>
+            <button class="optional-analyze" type="submit" disabled={!inputValid() || loading() || available() === 'checking'}>
+              {loading() ? 'Analyzing…' : available() === 'private' ? 'Analyze with AI →' : 'Review task →'}
+            </button>
+          </div></Show>
           <p class="privacy-note">Live AI review sends task text to Cloudflare Workers AI. Demo review is processed in your browser.</p>
         </form>
       </div>
 
-      <div class="card result-card" aria-live="polite" aria-busy={loading()}>
+      <div class="card result-card" id="results" aria-live="polite" aria-busy={loading()}>
         <Show when={!loading()} fallback={<div class="empty loading-state"><div class="empty-icon spin">✦</div><h2>Reviewing your task</h2><p>Checking for missing information, ambiguity and contradictions…</p><button class="secondary-action" type="button" onClick={cancelRequest}>Cancel</button></div>}>
-          <Show when={result()} fallback={<div class="empty"><div class="empty-icon">✦</div><h2>Clarity starts here.</h2><p>Write a task or load an example. Review the findings and improve your description.</p><div class="empty-features"><div><i class="red"/> Missing details</div><div><i class="amber"/> Unclear requirements</div><div><i class="purple"/> Contradictions & next steps</div></div><span class="note">{available() === 'private' ? 'Private AI preview available' : 'Honest demo, no AI inference'}</span></div>}>
+          <Show when={result()} fallback={
+            <Show when={error()} fallback={<div class="empty">
+              <div class="empty-icon">✦</div><h2>No review yet</h2>
+              <p>{available() === 'private' ? 'Enter your access code, then click “Analyze with AI” to see findings here. The code alone does not start a review.' : 'Fill in the task and press “Review task”. Your findings will appear here.'}</p>
+              <button class="result-start" type="button" disabled={!inputValid() || loading() || available() === 'checking'} onClick={() => void runAI()}>
+                {available() === 'private' ? 'Analyze with AI →' : 'Review task →'}
+              </button>
+              <div class="empty-features"><div><i class="red"/> Missing details</div><div><i class="amber"/> Unclear requirements</div><div><i class="purple"/> Contradictions & next steps</div></div>
+              <span class="note">Not analyzed · {available() === 'private' ? 'Private AI enabled' : 'Demo mode'}</span>
+            </div>}>
+              <div class="result-failure" role="alert">
+                <span class="failure-icon">!</span><h2>Review not completed</h2><p>{error()}</p>
+                <button class="result-start" type="button" disabled={!inputValid() || loading()} onClick={() => void runAI()}>Try again →</button>
+                <span>Nothing was analyzed successfully. Check the code and retry, or use demo review.</span>
+              </div>
+            </Show>
+          }>
             {a => <>
               <div class="result-top"><div><span class="kicker">ANALYSIS RESULTS</span><h2>{displayStatus(a().status)}</h2><p>{a().summary}</p></div>
                 <span class="pill">{a().mode === 'live' ? 'AI review' : a().mode === 'demo' ? 'Prewritten demo' : 'Basic checks'}</span>
