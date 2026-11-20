@@ -242,7 +242,7 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
 
   // When the model itself missed a demonstrable conflict, do not let its rewrite
   // silently choose one side of mutually incompatible instructions.
-  if(reviewed.contradictionGuardTriggered) {
+  if(analysis.status === "blocked") {
     const clarification=clarificationDraft(task,analysis.findings);
     finish();
     return {...base,suggestedRewrite:clarification,rewriteStatus:clarification?"clarification_draft":"unavailable"};
