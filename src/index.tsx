@@ -3,6 +3,8 @@ import { render } from 'solid-js/web';
 import { analyze, blank, examples, type Task, type TaskType, type Domain } from './analyzer';
 import { analyzeLive, getHealth, ApiError, type ApiAnalysis, type ApiFinding } from './api';
 import './style.css';
+import './styles.neobrutalist.css';
+import { readDesignTheme, saveDesignTheme, type DesignTheme } from './design-theme';
 import { BrandEmblem, SectionIndex, PosterGeometry, FindingMark, ScreenLabel } from './components/Constructivist';
 
 const types: TaskType[] = ['General', 'Bug', 'Feature', 'Improvement', 'Request'];
@@ -39,6 +41,7 @@ function App() {
   const [selected, setSelected] = createSignal<string | null>(null);
   const [copied, setCopied] = createSignal(false);
   const [dark, setDark] = createSignal(window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
+  const [designTheme, setDesignTheme] = createSignal<DesignTheme>(readDesignTheme());
   let requestController: AbortController | undefined;
   let requestTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -49,6 +52,11 @@ function App() {
     }).catch(() => { if (active) setAvailable('demo'); });
     onCleanup(() => { active = false; requestController?.abort(); if (requestTimeout) clearTimeout(requestTimeout); });
   });
+
+  function chooseDesignTheme(next: DesignTheme) {
+    setDesignTheme(next);
+    saveDesignTheme(next);
+  }
 
   function revealResults() {
     // The result panel is beneath the form on phones/tablets.
@@ -137,11 +145,22 @@ function App() {
     task().title.length <= 180 && task().description.length <= 6500 &&
     task().criteria.length <= 1200 && task().context.length <= 1200 && totalLength() <= 8000;
 
-  return <div class="app" data-theme={dark() ? 'dark' : 'light'}>
+  return <div class="app" data-theme={dark() ? 'dark' : 'light'} data-design={designTheme()}>
     <header class="header"><div class="header-inner">
       <a class="brand" href="#top" aria-label="IssueLint home"><BrandEmblem/><span class="brand-word">ISSUE<strong>LINT</strong></span></a>
       <nav aria-label="Primary"><a href="#analyze" class="nav-current">01 / Analyze</a><a href="#examples">02 / Examples</a><a href="#guide">03 / Process</a></nav>
-      <div class="header-right"><span class="version">Independent task intelligence · v0.3</span><button class="theme" type="button" onClick={() => setDark(!dark())} aria-label={dark() ? 'Switch to light mode' : 'Switch to dark mode'}>{dark() ? '☀' : '☾'}</button></div>
+      <div class="header-right">
+        <div class="design-switcher" role="group" aria-label="Choose a visual design theme">
+          <span class="design-switcher-caption" aria-hidden="true">STYLE</span>
+          <button type="button" class="design-option" aria-pressed={designTheme() === 'constructivist'} title="Minimal Constructivism" onClick={() => chooseDesignTheme('constructivist')}>
+            <span class="design-name-long">Constructivist</span><span class="design-name-short">Minimal</span>
+          </button>
+          <button type="button" class="design-option" aria-pressed={designTheme() === 'neobrutalist'} title="Neobrutalism" onClick={() => chooseDesignTheme('neobrutalist')}>
+            <span class="design-name-long">Neobrutalist</span><span class="design-name-short">Neo</span>
+          </button>
+        </div>
+        <button class="theme" type="button" onClick={() => setDark(!dark())} aria-label={dark() ? 'Switch to light mode' : 'Switch to dark mode'} title={dark() ? 'Light mode' : 'Dark mode'}>{dark() ? '☀' : '☾'}</button>
+      </div>
     </div></header>
 
     <main id="top"><section class="hero" aria-label="IssueLint introduction">

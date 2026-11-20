@@ -1,0 +1,343 @@
+/* Neobrutalism — an opt-in design layer. Minimal Constructivism stays intact.
+   No fonts, images, UI libraries, or server calls required. */
+
+.app[data-design="neobrutalist"] {
+  --bg: #ffeedb;
+  --paper: #fffaf0;
+  --ink: #171717;
+  --muted: #453e38;
+  --line: #171717;
+  --heavy: #171717;
+  --red: #ff5276;
+  --red-text: #a41c38;
+  --soft: #fff1b8;
+  --field: #fffef8;
+  --hint: #171717;
+  --yellow: #ffdc46;
+  --neo-blue: #a6e6f5;
+  --neo-purple: #d9c1ff;
+  --neo-green: #bbf58c;
+  --neo-shadow: #171717;
+}
+
+.app[data-design="neobrutalist"][data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1c1925;
+  --paper: #292537;
+  --ink: #fff9ef;
+  --muted: #e1d9e5;
+  --line: #fff1dd;
+  --heavy: #fff1dd;
+  --red: #ff7191;
+  --red-text: #ff9bb0;
+  --soft: #42384c;
+  --field: #302b3b;
+  --hint: #fff1dd;
+  --yellow: #ffe46b;
+  --neo-blue: #a6e6f5;
+  --neo-purple: #d9c1ff;
+  --neo-green: #bbf58c;
+  --neo-shadow: #080711;
+}
+
+.app[data-design="neobrutalist"] .header {
+  background: var(--paper);
+  border-bottom: 3px solid var(--line);
+}
+.app[data-design="neobrutalist"] .header-inner { min-height: 70px; }
+.app[data-design="neobrutalist"] .brand-emblem {
+  background: var(--red);
+  border: 2px solid var(--line);
+  transform: rotate(-7deg);
+  width: 32px;
+  height: 32px;
+}
+.app[data-design="neobrutalist"] .brand-word {
+  font-weight: 900;
+  letter-spacing: -.065em;
+  font-size: 23px;
+}
+.app[data-design="neobrutalist"] .header nav a { color: var(--ink); font-weight: 850; }
+.app[data-design="neobrutalist"] .header nav a:hover,
+.app[data-design="neobrutalist"] .header nav a.nav-current { color: var(--red-text); text-decoration: underline 3px; text-underline-offset: 6px; }
+
+.app[data-design="neobrutalist"] .design-switcher {
+  border: 2px solid var(--line);
+  background: var(--paper);
+  box-shadow: 3px 3px 0 var(--neo-shadow);
+}
+.app[data-design="neobrutalist"] .design-switcher-caption { color: var(--ink); }
+.app[data-design="neobrutalist"] .design-option[aria-pressed="true"] {
+  background: var(--yellow);
+  color: #151515;
+}
+.app[data-design="neobrutalist"] .theme {
+  background: var(--neo-purple);
+  color: #161616;
+  border: 2px solid var(--line);
+  box-shadow: 3px 3px 0 var(--neo-shadow);
+}
+.app[data-design="neobrutalist"] .theme:hover { background: var(--yellow); }
+
+.app[data-design="neobrutalist"] .hero {
+  padding-top: 24px;
+  padding-bottom: 33px;
+}
+.app[data-design="neobrutalist"] .hero-topline { border-bottom: 2px solid var(--line); padding-bottom: 13px; }
+.app[data-design="neobrutalist"] .hero-bottomline { border-top: 0; padding-top: 16px; }
+.app[data-design="neobrutalist"] .section-index-number {
+  background: var(--red);
+  color: #151515;
+  border: 2px solid var(--line);
+  padding: 4px 7px;
+  font-weight: 900;
+}
+.app[data-design="neobrutalist"] .section-index-rule { height: 3px; background: var(--line); }
+.app[data-design="neobrutalist"] .section-index-label { font-weight: 900; }
+.app[data-design="neobrutalist"] .hero-body {
+  grid-template-columns: minmax(0, 1fr) 192px;
+  min-height: 224px;
+  background: var(--yellow);
+  border: 3px solid var(--line);
+  padding: 0;
+  margin: 16px 7px 0 0;
+  gap: 0;
+  box-shadow: 7px 7px 0 var(--neo-shadow);
+}
+.app[data-design="neobrutalist"] .hero-copy { padding: 26px; }
+.app[data-design="neobrutalist"] .hero h1 {
+  color: #161616;
+  font-weight: 900;
+  font-size: clamp(43px, 5.4vw, 75px);
+  letter-spacing: -.065em;
+  line-height: .96;
+}
+.app[data-design="neobrutalist"] .hero h1 em {
+  display: inline-block;
+  background: var(--red);
+  color: #171717;
+  padding: 1px 9px 5px;
+  transform: rotate(-2deg);
+  box-shadow: 4px 4px 0 #171717;
+}
+.app[data-design="neobrutalist"] .hero-copy > p {
+  color: #25221f;
+  font-weight: 650;
+}
+.app[data-design="neobrutalist"] .hero-meta { gap: 7px; }
+.app[data-design="neobrutalist"] .hero-meta span {
+  background: #fff9ef;
+  color: #171717;
+  border: 2px solid #171717;
+  padding: 5px 8px;
+  font-weight: 900;
+  letter-spacing: .045em;
+}
+.app[data-design="neobrutalist"] .hero-meta span + span::before { content: none; }
+.app[data-design="neobrutalist"] .hero-art {
+  border-left: 3px solid #171717;
+  background: var(--neo-blue);
+  min-height: 190px;
+}
+.app[data-design="neobrutalist"] .poster-grid {
+  background: radial-gradient(#161616 1.5px, transparent 1.6px) 0 0 / 17px 17px;
+  opacity: .32;
+}
+.app[data-design="neobrutalist"] .poster-disk {
+  width: 145px; height: 145px; top: -17px; right: -26px;
+  border: 18px solid #171717; background: var(--red);
+  transform: rotate(-15deg);
+}
+.app[data-design="neobrutalist"] .poster-stripe {
+  width: 270px; height: 24px; background: var(--yellow);
+  border: 3px solid #171717; transform: rotate(-36deg);
+  top: 58%; right: -63px;
+}
+.app[data-design="neobrutalist"] .poster-bar { width: 13px; background: #171717; transform: rotate(26deg); }
+.app[data-design="neobrutalist"] .poster-cross {
+  display: block; position: absolute; color: #171717; font-size: 94px;
+  font-weight: 900; top: -22px; left: 0; line-height: 1;
+}
+.app[data-design="neobrutalist"] .poster-caption {
+  display: block; position: absolute; left: 12px; bottom: 12px;
+  font-size: 13px; font-weight: 900; line-height: 1.05;
+  background: var(--neo-purple); color: #171717;
+  padding: 7px; border: 2px solid #171717;
+  transform: rotate(-5deg);
+}
+
+.app[data-design="neobrutalist"] .workspace { gap: 19px; }
+.app[data-design="neobrutalist"] .card {
+  border: 3px solid var(--line);
+  box-shadow: 7px 7px 0 var(--neo-shadow);
+}
+.app[data-design="neobrutalist"] .input-card { padding-left: 19px; padding-right: 19px; }
+.app[data-design="neobrutalist"] .card-intro { border-bottom: 3px solid var(--line); }
+.app[data-design="neobrutalist"] .intro-icon {
+  width: 39px; height: 39px; display: grid; place-items: center;
+  background: var(--yellow); color: #171717;
+  border: 2px solid var(--line); font-size: 18px;
+  transform: rotate(-6deg); flex-shrink: 0;
+}
+.app[data-design="neobrutalist"] .card-intro h2 { font-size: 21px; font-weight: 900; letter-spacing: -.045em; }
+.app[data-design="neobrutalist"] .panel-code { color: var(--red-text); font-weight: 900; }
+.app[data-design="neobrutalist"] .availability {
+  border: 2px solid var(--line); border-left: 6px solid var(--line);
+  background: var(--neo-blue); color: #181818; font-weight: 900;
+}
+.app[data-design="neobrutalist"] .status-dot { background: #171717; }
+.app[data-design="neobrutalist"] .status-dot.active-dot { background: #207d48; }
+.app[data-design="neobrutalist"] label { font-weight: 900; letter-spacing: .075em; }
+.app[data-design="neobrutalist"] input,
+.app[data-design="neobrutalist"] textarea,
+.app[data-design="neobrutalist"] select {
+  border: 2px solid var(--line);
+  font-weight: 550;
+  border-radius: 0;
+}
+.app[data-design="neobrutalist"] input:focus,
+.app[data-design="neobrutalist"] textarea:focus,
+.app[data-design="neobrutalist"] select:focus { box-shadow: inset 4px 0 0 var(--red); }
+.app[data-design="neobrutalist"] .preview-code {
+  border: 2px solid var(--line);
+  background: var(--soft);
+}
+.app[data-design="neobrutalist"] .primary {
+  background: var(--red); color: #171717;
+  border: 3px solid var(--line);
+  box-shadow: 4px 4px 0 var(--neo-shadow);
+  font-weight: 900; min-height: 49px;
+  transition: transform .12s, box-shadow .12s;
+}
+.app[data-design="neobrutalist"] .primary:hover:not(:disabled) { filter: none; transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--neo-shadow); }
+.app[data-design="neobrutalist"] .primary:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--neo-shadow); }
+.app[data-design="neobrutalist"] .reset {
+  border: 3px solid var(--line);
+  background: var(--yellow); color: #171717;
+  box-shadow: 3px 3px 0 var(--neo-shadow);
+}
+.app[data-design="neobrutalist"] .secondary-action { font-weight: 900; }
+.app[data-design="neobrutalist"] .disclosure { border-top: 3px solid var(--line); }
+.app[data-design="neobrutalist"] .disclosure b { font-weight: 900; }
+.app[data-design="neobrutalist"] .optional-analyze {
+  background: var(--yellow); color: #171717;
+  border: 2px solid var(--line); font-weight: 900;
+}
+.app[data-design="neobrutalist"] .api-error {
+  border: 2px solid var(--line);
+  border-left: 7px solid var(--red);
+  background: var(--neo-purple); color: #171717;
+}
+.app[data-design="neobrutalist"] .result-card { padding: 19px; }
+.app[data-design="neobrutalist"] .result-section-head { border-bottom: 3px solid var(--line); }
+.app[data-design="neobrutalist"] .screen-label { font-weight: 900; }
+.app[data-design="neobrutalist"] .screen-label-index {
+  color: #171717; background: var(--red);
+  border: 2px solid var(--line); padding: 5px 7px;
+}
+.app[data-design="neobrutalist"] .result-section-line { height: 5px; background: repeating-linear-gradient(-45deg, var(--red) 0 8px, transparent 8px 12px); }
+.app[data-design="neobrutalist"] .empty-icon {
+  border: 3px solid var(--line); background: var(--yellow);
+  color: #171717; box-shadow: 5px 5px 0 var(--neo-shadow);
+}
+.app[data-design="neobrutalist"] .empty h2 { font-weight: 900; font-size: 24px; }
+.app[data-design="neobrutalist"] .result-start {
+  background: var(--neo-green); color: #171717;
+  border: 3px solid var(--line); font-weight: 900;
+  box-shadow: 4px 4px 0 var(--neo-shadow);
+}
+.app[data-design="neobrutalist"] .result-failure .failure-icon {
+  background: var(--red); color: #171717; border: 2px solid var(--line);
+  display: grid; place-items: center; width: 38px; height: 38px;
+}
+.app[data-design="neobrutalist"] .pill {
+  border: 2px solid var(--line);
+  background: var(--yellow); color: #171717;
+  font-weight: 900;
+}
+.app[data-design="neobrutalist"] .score-box { border-top: 3px solid var(--line); border-bottom: 3px solid var(--line); }
+.app[data-design="neobrutalist"] .score,
+.app[data-design="neobrutalist"] .no-score { color: var(--red-text); font-weight: 900; }
+.app[data-design="neobrutalist"] .tabs { border-bottom: 3px solid var(--line); }
+.app[data-design="neobrutalist"] .tabs button { font-weight: 900; border-bottom-width: 4px; }
+.app[data-design="neobrutalist"] .tabs button.active {
+  background: var(--yellow); color: #171717;
+  border-color: var(--line);
+}
+.app[data-design="neobrutalist"] .finding { border-bottom: 2px solid var(--line); }
+.app[data-design="neobrutalist"] .finding-icon {
+  background: var(--neo-purple); color: #171717;
+  border: 2px solid var(--line); font-weight: 900;
+}
+.app[data-design="neobrutalist"] .finding-icon.ambiguity { background: var(--yellow); }
+.app[data-design="neobrutalist"] .finding-icon.missing,
+.app[data-design="neobrutalist"] .finding-icon.contradiction { background: var(--red); }
+.app[data-design="neobrutalist"] .question {
+  background: var(--yellow); color: #171717;
+  border-left: 5px solid #171717;
+}
+.app[data-design="neobrutalist"] .draft { border: 2px solid var(--line); }
+.app[data-design="neobrutalist"] .draft-head button { border: 2px solid var(--line); font-weight: 900; }
+.app[data-design="neobrutalist"] .section-heading { border-bottom: 3px solid var(--line); }
+.app[data-design="neobrutalist"] .section-heading h2,
+.app[data-design="neobrutalist"] .guide h2 { font-size: clamp(29px, 3.2vw, 40px); font-weight: 900; }
+.app[data-design="neobrutalist"] .example-grid { gap: 18px; }
+.app[data-design="neobrutalist"] .example {
+  border: 3px solid #171717;
+  background: var(--neo-blue); color: #171717;
+  box-shadow: 5px 5px 0 var(--neo-shadow);
+  transition: transform .12s, box-shadow .12s;
+}
+.app[data-design="neobrutalist"] .example:nth-child(2) { background: var(--yellow); }
+.app[data-design="neobrutalist"] .example:nth-child(3) { background: var(--neo-purple); }
+.app[data-design="neobrutalist"] .example:hover,
+.app[data-design="neobrutalist"] .example.selected {
+  transform: translate(-2px, -2px);
+  box-shadow: 7px 7px 0 var(--neo-shadow);
+}
+.app[data-design="neobrutalist"] .example strong { font-weight: 900; font-size: 19px; }
+.app[data-design="neobrutalist"] .example p { color: #302c26; }
+.app[data-design="neobrutalist"] .example-number {
+  border: 2px solid #171717; background: #fff9ed; color: #171717;
+  padding: 3px 6px; align-self: flex-start;
+}
+.app[data-design="neobrutalist"] .example-link { color: #681829; font-weight: 900; }
+.app[data-design="neobrutalist"] .guide { border-top: 3px solid var(--line); }
+.app[data-design="neobrutalist"] .steps { gap: 15px; }
+.app[data-design="neobrutalist"] .steps > div {
+  border: 3px solid var(--line);
+  background: var(--paper);
+  padding: 16px;
+  box-shadow: 4px 4px 0 var(--neo-shadow);
+}
+.app[data-design="neobrutalist"] .steps span { color: var(--red-text); }
+.app[data-design="neobrutalist"] footer {
+  border-top: 3px solid var(--line);
+  background: var(--yellow); color: #171717;
+}
+.app[data-design="neobrutalist"] footer b { color: #171717; }
+
+@media (max-width: 950px) {
+  .app[data-design="neobrutalist"] .hero-body { grid-template-columns: minmax(0, 1fr) 160px; }
+  .app[data-design="neobrutalist"] .hero h1 { font-size: clamp(42px, 6vw, 65px); }
+  .app[data-design="neobrutalist"] .workspace { gap: 16px; }
+}
+@media (max-width: 650px) {
+  .app[data-design="neobrutalist"] .header-inner { min-height: 62px; }
+  .app[data-design="neobrutalist"] .hero-body { display: block; margin-right: 6px; min-height: 0; }
+  .app[data-design="neobrutalist"] .hero-copy { padding: 20px 15px; }
+  .app[data-design="neobrutalist"] .hero-art { display: none; }
+  .app[data-design="neobrutalist"] .hero h1 { font-size: clamp(40px, 10vw, 56px); }
+  .app[data-design="neobrutalist"] .hero-meta { gap: 5px; }
+  .app[data-design="neobrutalist"] .hero-meta span { font-size: 9px; padding: 5px 6px; }
+  .app[data-design="neobrutalist"] .card { box-shadow: 4px 4px 0 var(--neo-shadow); }
+  .app[data-design="neobrutalist"] .input-card { padding-left: 14px; padding-right: 14px; }
+  .app[data-design="neobrutalist"] .result-card { padding: 14px; }
+  .app[data-design="neobrutalist"] .example-grid { gap: 13px; }
+  .app[data-design="neobrutalist"] .steps > div { box-shadow: 3px 3px 0 var(--neo-shadow); }
+  .app[data-design="neobrutalist"] .design-switcher { box-shadow: 2px 2px 0 var(--neo-shadow); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app[data-design="neobrutalist"] .example,
+  .app[data-design="neobrutalist"] .primary { transition: none; }
+}

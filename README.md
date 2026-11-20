@@ -70,3 +70,14 @@ Minimal Constructivism: structural grid, off-white/ink/red tokens, restrained di
 ## CI
 
 GitHub Actions runs unit tests, TypeScript/Vite build, release bundle export and public smoke checks for the page and unauthorized API response.
+
+## Selectable visual themes
+
+IssueLint has two **frontend-only** design systems with one shared SolidJS task/review implementation:
+
+- **Minimal Constructivism (default):** existing restrained off-white / ink / red look. Its original rules remain in `src/style.css`.
+- **Neobrutalism:** vibrant pink, yellow, blue and lilac accents, bold outlines, offset shadows and asymmetric poster geometry. Rules are scoped to `.app[data-design="neobrutalist"]` in `src/styles.neobrutalist.css`.
+
+The header switcher changes `data-design` without remounting the application or losing the task, result or private-preview access code. `src/design-theme.ts` persists only the design name in `localStorage` under `issuelint.design-theme.v1`, with a safe Constructivist fallback when storage is blocked. The separate light/dark control remains independent. Layouts are responsive and no font/image/UI packages are loaded.
+
+Test the switcher on desktop and mobile in both color modes, including switching while a result is visible and reloading to verify selection persistence. `test/client.test.mjs` verifies preference normalization, storage and restricted-storage behavior.
