@@ -23,7 +23,7 @@ jobs:
           grep -q 'Private AI access code' /tmp/issue.html
           grep -q 'MAKE EVERY' /tmp/issue.html
           grep -q 'poster-geometry' /tmp/issue.html
-          grep -q 'Constructivist' /tmp/issue.html
+          grep -q 'brand-word' /tmp/issue.html
           curl -fsS --max-time 20 "$BASE/api/health" | node -e '
             let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
               const x=JSON.parse(s);
