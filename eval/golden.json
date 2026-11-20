@@ -1,6 +1,6 @@
 {
-  "version": "2.1",
-  "labelPolicy": "Human-authored expected and allowed dimensions; review and revise as product requirements evolve",
+  "version": "2.2",
+  "labelPolicy": "Human-authored, context-dependent expected/allowed dimensions; all outcomes must be checked manually. Atomic tasks are not forced to include metrics, explicit 'why', verb-first titles or time estimates.",
   "cases": [
     {
       "id": "software-dark-mode-vague",
@@ -283,6 +283,182 @@
         "behavior",
         "completion",
         "clarity"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "actionability-topic-not-task",
+      "domain": "Marketing",
+      "task": {
+        "title": "Q4 brand awareness",
+        "description": "Q4 brand awareness. Something needs to happen about it.",
+        "type": "General",
+        "domain": "Marketing",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "actionability"
+      ],
+      "allowed": [
+        "actionability",
+        "scope",
+        "outcome",
+        "completion"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "actionability-concrete-budget",
+      "domain": "Operations",
+      "task": {
+        "title": "Draft Q4 budget summary",
+        "description": "Draft the Q4 budget summary from the approved finance workbook and send the final PDF to the finance lead on Friday.",
+        "type": "General",
+        "domain": "Operations",
+        "criteria": "PDF emailed to finance lead by Friday.",
+        "context": "Approved workbook is in the shared finance folder."
+      },
+      "expected": [],
+      "allowed": [],
+      "status": "ready"
+    },
+    {
+      "id": "granularity-epic-onboarding",
+      "domain": "Software",
+      "task": {
+        "title": "Build the customer onboarding platform",
+        "description": "Build an entire customer onboarding platform covering registration, identity verification, billing, admin tools, support messaging and analytics dashboards for all customers.",
+        "type": "Feature",
+        "domain": "Software",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "granularity"
+      ],
+      "allowed": [
+        "granularity",
+        "scope",
+        "behavior",
+        "completion"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "granularity-focused-small-feature",
+      "domain": "Software",
+      "task": {
+        "title": "Add PDF export",
+        "description": "Add a PDF download button to the existing invoices screen using the current invoice data and design tokens.",
+        "type": "Feature",
+        "domain": "Software",
+        "criteria": "Clicking the button downloads a PDF containing the visible invoice's number, date and total.",
+        "context": "The existing invoice PDF utility is already integrated."
+      },
+      "expected": [],
+      "allowed": [],
+      "status": "ready"
+    },
+    {
+      "id": "marketing-outcome-choice",
+      "domain": "Marketing",
+      "task": {
+        "title": "Choose a landing-page offer",
+        "description": "Run an A/B test with two promotional offers on the new landing page and use the winner for next month's campaign.",
+        "type": "Request",
+        "domain": "Marketing",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "outcome"
+      ],
+      "allowed": [
+        "outcome",
+        "completion",
+        "scope"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "operations-rollout-epic",
+      "domain": "Operations",
+      "task": {
+        "title": "Roll out warehouse management",
+        "description": "Deploy a new warehouse management system across six sites, including data migration, integrations, staff training, inventory reconciliation and the cutover.",
+        "type": "Request",
+        "domain": "Operations",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "granularity"
+      ],
+      "allowed": [
+        "granularity",
+        "scope",
+        "dependencies",
+        "completion"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "autonomous-agent-environment-missing",
+      "domain": "Software",
+      "task": {
+        "title": "Ask agent to fix auth",
+        "description": "Have an autonomous coding agent fix the authentication crash. The agent does not have repository access or a test environment.",
+        "type": "Bug",
+        "domain": "Software",
+        "criteria": "The fix should be verified before merging.",
+        "context": ""
+      },
+      "expected": [
+        "dependencies"
+      ],
+      "allowed": [
+        "dependencies",
+        "behavior",
+        "completion",
+        "scope"
+      ],
+      "status": "needs_clarification"
+    },
+    {
+      "id": "simple-atomic-email",
+      "domain": "Sales",
+      "task": {
+        "title": "Send contract",
+        "description": "Email the approved renewal contract PDF to the customer's purchasing address on Tuesday, and note the send in CRM.",
+        "type": "General",
+        "domain": "Sales",
+        "criteria": "Contract email sent and CRM entry recorded.",
+        "context": "The approved PDF and address are in the customer's CRM record."
+      },
+      "expected": [],
+      "allowed": [],
+      "status": "ready"
+    },
+    {
+      "id": "turkish-epic-splitting",
+      "domain": "Software",
+      "task": {
+        "title": "Müşteri portalı geliştir",
+        "description": "Müşteri portalının tamamını yapalım: üyelik, ödeme, abonelik yönetimi, raporlama, yönetici paneli, bildirimler ve destek sistemi.",
+        "type": "Feature",
+        "domain": "Software",
+        "criteria": "",
+        "context": ""
+      },
+      "expected": [
+        "granularity"
+      ],
+      "allowed": [
+        "granularity",
+        "scope",
+        "behavior",
+        "completion"
       ],
       "status": "needs_clarification"
     }

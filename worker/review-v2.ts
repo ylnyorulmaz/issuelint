@@ -3,10 +3,11 @@ import {
   type Task, type Analysis, type Finding,
 } from "./schema.ts";
 
-/** Explicit quality audit; a single missing checkbox is not an acceptable review. */
+/** Review Engine 2.2: eight execution checks plus three task-quality dimensions. */
 export const REVIEW_DIMENSIONS = [
-  "contradictions", "scope", "behavior", "completion",
-  "references", "dependencies", "clarity", "feasibility",
+  "contradictions", "actionability", "scope", "granularity",
+  "behavior", "completion", "outcome", "references",
+  "dependencies", "clarity", "feasibility",
 ] as const;
 export type ReviewDimension = typeof REVIEW_DIMENSIONS[number];
 export type CheckAssessment = "clear" | "gap" | "not_applicable";
@@ -58,7 +59,7 @@ export const REVIEW_V2_JSON_SCHEMA = {
     detectedDomain: { type: "string", enum: DOMAINS },
     detectedType: { type: "string", enum: TASK_TYPES },
     summary: { type: "string" },
-    checks: { type: "array", minItems: 8, maxItems: 8, items: CHECK },
+    checks: { type: "array", minItems: REVIEW_DIMENSIONS.length, maxItems: REVIEW_DIMENSIONS.length, items: CHECK },
     rewriteCore: { type: "string" },
   },
   required: ["detectedDomain", "detectedType", "summary", "checks", "rewriteCore"],
@@ -137,7 +138,7 @@ export function highConfidenceContradictions(task: Task): Finding[] {
 
 /** Remove generalized filler rather than treating it as a real finding. */
 function hasSourceDependency(task: Task): boolean {
-  return /\b(after|before|until|pending|approval|approved|blocked|depend|waiting|sign.off|requires)\b|onay|bekle|bağımlılık/iu.test(
+  return /\b(after|before|until|pending|approval|approved|blocked|depend|waiting|sign.off|requires|no repository access|no repo access|no test environment|no staging access|missing access|access unavailable)\b|onay|bekle|bağımlılık|erişim yok/iu.test(
     [task.title,task.description,task.criteria,task.context].join(" "));
 }
 function hasSourceReference(task: Task): boolean {
@@ -170,19 +171,19 @@ export function dimensionPriority(task:Task): readonly ReviewDimension[] {
   const domain=task.domain==="Other"?hint.domain:task.domain;
   switch(domain) {
     case "Software":
-      return ["contradictions","scope","behavior","references","completion","dependencies","feasibility","clarity"];
+      return ["contradictions","actionability","scope","granularity","behavior","completion","references","dependencies","feasibility","outcome","clarity"];
     case "Sales":
-      return ["contradictions","scope","behavior","dependencies","completion","references","feasibility","clarity"];
+      return ["contradictions","actionability","scope","granularity","behavior","dependencies","completion","outcome","references","feasibility","clarity"];
     case "Marketing":
-      return ["contradictions","scope","behavior","completion","references","dependencies","feasibility","clarity"];
+      return ["contradictions","actionability","scope","granularity","outcome","behavior","completion","references","dependencies","feasibility","clarity"];
     case "Operations":
-      return ["contradictions","dependencies","scope","behavior","completion","references","feasibility","clarity"];
+      return ["contradictions","actionability","dependencies","scope","granularity","completion","behavior","references","outcome","feasibility","clarity"];
     default:
-      return ["contradictions","scope","behavior","completion","references","dependencies","feasibility","clarity"];
+      return ["contradictions","actionability","scope","granularity","behavior","completion","outcome","references","dependencies","feasibility","clarity"];
   }
 }
 
-/** A priority gate: prioritize validated impact, not the order a model happened to write. */
+/** Priority gate: hard blockers first, then context-relevant executable decisions. */
 export function prioritizeChecks(checks: ReviewCheck[], task: Task): Finding[] {
   const rank: Record<ReviewCheck["severity"],number>={critical:0,important:1,suggestion:2};
   const order=dimensionPriority(task);
@@ -214,7 +215,7 @@ export function prioritizeChecks(checks: ReviewCheck[], task: Task): Finding[] {
 export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
   if(!obj(value))throw new ValidationError("review","Expected review object.");
   if(!oneOf(value.detectedDomain,DOMAINS)||!oneOf(value.detectedType,TASK_TYPES))throw new ValidationError("context","Invalid review classification.");
-  if(!Array.isArray(value.checks) || value.checks.length!==REVIEW_DIMENSIONS.length)throw new ValidationError("checks","Review must inspect all eight dimensions.");
+  if(!Array.isArray(value.checks) || value.checks.length!==REVIEW_DIMENSIONS.length)throw new ValidationError("checks","Review must inspect every quality dimension.");
   const checks:ReviewCheck[]=[];
   const seen=new Set<string>();
   for(const raw of value.checks){
@@ -268,5 +269,5 @@ export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
   });
   return {analysis,checks,context:{domain,type,inferred:task.domain==="Other"||task.type==="General"},
     rewriteCore,contradictionGuardTriggered,findingDimensions,
-    reviewCoverage:{checked:8,gaps:checks.filter(c=>c.assessment==="gap").length,reported:findings.length}};
+    reviewCoverage:{checked:REVIEW_DIMENSIONS.length,gaps:checks.filter(c=>c.assessment==="gap").length,reported:findings.length}};
 }
