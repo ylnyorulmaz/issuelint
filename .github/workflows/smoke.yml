@@ -1,0 +1,34 @@
+name: Cloudflare live smoke test
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public site and private API boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://issuelint-dev.yorulmazyln.workers.dev"
+          for i in 1 2 3 4 5; do
+            if curl -fsS --max-time 20 "$BASE/" -o /tmp/issue.html; then break; fi
+            sleep 3
+          done
+          grep -q '<div id="root"></div>' /tmp/issue.html
+          grep -q '<script type="module">' /tmp/issue.html
+          curl -fsS --max-time 20 "$BASE/api/health" | node -e '
+            let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
+              const x=JSON.parse(s);
+              if(x.status!=="ok"||x.iteration!==2||!x.aiBindingConfigured||!x.aiEnabled){
+                process.exit(1);
+              }
+              console.log("Healthy live AI Worker with private preview gate");
+            });
+          '
+          STATUS=$(curl -sS -o /tmp/issue-api.json -w '%{http_code}' --max-time 20 \
+            -X POST "$BASE/api/analyze" -H 'content-type: application/json' \
+            -d '{"title":"Test","description":"Check","type":"General","domain":"Other"}')
+          test "$STATUS" = "401"
+          echo "Unauthorized AI requests correctly denied (HTTP $STATUS)"

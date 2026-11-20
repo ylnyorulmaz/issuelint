@@ -17,12 +17,14 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm run check
+          node scripts/create-inline-worker.mjs
       - name: Export built Worker and site to release-bundle branch
         run: |
           set -euo pipefail
           mkdir -p export/worker export/site
           cp .cloudflare/output/v1/workers/default/bundle/index.js export/worker/index.js
           cp -r .cloudflare/output/v1/workers/default/assets/. export/site/
+          cp deploy-inline/index.js export/worker/inline.js
           cd export
           git init -b release-bundle
           git config user.name "github-actions[bot]"
