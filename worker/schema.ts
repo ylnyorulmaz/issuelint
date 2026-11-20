@@ -31,8 +31,10 @@ export type Analysis = {
 };
 
 export class ValidationError extends Error {
-  constructor(public readonly field: string, message: string) {
+  readonly field: string;
+  constructor(field: string, message: string) {
     super(message);
+    this.field = field;
     this.name = "ValidationError";
   }
 }
