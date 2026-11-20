@@ -61,7 +61,7 @@ The API now distinguishes:
 
 The Worker logs **only failure category and model label**, never raw task content, prompt, access codes or provider error bodies. Cloudflare Workers Logs are enabled for preview with query-string redaction and traces at partial sampling. Historical errors before observability was enabled are not retrievable.
 
-No automatic retry of paid inference is performed. Add rate limiting and a usage budget before public launch.
+A conditional second model call repairs empty or identical rewrites only. Add rate limiting and a usage budget before public launch.
 
 ## Design
 
@@ -81,3 +81,18 @@ IssueLint has two **frontend-only** design systems with one shared SolidJS task/
 The header switcher changes `data-design` without remounting the application or losing the task, result or private-preview access code. `src/design-theme.ts` persists only the design name in `localStorage` under `issuelint.design-theme.v1`, with a safe Constructivist fallback when storage is blocked. The separate light/dark control remains independent. Layouts are responsive and no font/image/UI packages are loaded.
 
 Test the switcher on desktop and mobile in both color modes, including switching while a result is visible and reloading to verify selection persistence. `test/client.test.mjs` verifies preference normalization, storage and restricted-storage behavior.
+
+
+## Rewrite integrity
+
+IssueLint checks whether an AI-produced suggested rewrite is merely a copy of the source. For empty/unchanged rewrites:
+
+1. It makes **at most one** additional, narrowly scoped Workers AI request for a proper copy-ready rewritten ticket. This happens only when the primary response is not a genuine rewrite.
+2. If the repair is still missing, it keeps the validated findings and shows a **Clarification checklist**, with source text and unresolved questions. The UI explicitly labels this as a structured checklist, **not an AI rewrite**.
+3. If there are no questions to add, it returns `rewriteStatus: "unavailable"` with an empty draft; the UI hides the Copy button. The client never presents the original text as a new rewrite.
+
+The response includes `rewriteStatus` of `rewritten`, `clarification_draft`, or `unavailable`. Conditional rewriting may incur a second inference charge. No unconditional retries.
+
+## Minimalist Zen (third visual theme)
+
+The design selector now offers **Minimal Constructivism**, **Neobrutalism** and **Zen**, independent of light/dark mode. The Zen layer is defined in `src/styles.zen.css`: sage/stone palette, open whitespace, calm forms and subdued typography. Existing themes remain unchanged. The selected style name alone is persisted; task data and preview code are never stored.
