@@ -13,6 +13,7 @@ export type ApiAnalysis = {
   summary: string;
   findings: ApiFinding[];
   suggestedRewrite: string;
+  rewriteStatus: 'rewritten' | 'clarification_draft' | 'unavailable';
 };
 export type LiveResponse = { mode: 'ai'; analyzed: true; analysis: ApiAnalysis };
 export type Health = { status: string; aiEnabled: boolean; aiBindingConfigured: boolean };
@@ -71,7 +72,8 @@ export async function analyzeLive(task: Task, token: string, signal: AbortSignal
   }
   const a = data.analysis;
   if (!['ready','needs_clarification','blocked'].includes(String(a.status)) ||
-      typeof a.summary !== 'string' || typeof a.suggestedRewrite !== 'string' || !Array.isArray(a.findings)) {
+      typeof a.summary !== 'string' || typeof a.suggestedRewrite !== 'string' ||
+      !['rewritten', 'clarification_draft', 'unavailable'].includes(String(a.rewriteStatus)) || !Array.isArray(a.findings)) {
     throw new ApiError('INVALID_RESPONSE', 'The analysis did not match the expected format.');
   }
   const findings: ApiFinding[] = [];
@@ -85,5 +87,6 @@ export async function analyzeLive(task: Task, token: string, signal: AbortSignal
     }
     findings.push(raw as ApiFinding);
   }
-  return { status: a.status as ApiAnalysis['status'], summary: a.summary, findings, suggestedRewrite: a.suggestedRewrite };
+  return { status: a.status as ApiAnalysis['status'], summary: a.summary, findings, suggestedRewrite: a.suggestedRewrite,
+    rewriteStatus: a.rewriteStatus as ApiAnalysis['rewriteStatus'] };
 }
