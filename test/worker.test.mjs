@@ -213,3 +213,15 @@ test("GET /api/analyze is rejected", async () => {
   assert.equal(res.status, 405);
   assert.equal(res.headers.get("allow"), "POST");
 });
+
+test("empty model rewrite is replaced with factual source text, not a 502", async () => {
+  const analysis = { ...validAnalysis, suggestedRewrite: "" };
+  const { env } = makeEnv({ AI: { run: async () => ({ choices: [{
+    message: { content: JSON.stringify(analysis) }, finish_reason: "stop"
+  }] }) } });
+  const res = await worker.fetch(post(), env);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.match(data.analysis.suggestedRewrite, /Contact all leads today/);
+  assert.match(data.analysis.suggestedRewrite, /Only qualified leads/);
+});
