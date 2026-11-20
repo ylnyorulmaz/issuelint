@@ -37,3 +37,37 @@ test('never renders fabricated successful response', async () => {
   try { await assert.rejects(() => analyzeLive(validTask,'token',new AbortController().signal), e => e instanceof ApiError && e.code === 'INVALID_RESPONSE'); }
   finally { globalThis.fetch = originalFetch; }
 });
+
+import { DEFAULT_DESIGN_THEME, DESIGN_THEME_STORAGE_KEY, normalizeDesignTheme, readDesignTheme, saveDesignTheme } from '../src/design-theme.ts';
+
+test('Minimal Constructivism stays the default, including unknown preferences', () => {
+  assert.equal(DEFAULT_DESIGN_THEME, 'constructivist');
+  assert.equal(normalizeDesignTheme(null), 'constructivist');
+  assert.equal(normalizeDesignTheme('not-a-design'), 'constructivist');
+  assert.equal(normalizeDesignTheme('neobrutalist'), 'neobrutalist');
+});
+
+test('design theme preference survives a reload via storage', () => {
+  const values = new Map();
+  const storage = {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+  };
+  assert.equal(readDesignTheme(storage), 'constructivist');
+  saveDesignTheme('neobrutalist', storage);
+  assert.equal(values.get(DESIGN_THEME_STORAGE_KEY), 'neobrutalist');
+  assert.equal(readDesignTheme(storage), 'neobrutalist');
+  saveDesignTheme('constructivist', storage);
+  assert.equal(readDesignTheme(storage), 'constructivist');
+  assert.equal(values.size, 1);
+});
+
+test('blocked or unavailable localStorage does not break the analyzer', () => {
+  const inaccessible = {
+    getItem: () => { throw Error('Blocked'); },
+    setItem: () => { throw Error('Blocked'); },
+  };
+  assert.equal(readDesignTheme(inaccessible), 'constructivist');
+  assert.doesNotThrow(() => saveDesignTheme('neobrutalist', inaccessible));
+  assert.equal(readDesignTheme(), 'constructivist');
+});
