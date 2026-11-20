@@ -140,7 +140,7 @@ Golden task fixtures: software dark-mode scope/behavior/Figma checks, sales appr
 
 ## Review Engine 2.1 — quality gate, domain priorities, evaluation
 
-**Permanent model**: `@cf/openai/gpt-oss-120b` (Cloudflare Workers AI), medium reasoning for the primary audit and optional quality gate. The inference allowlist no longer silently falls back to 20B or Gemma. Both `cloudflare.config.ts` and the live Worker `AI_MODEL` binding must agree.
+**Permanent model**: `@cf/openai/gpt-oss-120b` (Cloudflare Workers AI), medium reasoning for the primary audit and low reasoning for the narrower optional quality gate. The inference allowlist no longer silently falls back to 20B or Gemma. Both `cloudflare.config.ts` and the live Worker `AI_MODEL` binding must agree.
 
 **Contextual completeness gate**: after the first eight-dimension audit, `worker/quality-gate.ts` identifies important dimensions that the first pass marked clear on a short, underspecified task (software feature: scope and behavior; other domains: context-specific dimensions). It makes **one conditional independent 120B call** for at most two such dimensions. The server accepts a gap only when it has a specific explanation/question, nonduplicate content and authentic source quotes if provided. A failed optional gate preserves the validated initial analysis. No gate call is needed for a confirmed critical contradiction. Some additional inferences can run for low-detail tasks, increasing cost.
 
