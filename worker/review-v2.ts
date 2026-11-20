@@ -182,8 +182,9 @@ export function prioritizeChecks(checks: ReviewCheck[], task: Task): Finding[] {
   }
   const verified=highConfidenceContradictions(task);
   for(const candidate of verified.reverse()){
+    const pair=(quotes:string[])=>quotes.map(norm).sort().join("|");
     const isDuplicate=findings.some(f=>f.kind==="contradiction" &&
-      f.evidence.some(e=>candidate.evidence.includes(e)));
+      pair(f.evidence)===pair(candidate.evidence));
     if(!isDuplicate) findings.unshift(candidate);
   }
   return findings.slice(0,5);
