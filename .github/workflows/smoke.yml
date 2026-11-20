@@ -21,7 +21,7 @@ jobs:
           grep -q 'AWAITING INPUT.' /tmp/issue.html
           grep -q 'Analyze with AI' /tmp/issue.html
           grep -q 'Private AI access code' /tmp/issue.html
-          grep -q 'Paste a task. Make it clear.' /tmp/issue.html
+          grep -Eq 'Paste a task. Make it clear.|Paste or build a task. Make it clear.' /tmp/issue.html
           grep -q 'Paste your task, ticket or brief' /tmp/issue.html
           grep -q 'brand-word' /tmp/issue.html
           grep -q 'design-switcher' /tmp/issue.html
@@ -31,15 +31,15 @@ jobs:
           grep -q 'zen-pale' /tmp/issue.html
           grep -q 'rewriteStatus' /tmp/issue.html
           grep -q 'Minimalist' /tmp/issue.html
-          echo 'Paste-first Minimalist experience and rewrite contract present in deployed Worker'
+          echo 'Task review UI and rewrite contract present in deployed Worker (2.2/2.3 transition)'
           echo 'Three design themes and the preference control are in the live bundle'
           curl -fsS --max-time 20 "$BASE/api/health" | node -e '
             let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
               const x=JSON.parse(s);
-              if(x.status!=="ok"||x.iteration!==2||x.reviewEngineVersion!=="2.2"||!x.aiBindingConfigured||!x.aiEnabled){
+              if(x.status!=="ok"||x.iteration!==2||!["2.2","2.3"].includes(x.reviewEngineVersion)||!x.aiBindingConfigured||!x.aiEnabled){
                 process.exit(1);
               }
-              console.log("Healthy live AI Worker with private preview gate");
+              console.log("Healthy live AI Worker ("+x.reviewEngineVersion+") with private preview gate");
             });
           '
           STATUS=$(curl -sS -o /tmp/issue-api.json -w '%{http_code}' --max-time 20 \
