@@ -13,6 +13,7 @@ export type ReviewedAnalysis = {
   rewriteStatus: RewriteStatus;
   reviewContext: ReviewContext;
   reviewCoverage: { checked: number; gaps: number; reported: number };
+  findingDimensions: string[];
 };
 export const DEFAULT_MODEL = "@cf/openai/gpt-oss-120b";
 export const ALLOWED_MODELS = [DEFAULT_MODEL] as const;
@@ -191,7 +192,16 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
           reasoning_effort:"medium",max_tokens:1450,temperature:0.1,stream:false
         });
         const revisedChecks=applyQualityGate(task,reviewed.checks,uncertain,extractJsonResponse(gateRaw));
-        reviewed=parseReviewV2({...parsed,checks:revisedChecks},task);
+        const newDimensions=revisedChecks.filter(c=>c.assessment==="gap" &&
+          reviewed.checks.find(p=>p.dimension===c.dimension)?.assessment!=="gap")
+          .map(c=>c.dimension);
+        const summaryAddition=newDimensions.length
+          ? " Additional clarification required for "+newDimensions.join(" and ")+"."
+          : "";
+        reviewed=parseReviewV2({
+          ...parsed,checks:revisedChecks,
+          summary:(String(parsed.summary??"").slice(0,600)+summaryAddition).slice(0,700)
+        },task);
       }catch{
         // Failure of the optional quality gate must not suppress useful findings.
         // No prompts, task data or raw provider errors are written to logs.
@@ -202,11 +212,12 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
     throw new InferenceError("invalid_response");
   }
 
-  const {analysis,context,reviewCoverage,rewriteCore}={
+  const {analysis,context,reviewCoverage,rewriteCore,findingDimensions}={
     analysis:reviewed.analysis,context:reviewed.context,
     reviewCoverage:reviewed.reviewCoverage,rewriteCore:reviewed.rewriteCore,
+    findingDimensions:reviewed.findingDimensions,
   };
-  const base = {...analysis, reviewContext:context, reviewCoverage};
+  const base = {...analysis, reviewContext:context, reviewCoverage,findingDimensions};
   const candidate=coreOnly(rewriteCore);
 
   // When the model itself missed a demonstrable conflict, do not let its rewrite
