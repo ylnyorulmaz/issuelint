@@ -105,3 +105,11 @@ All API responses use `Cache-Control: no-store`. There is no permissive CORS pol
 Only the isolated development Worker `issuelint-dev` is targeted. **Do not deploy or merge into a public production domain yet.** The previous iteration's remote Worker may still be API-only; `npm run build` must produce both asset and Worker bundles, followed by a verified combined deployment.
 
 **Iteration 3:** connect frontend to the live endpoint, loading/error states and privacy copy. **Iteration 4:** abuse/rate limiting, daily consumption controls, production launch.
+
+## Iteration 3 — Frontend and Cloudflare preview
+
+The SolidJS UI calls `/api/health` to detect whether live inference is enabled. When the server is in private-preview mode, users enter an access code (memory only; not stored) and `Analyze with AI` sends the task to `/api/analyze`. Demo reviews remain available and are clearly identified as demo/basic checks. Live reviews send task text to Cloudflare Workers AI; no task database is used.
+
+**Cloudflare deployment note:** The initial direct Static Assets upload using the connected Cloudflare API returned HTTP 401 at the asset-content upload stage (JWT authorization). For the first accessible preview, the compiled JS and CSS were packed into a single HTML response in the same Worker; this keeps the API and UI together. This alternative is reproducible via `node scripts/create-inline-worker.mjs` after `npm run build`, which writes `deploy-inline/index.js`. Use native Cloudflare Workers Static Assets via `cf deploy` for the intended long-term hosting strategy.
+
+The Cloudflare deployment must define `AI` (native binding), `AI_MODEL`, `ANALYZE_ENABLED=true`, and a **secret** `PREVIEW_TOKEN`. Never put the secret in the repo, build artifacts, or Vite environment. Public AI requests are not enabled; private access is a temporary measure until robust cost and abuse controls are added.
