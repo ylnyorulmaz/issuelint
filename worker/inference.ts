@@ -17,8 +17,10 @@ export interface AiRunner {
 }
 
 export class InferenceError extends Error {
-  constructor(public readonly kind: "upstream" | "invalid_response") {
+  readonly kind: "upstream" | "invalid_response";
+  constructor(kind: "upstream" | "invalid_response") {
     super(kind);
+    this.kind = kind;
     this.name = "InferenceError";
   }
 }
