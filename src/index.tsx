@@ -276,7 +276,10 @@ function App() {
                 <span class="pill">{a().mode === 'live' ? 'AI review' : a().mode === 'demo' ? 'Prewritten demo' : 'Basic checks'}</span>
               </div>
               <div class="score-box"><div class={a().score === null ? 'no-score' : 'score'}>{a().score === null ? '—' : <><b>{a().score}</b><small>/100</small></>}</div>
-                <div><strong>{a().findings.length} finding{a().findings.length === 1 ? '' : 's'}</strong><p>{a().mode === 'live' ? '{a().reviewCoverage?.checked ?? 0} dimensions checked · {a().reviewContext ? a().reviewContext?.domain + ' / ' + a().reviewContext?.type + (a().reviewContext?.inferred ? ' (inferred)' : '') : 'AI review'} · verify findings' :
+                <div><strong>{a().findings.length} finding{a().findings.length === 1 ? '' : 's'}</strong><p>{a().mode === 'live'
+                    ? (a().reviewCoverage?.checked ? a().reviewCoverage?.checked + ' checks assessed' : 'AI review') + ' · ' +
+                      (a().reviewContext ? a().reviewContext?.domain + ' / ' + a().reviewContext?.type +
+                      (a().reviewContext?.inferred ? ' (inferred)' : '') : 'Review findings') :
                   a().mode === 'demo' ? 'Illustrative score and prewritten findings' : 'Simple structural checks, not an AI analysis'}</p></div>
               </div>
               <div class="tabs" role="tablist" aria-label="Result views">
