@@ -1,9 +1,9 @@
 import {
-  DOMAINS, TASK_TYPES, KINDS, SEVERITIES, ValidationError, parseAnalysis,
+  DOMAINS, TASK_TYPES, KINDS, SEVERITIES, ValidationError, parseAnalysis, taskSource,
   type Task, type Analysis, type Finding,
 } from "./schema.ts";
 
-/** Review Engine 2.2: eight execution checks plus three task-quality dimensions. */
+/** Review Engine 2.3: eight execution checks plus three task-quality dimensions. */
 export const REVIEW_DIMENSIONS = [
   "contradictions", "actionability", "scope", "granularity",
   "behavior", "completion", "outcome", "references",
@@ -79,13 +79,13 @@ function norm(v: string): string {
   return v.toLocaleLowerCase().normalize("NFKC").replace(/[\p{P}\p{S}\s]+/gu," ").trim();
 }
 function sourceHas(task: Task, quote: string): boolean {
-  const source = [task.title,task.description,task.criteria,task.context].join(" ").replace(/\s+/g," ").toLocaleLowerCase();
+  const source = taskSource(task).replace(/\s+/g," ").toLocaleLowerCase();
   return source.includes(quote.replace(/\s+/g," ").toLocaleLowerCase().trim());
 }
 
 /** Heuristic hints are advisory only: infer domain from concrete text, not hidden UI defaults. */
 export function contextHints(task: Task): {domain: typeof DOMAINS[number]; type: typeof TASK_TYPES[number]} {
-  const s=[task.title,task.description,task.criteria,task.context].join(" ").toLocaleLowerCase();
+  const s=taskSource(task).toLocaleLowerCase();
   const software = /(dark.mode|dark theme|web app|website|mobile app|\bweb\b|\bmobile\b|\bapi\b|\bfrontend\b|\bbackend\b|\bui\b|arayüz|yazılım|uygulama|\bbug\b|\bdeploy\b)/iu;
   const marketing = /(campaign|marketing|newsletter|email marketing|brand awareness|kampanya|pazarlama|seo\b|conversion rate)/iu;
   const sales = /(\blead\b|outreach|\bcrm\b|prospect|pipeline|müşteri adayı|satış|quotation|teklif)/iu;
@@ -104,7 +104,7 @@ export function contextHints(task: Task): {domain: typeof DOMAINS[number]; type:
  * This supplements (never replaces) the model's cross-domain audit.
  */
 export function highConfidenceContradictions(task: Task): Finding[] {
-  const sourceChunks=[task.title,task.description,task.criteria,task.context]
+  const sourceChunks=[task.title,task.description,task.criteria,task.context,task.scope??"",task.outcome??"",task.references??""]
     .flatMap(v=>v.split(/(?<=[.!?])\s+|\n+/u)).map(v=>v.trim()).filter(Boolean);
   const result:Finding[]=[];
   const urgency=sourceChunks.find(v=>
@@ -139,7 +139,7 @@ export function highConfidenceContradictions(task: Task): Finding[] {
 /** Remove generalized filler rather than treating it as a real finding. */
 function hasSourceDependency(task: Task): boolean {
   return /\b(after|before|until|pending|approval|approved|blocked|depend|waiting|sign.off|requires|no repository access|no repo access|no test environment|no staging access|missing access|access unavailable)\b|onay|bekle|bağımlılık|erişim yok/iu.test(
-    [task.title,task.description,task.criteria,task.context].join(" "));
+    taskSource(task));
 }
 function hasSourceReference(task: Task): boolean {
   return /\b(figma|link|url|document|doc|file|attachment|reference|specification|design file|template)\b|doküman|bağlantı|ek dosya|tasarım dosyası/iu.test(
@@ -212,6 +212,25 @@ export function prioritizeChecks(checks: ReviewCheck[], task: Task): Finding[] {
   return findings.slice(0,5);
 }
 
+/** Derive the user-visible verdict from the FINAL selected findings, not the model's stale summary. */
+export function deriveReviewSummary(status: Analysis["status"], findings: Finding[], task: Task): string {
+  const source = (task.title + " " + task.description).toLocaleLowerCase();
+  const turkish = /[çğıöşüı]|\\b(görev|kullanıcı|ekran|yapılacak|için|olmalı|gerekiyor)\\b/iu.test(source);
+  const heads = findings.slice(0,2).map(f=>f.title.trim().replace(/[.!?]+$/g,"")).filter(Boolean).join("; ").slice(0,350);
+  if(status==="blocked") return turkish
+    ? "Görev çelişen talimatlar nedeniyle bloke: " + heads + ". Devam etmeden önce çelişkileri giderin."
+    : "Conflicting requirements block this task: " + heads + ". Resolve them before execution.";
+  if(status==="needs_clarification") return turkish
+    ? "Görevin uygulanabilmesi için şu konular netleştirilmeli: " + heads + ". Bulgulardaki soruları yanıtlayın."
+    : "Execution requires clarification on: " + heads + ". Resolve the questions in the findings.";
+  if(findings.length) return turkish
+    ? "Engelleyici eksik bulunmadı; " + findings.length + " iyileştirme önerisi var. Başlamadan önce gözden geçirin."
+    : "No blocking gaps found; " + findings.length + " optional improvement(s) remain for review.";
+  return turkish
+    ? "11 kalite boyutunda engelleyici eksik bulunmadı. Uygulamadan önce ayrıntıları doğrulayın."
+    : "No blocking gaps found across 11 quality dimensions. Verify the details before execution.";
+}
+
 export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
   if(!obj(value))throw new ValidationError("review","Expected review object.");
   if(!oneOf(value.detectedDomain,DOMAINS)||!oneOf(value.detectedType,TASK_TYPES))throw new ValidationError("context","Invalid review classification.");
@@ -259,7 +278,10 @@ export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
   }
   const status=findings.some(f=>f.kind==="contradiction"&&f.severity==="critical")?"blocked":
     findings.some(f=>f.severity==="important"||f.severity==="critical")?"needs_clarification":"ready";
-  const summary=text(value.summary,700);
+  // Model summary is validated but never trusted as the final verdict narrative.
+  // A second-pass gate can add gaps after the model wrote its original summary.
+  text(value.summary,700);
+  const summary=deriveReviewSummary(status,findings,task);
   const rewriteCore=text(value.rewriteCore,6500);
   const analysis=parseAnalysis({status,summary,findings,suggestedRewrite:""},task);
   const findingDimensions=findings.map(f=>{
