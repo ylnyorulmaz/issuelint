@@ -31,6 +31,7 @@ export type ReviewedV2 = {
   checks: ReviewCheck[];
   rewriteCore: string;
   reviewCoverage: { checked: number; gaps: number; reported: number };
+  findingDimensions: ReviewDimension[];
   contradictionGuardTriggered: boolean;
 };
 
@@ -260,6 +261,12 @@ export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
   const summary=text(value.summary,700);
   const rewriteCore=text(value.rewriteCore,6500);
   const analysis=parseAnalysis({status,summary,findings,suggestedRewrite:""},task);
+  const findingDimensions=findings.map(f=>{
+    const corresponding=checks.find(c=>c.assessment==="gap" &&
+      norm(c.title)===norm(f.title) && norm(c.question)===norm(f.question));
+    return corresponding?.dimension ?? "contradictions";
+  });
   return {analysis,checks,context:{domain,type,inferred:task.domain==="Other"||task.type==="General"},
-    rewriteCore,contradictionGuardTriggered,reviewCoverage:{checked:8,gaps:checks.filter(c=>c.assessment==="gap").length,reported:findings.length}};
+    rewriteCore,contradictionGuardTriggered,findingDimensions,
+    reviewCoverage:{checked:8,gaps:checks.filter(c=>c.assessment==="gap").length,reported:findings.length}};
 }
