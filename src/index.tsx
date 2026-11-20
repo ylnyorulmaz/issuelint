@@ -22,12 +22,15 @@ type View = {
   findings: (ApiFinding | { kind: ApiFinding['kind']; title: string; detail: string; question?: string; evidence?: string[]; severity?: ApiFinding['severity'] })[];
   draft: string;
   rewriteStatus?: ApiAnalysis['rewriteStatus'];
+  reviewContext?: ApiAnalysis['reviewContext'];
+  reviewCoverage?: ApiAnalysis['reviewCoverage'];
 };
 function displayStatus(status: View['status']): string {
   return ({ ready: 'Ready to work', needs_clarification: 'Needs clarification', blocked: 'Blocked — resolve first', not_scored: 'Basic review' })[status];
 }
 function fromLive(a: ApiAnalysis): View {
-  return { mode: 'live', score: null, status: a.status, summary: a.summary, findings: a.findings, draft: a.suggestedRewrite, rewriteStatus: a.rewriteStatus };
+  return { mode: 'live', score: null, status: a.status, summary: a.summary, findings: a.findings, draft: a.suggestedRewrite, rewriteStatus: a.rewriteStatus,
+    reviewContext: a.reviewContext, reviewCoverage: a.reviewCoverage };
 }
 function fromDemo(task: Task): View {
   const a = analyze(task);
@@ -273,7 +276,7 @@ function App() {
                 <span class="pill">{a().mode === 'live' ? 'AI review' : a().mode === 'demo' ? 'Prewritten demo' : 'Basic checks'}</span>
               </div>
               <div class="score-box"><div class={a().score === null ? 'no-score' : 'score'}>{a().score === null ? '—' : <><b>{a().score}</b><small>/100</small></>}</div>
-                <div><strong>{a().findings.length} finding{a().findings.length === 1 ? '' : 's'}</strong><p>{a().mode === 'live' ? 'Live model response · review findings before applying' :
+                <div><strong>{a().findings.length} finding{a().findings.length === 1 ? '' : 's'}</strong><p>{a().mode === 'live' ? '{a().reviewCoverage?.checked ?? 0} dimensions checked · {a().reviewContext ? a().reviewContext?.domain + ' / ' + a().reviewContext?.type + (a().reviewContext?.inferred ? ' (inferred)' : '') : 'AI review'} · verify findings' :
                   a().mode === 'demo' ? 'Illustrative score and prewritten findings' : 'Simple structural checks, not an AI analysis'}</p></div>
               </div>
               <div class="tabs" role="tablist" aria-label="Result views">
