@@ -80,7 +80,7 @@ test("GET /api/health reports Iteration 2 without running AI", async () => {
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.equal(data.iteration, 2);
-  assert.equal(data.reviewEngineVersion,"2.1");
+  assert.equal(data.reviewEngineVersion,"2.2");
   assert.equal(data.aiEnabled, false);
   assert.equal(data.aiBindingConfigured, true);
   assert.equal(calls.length, 0);
