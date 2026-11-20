@@ -341,7 +341,7 @@ test("v2 audits all dimensions and ranks multiple important gaps ahead of generi
   assert.equal(review.analysis.status,"needs_clarification");
   assert.equal(review.analysis.findings.length,4);
   assert.deepEqual(review.analysis.findings.map(f=>f.title),[
-    "Unspecified screens","Undefined theme switching","Figma reference not identifiable","No verification criteria"
+    "Unspecified screens","Undefined theme switching","No verification criteria","Figma reference not identifiable"
   ]);
   assert.equal(review.reviewCoverage.checked,REVIEW_DIMENSIONS.length);
   assert.equal(review.context.domain,"Software");
