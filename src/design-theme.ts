@@ -9,7 +9,7 @@ export interface DesignThemeStorage {
 }
 
 export function normalizeDesignTheme(value: unknown): DesignTheme {
-  return value === 'neobrutalist' || value === 'minimalist' ? value : DEFAULT_DESIGN_THEME;
+  return value === 'neobrutalist' || value === 'minimalist' || value === 'constructivist' ? value : DEFAULT_DESIGN_THEME;
 }
 
 function browserStorage(): DesignThemeStorage | undefined {
