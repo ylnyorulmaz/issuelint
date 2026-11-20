@@ -261,7 +261,7 @@ test("verbatim copy in primary output triggers rewrite repair", async () => {
     calls++;
     return { choices: [{ message: { content: JSON.stringify(calls === 1
       ? toV2({ ...validAnalysis, suggestedRewrite: same })
-      : { suggestedRewrite: "Task: Contact qualified leads once outreach copy has been approved. Clarify whether the deadline should move from today to tomorrow." }) }, finish_reason: "stop" }] };
+      : { suggestedRewrite: "Task: Contact qualified leads after approval tomorrow. Clarify whether the deadline should move from today to tomorrow." }) }, finish_reason: "stop" }] };
   } } });
   const res = await worker.fetch(post(), env);
   assert.equal(res.status, 200);
