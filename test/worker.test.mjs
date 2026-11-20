@@ -306,7 +306,7 @@ test("failed second rewrite retains findings and labels a question checklist", a
   assert.equal(calls, 2);
   assert.equal(body.analysis.rewriteStatus, "clarification_draft");
   assert.match(body.analysis.suggestedRewrite, /Open questions/);
-  assert.match(body.analysis.suggestedRewrite, /Should the deadline move/);
+  assert.match(body.analysis.suggestedRewrite, /Which volunteers should receive the note/);
   assert.equal(body.analysis.findings.length, 1);
 });
 
@@ -645,7 +645,7 @@ test("2.3 derives summary from final findings, ignoring optimistic model claims"
 test("2.3 accepts optional source fields without requiring them from legacy clients", () => {
   const old=parseTask(originalTask);
   assert.equal("scope" in old,false);
-  const task=parseTask({...originalTask,scope:"Only Settings screen",
+  const task=parseTask({...repairTask,scope:"Only Settings screen",
     outcome:"Users can select a theme",references:"https://example.com/design"});
   assert.equal(task.scope,"Only Settings screen");
   assert.equal(task.outcome,"Users can select a theme");
