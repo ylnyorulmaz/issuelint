@@ -3,7 +3,7 @@ import {
   type Task, type Analysis, type Finding,
 } from "./schema.ts";
 
-/** Review Engine 2.3: eight execution checks plus three task-quality dimensions. */
+/** Review Engine 2.4: eight execution checks plus three task-quality dimensions. */
 export const REVIEW_DIMENSIONS = [
   "contradictions", "actionability", "scope", "granularity",
   "behavior", "completion", "outcome", "references",
@@ -184,33 +184,91 @@ export function dimensionPriority(task:Task): readonly ReviewDimension[] {
   }
 }
 
-/** Priority gate: hard blockers first, then context-relevant executable decisions. */
+/** Evidence and decision-oriented overlap. Two different source conflicts may
+ * share a sentence; shared evidence alone is never sufficient to merge them.
+ */
+function evidenceOverlap(a:Finding,b:Finding):number {
+  const quotes=(xs:string[])=>xs.map(norm).filter(Boolean);
+  const left=quotes(a.evidence),right=quotes(b.evidence);
+  return left.filter(q=>right.some(other=>q===other || (Math.min(q.length,other.length)>18 && (q.includes(other)||other.includes(q))))).length;
+}
+const STOP_WORDS=new Set([
+  "which","should","would","could","these","those","there","their","about","being",
+  "before","after","with","from","into","what","when","where","need","needs","must",
+  "only","task","work","issue","clear","missing","details","requirements","requirement",
+  "the","and","for","are","can","you","this","that","who","have","will",
+]);
+function meaningfulWords(value:string):Set<string>{
+  return new Set(norm(value).split(" ").filter(w=>w.length>=4 && !STOP_WORDS.has(w)));
+}
+function similarity(a:string,b:string):number {
+  const left=meaningfulWords(a),right=meaningfulWords(b);
+  if(!left.size||!right.size)return 0;
+  let overlap=0;
+  for(const w of left)if(right.has(w))overlap++;
+  return overlap/Math.min(left.size,right.size);
+}
+/** Domain-aware decision categories. No category alone proves equivalence. */
+function decisionFamily(f:Finding):string {
+  const focus=norm(f.title+" "+f.question);
+  const patterns:readonly [string,RegExp][]=[
+    ["screen-scope",/\b(screens?|pages?|components?|views?|coverage)\b/iu],
+    ["theme-behavior",/\b(toggle|switch|persist|persistence|theme|preferences?|sessions?|system setting)\b/iu],
+    ["design-reference",/\b(figma|design link|file url|attachment|reference link|file identifier)\b/iu],
+    ["delivery-time",/\b(deadline|timing|approval|approved|before|after|prerequisite|today|tomorrow|date changing|onay|bugün|yarın)\b/iu],
+    ["audience",/\b(audience|qualified|leads?|prospects?|recipients?|everyone|target group|which contacts)\b/iu],
+    ["completion",/\b(acceptance|completion|verification|tests?|done criteria)\b/iu],
+    ["granularity",/\b(split|epic|work packages|independent deliverables|smaller tasks)\b/iu],
+  ];
+  for(const [family,pattern] of patterns)if(pattern.test(focus))return family;
+  return "";
+}
+function sameRootIssue(candidate:Finding,selected:Finding):boolean {
+  const overlap=evidenceOverlap(candidate,selected);
+  const first=decisionFamily(candidate),second=decisionFamily(selected);
+  const sameFamily=!!first && first===second;
+  const questionSimilarity=similarity(candidate.question,selected.question);
+  const headingSimilarity=similarity(candidate.title,selected.title);
+  // A matching two-excerpt conflict is the same conflict even if paraphrased.
+  if(candidate.kind==="contradiction"&&selected.kind==="contradiction"&&overlap>=2)return true;
+  // Rephrased questions can indicate a repeated decision without matching titles.
+  if(questionSimilarity>=0.78 && (sameFamily || overlap>0))return true;
+  // A supporting "pending approval" gap is already covered by the cited timing
+  // conflict; an independent requirement with different evidence is retained.
+  if(sameFamily && overlap>0)return true;
+  if(sameFamily && headingSimilarity>=0.85 && questionSimilarity>=0.5)return true;
+  return false;
+}
+
+/** Return source-verified, nonoverlapping decisions rather than every rubric gap.
+ * Blocked tasks surface two distinct verified blockers and at most one other
+ * independent issue. No new model call or unverifiable semantic assertion.
+ */
 export function prioritizeChecks(checks: ReviewCheck[], task: Task): Finding[] {
   const rank: Record<ReviewCheck["severity"],number>={critical:0,important:1,suggestion:2};
   const order=dimensionPriority(task);
   const candidates=checks.filter(c=>c.assessment==="gap" && !isGenericClarity(c) && !isUnsupportedGap(c,task))
     .sort((a,b)=>rank[a.severity]-rank[b.severity]||order.indexOf(a.dimension)-order.indexOf(b.dimension));
-  const findings: Finding[]=[];
-  const seen=new Set<string>();
-  for(const c of candidates) {
-    const key=norm(c.question||c.title);
-    if(!key || seen.has(key))continue;
-    seen.add(key);
-    if(c.kind==="contradiction" && (c.evidence.length!==2 || c.evidence.some(q=>!sourceHas(task,q)))) {
-      // Never present a contradiction lacking two verified quotes.
-      continue;
-    }
-    findings.push({kind:c.kind,severity:c.severity,title:c.title,detail:c.detail,evidence:c.evidence,question:c.question});
-    if(findings.length===5)break;
+  const selected:Finding[]=[];
+  const add=(finding:Finding)=>{
+    if(selected.some(existing=>sameRootIssue(finding,existing)))return false;
+    selected.push(finding);
+    return true;
+  };
+  // Grounded contradictions have precedence over model paraphrases.
+  for(const f of highConfidenceContradictions(task))add(f);
+  const blocked=selected.some(f=>f.kind==="contradiction"&&f.severity==="critical") ||
+    candidates.some(c=>c.kind==="contradiction"&&c.severity==="critical"&&c.evidence.length===2);
+  for(const c of candidates){
+    if(c.kind==="contradiction" && (c.evidence.length!==2 || c.evidence.some(q=>!sourceHas(task,q))))continue;
+    add({kind:c.kind,severity:c.severity,title:c.title,detail:c.detail,evidence:c.evidence,question:c.question});
   }
-  const verified=highConfidenceContradictions(task);
-  for(const candidate of verified.reverse()){
-    const pair=(quotes:string[])=>quotes.map(norm).sort().join("|");
-    const isDuplicate=findings.some(f=>f.kind==="contradiction" &&
-      pair(f.evidence)===pair(candidate.evidence));
-    if(!isDuplicate) findings.unshift(candidate);
-  }
-  return findings.slice(0,5);
+  const ordered=selected.sort((a,b)=>rank[a.severity]-rank[b.severity]);
+  if(!blocked)return ordered.slice(0,5);
+  const blockers=ordered.filter(f=>f.kind==="contradiction"&&f.severity==="critical").slice(0,2);
+  const supporting=ordered.find(f=>!(f.kind==="contradiction"&&f.severity==="critical") &&
+    !blockers.some(b=>sameRootIssue(f,b)));
+  return [...blockers,...(supporting?[supporting]:[])].slice(0,3);
 }
 
 /** Derive the user-visible verdict from the FINAL selected findings, not the model's stale summary. */
