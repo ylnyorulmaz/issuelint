@@ -230,7 +230,10 @@ function sameRootIssue(candidate:Finding,selected:Finding):boolean {
   const questionSimilarity=similarity(candidate.question,selected.question);
   const headingSimilarity=similarity(candidate.title,selected.title);
   // A matching two-excerpt conflict is the same conflict even if paraphrased.
-  if(candidate.kind==="contradiction"&&selected.kind==="contradiction"&&overlap>=2)return true;
+  if(candidate.kind==="contradiction"&&selected.kind==="contradiction"&&overlap>=2) {
+    // The SAME two excerpts can support TWO independent decisions (e.g. who vs when).
+    return !(first && second && first !== second);
+  }
   // Rephrased questions can indicate a repeated decision without matching titles.
   if(questionSimilarity>=0.78 && (sameFamily || overlap>0))return true;
   // A supporting "pending approval" gap is already covered by the cited timing
