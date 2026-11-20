@@ -125,3 +125,17 @@
   .consent-actions { margin-top: 10px; justify-content: end; }
   .paste-helper { font-size: 9px; }
 }
+
+
+/* Review Engine 2.3: task intake modes across all three themes. */
+.input-mode-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 17px;padding:4px;border:1px solid var(--line);background:var(--soft);border-radius:7px}
+.input-mode-switch button{min-height:40px;padding:9px 10px;border:1px solid transparent;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:650;cursor:pointer;border-radius:5px}
+.input-mode-switch button.active{background:var(--paper);border-color:var(--line);color:var(--ink);box-shadow:0 1px 3px #0000000c}
+.input-mode-switch button:focus-visible{outline:2px solid var(--red-text);outline-offset:1px}
+.input-mode-switch button:disabled{opacity:.5;cursor:wait}
+.build-input .form-grid{margin-bottom:12px}
+.build-input label{margin-top:5px}
+.build-input #description{min-height:92px}
+.build-input textarea:not(#description){min-height:68px}
+.build-hint{font-size:11px;line-height:1.55;color:var(--muted);margin:0 0 14px}
+@media(max-width:440px){.input-mode-switch button{font-size:11px;padding:9px 5px}}

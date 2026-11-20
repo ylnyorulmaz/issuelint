@@ -55,3 +55,13 @@ test('disabled browser storage fails closed', () => {
   assert.equal(readAnalyticsConsent(broken), 'unset');
   assert.doesNotThrow(() => saveAnalyticsConsent('declined', broken));
 });
+
+
+test('2.3 structured fields are optional but counted and validated', () => {
+  const rich={...task, scope:'Mobile settings', outcome:'Dark theme usable', references:'https://example.com/figma'};
+  assert.equal(reviewInputValid(rich),true);
+  assert.equal(reviewTextLength(rich),reviewTextLength(task)+rich.scope.length+rich.outcome.length+rich.references.length);
+  assert.equal(reviewInputValid({...task,scope:'x'.repeat(1001)}),false);
+  assert.equal(reviewInputValid({...task,outcome:'x'.repeat(1001)}),false);
+  assert.equal(reviewInputValid({...task,references:'x'.repeat(1001)}),false);
+});

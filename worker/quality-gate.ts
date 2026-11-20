@@ -1,4 +1,4 @@
-import type { Task } from "./schema.ts";
+import { taskSource, type Task } from "./schema.ts";
 import { contextHints, REVIEW_DIMENSIONS, type ReviewDimension, type ReviewCheck } from "./review-v2.ts";
 
 const IMPORTANT_BY_CONTEXT: Partial<Record<string, readonly ReviewDimension[]>> = {
@@ -31,7 +31,7 @@ export function suspiciousClearDimensions(task: Task, checks: ReviewCheck[]): Re
   const domain=task.domain==="Other"?hints.domain:task.domain;
   const type=task.type==="General"?hints.type:task.type;
   const candidates=IMPORTANT_BY_CONTEXT[domain+"/"+type]??FALLBACK_BY_DOMAIN[domain]??[];
-  const source=[task.title,task.description,task.criteria,task.context].join("\n");
+  const source=taskSource(task);
   // Source length is NOT an automatic defect; it only controls whether to
   // challenge a model's optimistic assessment with a second focused reviewer.
   if(task.criteria.trim().length>160 || source.length>1400 || candidates.length===0)return [];
@@ -66,7 +66,7 @@ export const QUALITY_GATE_SCHEMA={
 
 export const QUALITY_GATE_PROMPT=[
   "You are an independent second-pass QA reviewer of a work request. Your role is to CHALLENGE only the named dimensions the previous reviewer marked clear or not applicable.",
-  "Look at the source task itself, not just the first review. Distinguish a truly actionable missing decision from an optional detail.",
+  "Look at all submitted task fields, including optional scope, outcome and references, not just the description or first review. Do not flag a supplied decision as missing, and distinguish actionable gaps from optional detail.",
   "In a software feature, check if the user knows WHICH specific screens/components are covered (scope), and HOW users should experience it (behavior). Naming web/mobile alone may not define screens. Mentioning dark mode alone does not define theme switching, OS preference or persistence.",
   "For task quality: actionability asks whether a specific action or deliverable exists anywhere in the task; granularity asks whether a genuinely multi-phase epic should be split into independently deliverable tasks; outcome asks for a business purpose ONLY when needed to make execution choices. Never force a title verb, exact duration, metric, or explanation of why on routine atomic tasks.",
   "In other domains, ask only context-relevant questions that affect execution; do not impose software acceptance criteria on sales, marketing or operations.",
@@ -83,7 +83,7 @@ function normalized(v:string):string{
   return v.normalize("NFKC").toLocaleLowerCase().replace(/[\p{P}\p{S}\s]+/gu," ").trim();
 }
 function quoteFromSource(q:string,task:Task):boolean{
-  const source=[task.title,task.description,task.criteria,task.context].join(" ").replace(/\s+/g," ").toLocaleLowerCase();
+  const source=taskSource(task).replace(/\s+/g," ").toLocaleLowerCase();
   return source.includes(q.replace(/\s+/g," ").toLocaleLowerCase());
 }
 

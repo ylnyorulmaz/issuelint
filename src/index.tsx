@@ -45,6 +45,7 @@ function App() {
   const [available, setAvailable] = createSignal<'checking' | 'private' | 'demo'>('checking');
   const [accessCode, setAccessCode] = createSignal('');
   const [details, setDetails] = createSignal(false);
+  const [entryMode, setEntryMode] = createSignal<'paste' | 'build'>('paste');
   const [tab, setTab] = createSignal<'findings' | 'draft'>('findings');
   const [selected, setSelected] = createSignal<string | null>(null);
   const [copied, setCopied] = createSignal(false);
@@ -99,6 +100,10 @@ function App() {
     requestTimeout = undefined;
     setLoading(false);
   }
+  function chooseEntryMode(mode: 'paste' | 'build') {
+    if (entryMode() === mode || loading()) return;
+    cancelRequest(); setEntryMode(mode); setDetails(false); setResult(null); setError(''); setCopied(false);
+  }
   function edit<K extends keyof Task>(key: K, value: Task[K]) {
     cancelRequest();
     setTask(t => ({ ...t, [key]: value }));
@@ -108,7 +113,7 @@ function App() {
     const example = examples.find(e => e.id === id);
     if (!example) return;
     cancelRequest();
-    setTask({ ...example.task }); setResult(null); setError('');
+    setTask({ ...example.task }); setEntryMode('paste'); setResult(null); setError('');
     setSelected(id); setTab('findings'); setCopied(false);
     trackAnalyticsEvent('example_loaded');
     document.getElementById('analyze')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -198,24 +203,44 @@ function App() {
     <section class="entry-intro" aria-label="Start reviewing a task">
       <div>
         <span class="entry-eyebrow">THE SECOND OPINION FOR EVERY TASK</span>
-        <h1>Paste a task. Make it clear.</h1>
-        <p>Copy any ticket, brief or request. Find gaps and contradictions before work begins.</p>
+        <h1>Paste or build a task. Make it clear.</h1>
+        <p>Review an existing request or build one from scratch. Find gaps before work begins.</p>
       </div>
       <a class="entry-example-link" href="#examples">Need an example? <span aria-hidden="true">↗</span></a>
     </section>
 
     <section id="analyze" class="workspace" aria-label="Task analyzer">
       <div class="card input-card" data-clarity-mask="true">
-        <div class="card-intro"><span class="intro-icon">01</span><div><h2>Review your task</h2><p>Paste your task below. A title is optional.</p></div><span class="panel-code">PASTE → REVIEW</span></div>
+        <div class="card-intro"><span class="intro-icon">01</span><div><h2>Review your task</h2><p>{entryMode() === 'paste' ? 'Paste any existing request for a second opinion.' : 'Create a clear task from a few useful details.'}</p></div><span class="panel-code">{entryMode() === 'paste' ? 'PASTE → REVIEW' : 'BUILD → REVIEW'}</span></div>
         <div class="availability" role="status">
           <span class={available() === 'private' ? 'status-dot active-dot' : 'status-dot'}/>
           <span>{available() === 'checking' ? 'Checking analysis availability…' :
             available() === 'private' ? 'AI review · private preview' : 'Demo review · AI not enabled'}</span>
         </div>
         <form onSubmit={e => { e.preventDefault(); void runAI(); }}>
-          <label for="description">Paste your task, ticket or brief <span class="req">*</span></label>
-          <textarea id="description" required rows={5} maxLength={6500} disabled={loading()} placeholder="Paste a Jira or GitHub ticket, a meeting note, a sales request, a marketing brief… or simply describe the work in your own words." value={task().description} onInput={e => edit('description', e.currentTarget.value)}/>
-          <div class="paste-helper"><span>Any team. Any tool. Plain text is enough.</span><span>Ctrl / ⌘ + V</span></div>
+          <div class="input-mode-switch" role="group" aria-label="Choose task input method">
+            <button type="button" aria-pressed={entryMode() === 'paste'} class={entryMode() === 'paste' ? 'active' : ''} disabled={loading()} onClick={() => chooseEntryMode('paste')}>Paste existing task</button>
+            <button type="button" aria-pressed={entryMode() === 'build'} class={entryMode() === 'build' ? 'active' : ''} disabled={loading()} onClick={() => chooseEntryMode('build')}>Build a task</button>
+          </div>
+          <Show when={entryMode() === 'paste'} fallback={<div class="build-input">
+            <label for="title">Task title <span class="optional-field">(optional)</span></label>
+            <input id="title" value={task().title} maxLength={180} disabled={loading()} placeholder="e.g. Add dark mode to web and mobile" onInput={e => edit('title', e.currentTarget.value)}/>
+            <div class="form-grid"><div><label for="type">Task type</label><select id="type" value={task().type} disabled={loading()} onChange={e => edit('type', e.currentTarget.value as TaskType)}><For each={types}>{t => <option>{t}</option>}</For></select></div>
+              <div><label for="domain">Area</label><select id="domain" value={task().domain} disabled={loading()} onChange={e => edit('domain', e.currentTarget.value as Domain)}><For each={domains}>{d => <option>{d}</option>}</For></select></div></div>
+            <label for="description">What needs to be done? <span class="req">*</span></label>
+            <textarea id="description" required rows={4} maxLength={6500} disabled={loading()} placeholder="Describe the requested work. A few sentences are enough." value={task().description} onInput={e => edit('description', e.currentTarget.value)}/>
+            <label for="scope">Scope / target audience <span class="optional-field">(optional)</span></label>
+            <textarea id="scope" rows={2} maxLength={1000} disabled={loading()} placeholder="Which screens, users, work areas or deliverables are included?" value={task().scope ?? ''} onInput={e => edit('scope', e.currentTarget.value)}/>
+            <label for="outcome">Expected outcome <span class="optional-field">(optional)</span></label>
+            <textarea id="outcome" rows={2} maxLength={1000} disabled={loading()} placeholder="What should be different when the task is complete?" value={task().outcome ?? ''} onInput={e => edit('outcome', e.currentTarget.value)}/>
+            <label for="references">References <span class="optional-field">(optional)</span></label>
+            <input id="references" maxLength={1000} disabled={loading()} placeholder="Figma, docs, ticket links or names" value={task().references ?? ''} onInput={e => edit('references', e.currentTarget.value)}/>
+            <p class="build-hint">Only describe what you know. IssueLint will ask about missing decisions instead of inventing them.</p>
+          </div>}>
+            <label for="description">Paste your task, ticket or brief <span class="req">*</span></label>
+            <textarea id="description" required rows={5} maxLength={6500} disabled={loading()} placeholder="Paste a Jira or GitHub ticket, meeting note, sales request, marketing brief… or describe the work in your own words." value={task().description} onInput={e => edit('description', e.currentTarget.value)}/>
+            <div class="paste-helper"><span>Any team. Any tool. Plain text is enough.</span><span>Ctrl / ⌘ + V</span></div>
+          </Show>
           <div class="counter" classList={{ 'over-budget': totalLength() > 8000 }}>{totalLength().toLocaleString()} / 8,000 characters</div>
           <Show when={available() === 'private'}>
             <div class="preview-code"><label for="preview-code">Private AI access code</label>
@@ -234,15 +259,23 @@ function App() {
             <button class="secondary-action" type="button" disabled={!inputValid() || loading()} onClick={reviewDemo}>Run a demo review instead</button>
           </Show>
           <button type="button" class="disclosure details-disclosure" aria-expanded={details()} onClick={() => setDetails(!details())}>
-            <span><b>{details() ? 'Hide additional fields' : 'Add title, type or criteria (optional)'}</b><small>Only if the task needs more context</small></span><span class="plus">{details() ? '−' : '+'}</span>
+            <span><b>{details() ? 'Hide additional fields' : entryMode() === 'paste' ? 'Add title, type or context (optional)' : 'Add acceptance criteria or constraints (optional)'}</b><small>Add known details only. Missing fields are not automatically failures.</small></span><span class="plus">{details() ? '−' : '+'}</span>
           </button>
           <Show when={details()}><div class="extra">
-            <label for="title">Task title <span class="optional-field">(optional)</span></label>
-            <input id="title" value={task().title} maxLength={180} disabled={loading()} placeholder="Derived from pasted task if left blank" onInput={e => edit('title', e.currentTarget.value)}/>
-            <div class="form-grid"><div><label for="type">Task type</label><select id="type" value={task().type} disabled={loading()} onChange={e => edit('type', e.currentTarget.value as TaskType)}><For each={types}>{t => <option>{t}</option>}</For></select></div>
-            <div><label for="domain">Area</label><select id="domain" value={task().domain} disabled={loading()} onChange={e => edit('domain', e.currentTarget.value as Domain)}><For each={domains}>{d => <option>{d}</option>}</For></select></div></div>
-            <label for="criteria">Completion / acceptance criteria</label><textarea id="criteria" rows={3} maxLength={1200} value={task().criteria} onInput={e => edit('criteria', e.currentTarget.value)}/>
-            <label for="context">Constraints and context</label><textarea id="context" rows={3} maxLength={1200} value={task().context} onInput={e => edit('context', e.currentTarget.value)}/>
+            <Show when={entryMode() === 'paste'}>
+              <label for="title">Task title <span class="optional-field">(optional)</span></label>
+              <input id="title" value={task().title} maxLength={180} disabled={loading()} placeholder="Derived from pasted task if left blank" onInput={e => edit('title', e.currentTarget.value)}/>
+              <div class="form-grid"><div><label for="type">Task type</label><select id="type" value={task().type} disabled={loading()} onChange={e => edit('type', e.currentTarget.value as TaskType)}><For each={types}>{t => <option>{t}</option>}</For></select></div>
+              <div><label for="domain">Area</label><select id="domain" value={task().domain} disabled={loading()} onChange={e => edit('domain', e.currentTarget.value as Domain)}><For each={domains}>{d => <option>{d}</option>}</For></select></div></div>
+              <label for="scope">Scope / target audience <span class="optional-field">(optional)</span></label>
+              <textarea id="scope" rows={2} maxLength={1000} disabled={loading()} value={task().scope ?? ''} onInput={e => edit('scope', e.currentTarget.value)}/>
+              <label for="outcome">Expected outcome <span class="optional-field">(optional)</span></label>
+              <textarea id="outcome" rows={2} maxLength={1000} disabled={loading()} value={task().outcome ?? ''} onInput={e => edit('outcome', e.currentTarget.value)}/>
+              <label for="references">References <span class="optional-field">(optional)</span></label>
+              <input id="references" maxLength={1000} disabled={loading()} placeholder="Related documents or links" value={task().references ?? ''} onInput={e => edit('references', e.currentTarget.value)}/>
+            </Show>
+            <label for="criteria">Completion / acceptance criteria</label><textarea id="criteria" rows={3} maxLength={1200} disabled={loading()} value={task().criteria} onInput={e => edit('criteria', e.currentTarget.value)}/>
+            <label for="context">Constraints and context</label><textarea id="context" rows={3} maxLength={1200} disabled={loading()} value={task().context} onInput={e => edit('context', e.currentTarget.value)}/>
             <button class="optional-analyze" type="submit" disabled={!inputValid() || loading() || available() === 'checking'}>
               {loading() ? 'Analyzing…' : available() === 'private' ? 'Analyze with AI →' : 'Review task →'}
             </button>

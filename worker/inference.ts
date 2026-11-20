@@ -1,4 +1,4 @@
-import { type Task, type Finding } from "./schema.ts";
+import { taskSource, type Task, type Finding } from "./schema.ts";
 import { parseReviewV2, REVIEW_V2_JSON_SCHEMA, type ReviewContext } from "./review-v2.ts";
 import { SYSTEM_PROMPT, taskMessage } from "./prompt.ts";
 import { suspiciousClearDimensions, applyQualityGate, QUALITY_GATE_SCHEMA, QUALITY_GATE_PROMPT } from "./quality-gate.ts";
@@ -85,7 +85,7 @@ function compact(s: string): string {
 
 /** Some plausible-sounding model embellishments are not grounded in the source. */
 export function isGroundedCore(text: string, task: Task): boolean {
-  const original = [task.title,task.description,task.criteria,task.context].join(" ").toLocaleLowerCase();
+  const original = taskSource(task).toLocaleLowerCase();
   const claimed = text.toLocaleLowerCase();
   const unsupported: RegExp[] = [
     /\bapproved\b|\bsigned.off\b/,
@@ -93,43 +93,76 @@ export function isGroundedCore(text: string, task: Task): boolean {
     /\bguarantee(?:d)?\b|\bverified\b|\bcertified\b/,
     /\b(toggle|manual switch|theme switch|system preference|follow system settings)\b/,
   ];
-  return unsupported.every(re=>!re.test(claimed) || re.test(original));
+  if (!unsupported.every(re=>!re.test(claimed) || re.test(original))) return false;
+  // Reject newly inserted exact quantities/URLs and unrelated rewrite objectives.
+  const urls = claimed.match(/https?:\/\/[^\s)]+/gu) ?? [];
+  if (urls.some(url=>!original.includes(url))) return false;
+  const quantities = claimed.match(/\b\d+(?:[.,]\d+)?\b/gu) ?? [];
+  if (quantities.some(value=>!original.includes(value))) return false;
+  const insignificant = /^(?:this|that|with|from|into|your|then|when|which|where|their|there|would|should|could|about|before|after|only|task|work|user|users|must|will|need|needs|have|been|also|using)$/iu;
+  const keyWords = (text:string) => (text.match(/[\p{L}]{4,}/gu) ?? []).filter(word=>!insignificant.test(word));
+  const originalWords = new Set(keyWords(original));
+  const claimedWords = keyWords(claimed);
+  if (originalWords.size && !claimedWords.some(word=>originalWords.has(word))) return false;
+  return true;
 }
 function coreOnly(draft: string): string {
   return draft.split(/(?:^|\n)\s*(?:open questions|unresolved questions|questions to clarify|açık sorular|netleştirilecek sorular)\s*:/i)[0].trim();
 }
-export function assembleRewrite(core: string, findings: Finding[]): string {
-  const questions=[...new Set(findings.map(f=>f.question.trim()).filter(Boolean))];
-  // The original prompt never delegates question generation to the rewrite model.
-  return (core.trim() + (questions.length ? "\n\nOpen questions:\n"+questions.map(q=>"- "+q).join("\n") : "")).slice(0,6500);
+/** Build a copy-ready ticket from verified user fields and the grounded goal. */
+export function assembleRewrite(core: string, findings: Finding[], task: Task): string {
+  const questions = [...new Set(findings.map(f => f.question.trim()).filter(Boolean))].slice(0,5);
+  const sections: string[] = ["Goal:\n" + core.trim()];
+  if (task.scope?.trim()) sections.push("Scope:\n" + task.scope.trim());
+  else if (findings.some(f => /scope|granularity/i.test(f.title + " " + f.question))) {
+    sections.push("Scope:\n[Needs clarification — see open questions]");
+  }
+  if (task.outcome?.trim()) sections.push("Expected outcome:\n" + task.outcome.trim());
+  else if (findings.some(f => /outcome|objective|success measure/i.test(f.title + " " + f.question))) {
+    sections.push("Expected outcome:\n[Needs clarification — see open questions]");
+  }
+  const confirmed: string[] = [];
+  const original = task.description.trim();
+  if (original && compact(original) !== compact(core)) confirmed.push(original);
+  if (task.criteria.trim()) confirmed.push("Completion / acceptance criteria:\n" + task.criteria.trim());
+  if (confirmed.length) sections.push("Confirmed requirements (from the request):\n" + confirmed.join("\n\n"));
+  if (task.context.trim()) sections.push("Constraints and context:\n" + task.context.trim());
+  if (task.references?.trim()) sections.push("References supplied (not independently verified):\n" + task.references.trim());
+  if (questions.length) sections.push("Open questions:\n" + questions.map(q => "- " + q).join("\n"));
+  const full = sections.join("\n\n");
+  if (full.length <= 6500) return full;
+  // Omit the duplicated source description first so questions remain visible.
+  const shorter = sections.filter(v => !v.startsWith("Confirmed requirements (from the request):"));
+  if (task.criteria.trim()) shorter.splice(1,0,"Completion / acceptance criteria:\n" + task.criteria.trim());
+  const questionSection = questions.length ? "Open questions:\n" + questions.map(q=>"- "+q).join("\n") : "";
+  const prefix = shorter.filter(v=>!v.startsWith("Open questions:")).join("\n\n");
+  const note = "\n\n[Draft shortened to fit the export limit; verify the original request.]";
+  const remaining = 6500 - questionSection.length - note.length - 4;
+  return prefix.slice(0,Math.max(0,remaining)) + note + (questionSection ? "\n\n" + questionSection : "");
 }
 
 export function isMeaningfulRewrite(draft: unknown, task: Task): draft is string {
   if (typeof draft !== "string" || draft.trim().length < 12 || draft.length > 6500) return false;
   const result = compact(draft);
   if (!result) return false;
-  const source = compact([task.title, task.description, task.criteria, task.context].filter(Boolean).join("\n\n"));
+  const source = compact(taskSource(task));
   return result !== source && result !== compact(task.description);
 }
 
 export function clarificationDraft(task: Task, findings: Finding[]): string {
   const questions = [...new Set(findings.map(f => f.question.trim()).filter(Boolean))].slice(0, 5);
   if (!questions.length) return "";
-  // This is a structured copy plus unresolved questions, NOT an AI rewrite.
-  return [
-    task.title,
-    task.description,
-    task.criteria ? "Completion criteria:\n" + task.criteria : "",
-    task.context ? "Context:\n" + task.context : "",
-    "Open questions (resolve before execution):\n" + questions.map(q => "- " + q).join("\n"),
-  ].filter(Boolean).join("\n\n").slice(0, 6500);
+  // Source-preserving clarification checklist; never labeled as an AI rewrite.
+  const original = assembleRewrite(task.description, findings, task);
+  const headed = task.title.trim() ? "Task: " + task.title.trim() + "\n\n" + original : original;
+  return headed.length <= 6500 ? headed : original;
 }
 
 const REWRITE_PROMPT = [
   "You edit work tickets for clarity in any domain. Respond ONLY as JSON with suggestedRewrite.",
-  "Create a materially improved, copy-ready task, not a verbatim copy.",
-  "Include a clear objective/description using only facts already in the task.",
-  "Do NOT add a questions section or any new questions: the server appends exact questions from already selected findings.",
+  "Return a concise, materially clearer GOAL statement, not a full ticket template or verbatim copy.",
+  "Include a clear objective using only facts already in the task. The backend constructs Scope, Expected outcome, Confirmed requirements and Open questions from validated source fields.",
+  "Do NOT add headings or a questions section: the server appends exact questions from already selected findings.",
   "Never present unresolved choices as decisions. NEVER pretend questions have been answered.",
   "Never invent scope, timelines, acceptance criteria, requirements, Figma URLs, or metrics.",
   "Do NOT claim that any design is approved, feature is fully tested, or work production-ready unless the task explicitly says so.",
@@ -203,16 +236,7 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
         });
         onUsage(gateRaw);
         const revisedChecks=applyQualityGate(task,reviewed.checks,uncertain,extractJsonResponse(gateRaw));
-        const newDimensions=revisedChecks.filter(c=>c.assessment==="gap" &&
-          reviewed.checks.find(p=>p.dimension===c.dimension)?.assessment!=="gap")
-          .map(c=>c.dimension);
-        const summaryAddition=newDimensions.length
-          ? " Additional clarification required for "+newDimensions.join(" and ")+"."
-          : "";
-        reviewed=parseReviewV2({
-          ...parsed,checks:revisedChecks,
-          summary:(String(parsed.summary??"").slice(0,600)+summaryAddition).slice(0,700)
-        },task);
+        reviewed=parseReviewV2({...parsed,checks:revisedChecks},task);
       }catch{
         // Failure of the optional quality gate must not suppress useful findings.
         // No prompts, task data or raw provider errors are written to logs.
@@ -234,7 +258,7 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
 
   // When the model itself missed a demonstrable conflict, do not let its rewrite
   // silently choose one side of mutually incompatible instructions.
-  if(reviewed.contradictionGuardTriggered) {
+  if(analysis.status === "blocked") {
     const clarification=clarificationDraft(task,analysis.findings);
     finish();
     return {...base,suggestedRewrite:clarification,rewriteStatus:clarification?"clarification_draft":"unavailable"};
@@ -242,14 +266,14 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
 
   if (isMeaningfulRewrite(candidate, task) && isGroundedCore(candidate, task)) {
     finish();
-    return { ...base, suggestedRewrite:assembleRewrite(candidate,analysis.findings), rewriteStatus:"rewritten" };
+    return { ...base, suggestedRewrite:assembleRewrite(candidate,analysis.findings,task), rewriteStatus:"rewritten" };
   }
 
   usage.calls++;
   const repaired=await repairRewrite(task,analysis.findings,ai,selected,onUsage);
   if(repaired) {
     finish();
-    return {...base,suggestedRewrite:assembleRewrite(repaired,analysis.findings),rewriteStatus:"rewritten"};
+    return {...base,suggestedRewrite:assembleRewrite(repaired,analysis.findings,task),rewriteStatus:"rewritten"};
   }
 
   // Never display copied original task as an AI-generated improvement.
