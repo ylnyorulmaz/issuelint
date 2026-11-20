@@ -14,7 +14,7 @@ Platform-independent task clarity reviewer — SolidJS + TypeScript + Vite. Curr
 
 ## Local development
 
-Requires Node.js **22.18+** (Cloudflare CLI `cf` typed config requirement).
+Requires Node.js **22.23+** (Cloudflare CLI `cf` typed config requirement).
 
 ```bash
 npm install
