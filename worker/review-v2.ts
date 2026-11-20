@@ -31,6 +31,7 @@ export type ReviewedV2 = {
   checks: ReviewCheck[];
   rewriteCore: string;
   reviewCoverage: { checked: number; gaps: number; reported: number };
+  contradictionGuardTriggered: boolean;
 };
 
 const CHECK = {
@@ -224,6 +225,8 @@ export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
   const domain=task.domain!=="Other"?task.domain:value.detectedDomain==="Other"?hints.domain:value.detectedDomain;
   const type=task.type!=="General"?task.type:value.detectedType==="General"?hints.type:value.detectedType;
   const findings=prioritizeChecks(checks,task);
+  const contradictionGuardTriggered=checks.find(c=>c.dimension==="contradictions")?.assessment!=="gap" &&
+    findings.some(f=>f.kind==="contradiction"&&f.severity==="critical");
   if(findings.some(f=>f.kind==="contradiction"&&f.severity==="critical")) {
     const conflict=checks.find(c=>c.dimension==="contradictions");
     const first=findings.find(f=>f.kind==="contradiction");
@@ -239,5 +242,5 @@ export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
   const rewriteCore=text(value.rewriteCore,6500);
   const analysis=parseAnalysis({status,summary,findings,suggestedRewrite:""},task);
   return {analysis,checks,context:{domain,type,inferred:task.domain==="Other"||task.type==="General"},
-    rewriteCore,reviewCoverage:{checked:8,gaps:checks.filter(c=>c.assessment==="gap").length,reported:findings.length}};
+    rewriteCore,contradictionGuardTriggered,reviewCoverage:{checked:8,gaps:checks.filter(c=>c.assessment==="gap").length,reported:findings.length}};
 }
