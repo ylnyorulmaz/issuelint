@@ -32,7 +32,7 @@ function makeEnv(overrides = {}) {
   const env = {
     ANALYZE_ENABLED: "true",
     PREVIEW_TOKEN: "test-preview-secret-with-24-plus-characters",
-    AI_MODEL: "@cf/google/gemma-4-26b-a4b-it",
+    AI_MODEL: "@cf/openai/gpt-oss-20b",
     AI: {
       async run(model, options) {
         calls.push({ model, options });
@@ -100,10 +100,11 @@ test("valid analysis calls the native AI binding once and returns validated JSON
   assert.deepEqual(data.analysis, validAnalysis);
   assert.equal(res.headers.get("cache-control"), "no-store");
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].model, "@cf/google/gemma-4-26b-a4b-it");
+  assert.equal(calls[0].model, "@cf/openai/gpt-oss-20b");
   assert.equal(calls[0].options.response_format.type, "json_schema");
   assert.equal(calls[0].options.stream, false);
-  assert.equal(calls[0].options.store, false);
+  assert.equal(calls[0].options.reasoning_effort, "low");
+  assert.equal(calls[0].options.max_tokens, 1600);
   assert.match(calls[0].options.messages[1].content, /Contact all leads today/);
 });
 
@@ -152,10 +153,11 @@ test("malformed model response is not shown as an analysis", async () => {
   assert.equal((await res.json()).error, "AI_INVALID_RESPONSE");
 });
 
-test("truncated model completion is rejected", async () => {
-  const { env } = makeEnv({ AI: { run: async () => ({ choices: [{ message: { content: JSON.stringify(validAnalysis) }, finish_reason: "length" }] }) } });
+test("truncated model completion returns an explicit error", async () => {
+  const { env } = makeEnv({ AI: { run: async () => ({ choices: [{ message: { content: null, reasoning: "long chain of thought" }, finish_reason: "length" }] }) } });
   const res = await worker.fetch(post(), env);
   assert.equal(res.status, 502);
+  assert.equal((await res.json()).error, "AI_TRUNCATED");
 });
 
 test("upstream failure is not retried and exposes no provider details", async () => {
@@ -170,7 +172,7 @@ test("upstream failure is not retried and exposes no provider details", async ()
 });
 
 test("unsupported model configuration falls back to allowlisted default", () => {
-  assert.equal(selectModel("@cf/attacker/arbitrary-expensive-model"), "@cf/google/gemma-4-26b-a4b-it");
+  assert.equal(selectModel("@cf/attacker/arbitrary-expensive-model"), "@cf/openai/gpt-oss-20b");
   assert.equal(selectModel("@cf/openai/gpt-oss-20b"), "@cf/openai/gpt-oss-20b");
 });
 
