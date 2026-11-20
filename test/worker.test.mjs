@@ -507,3 +507,14 @@ test("v2.1 end-to-end rechecks missing feature scope/behavior, not AC alone",asy
   assert.equal(a.modelUsage.completionTokens,1070);
   assert.equal(a.modelUsage.calls,2);
 });
+
+test("2.1 rejects invented toggle and release-readiness commitments in rewrite",()=>{
+  const task=parseTask({
+    title:"Add dark mode",
+    description:"Users want dark mode on web and mobile. Follow the Figma design.",
+    type:"Feature",domain:"Software",criteria:"",context:"",
+  });
+  assert.equal(isGroundedCore("Implement dark mode with a manual toggle.",task),false);
+  assert.equal(isGroundedCore("Implement dark mode, ready for release at the end of the sprint.",task),false);
+  assert.equal(isGroundedCore("Implement dark mode on web and mobile following Figma.",task),true);
+});
