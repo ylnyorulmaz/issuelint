@@ -18,8 +18,10 @@ export type LiveResponse = { mode: 'ai'; analyzed: true; analysis: ApiAnalysis }
 export type Health = { status: string; aiEnabled: boolean; aiBindingConfigured: boolean };
 
 export class ApiError extends Error {
-  constructor(readonly code: string, message: string) {
+  readonly code: string;
+  constructor(code: string, message: string) {
     super(message);
+    this.code = code;
     this.name = 'ApiError';
   }
 }
