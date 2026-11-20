@@ -132,13 +132,16 @@ test("valid analysis calls the native AI binding once and returns validated JSON
   assert.equal(data.mode, "ai");
   assert.equal(data.analyzed, true);
   assert.equal(data.analysis.status, "blocked");
-  assert.deepEqual(data.analysis.findings, validAnalysis.findings);
+  assert.deepEqual(data.analysis.findings.map(f=>f.title),[
+    "Deadline conflicts with prerequisite", "Audience instructions conflict"
+  ]);
+  assert.ok(data.analysis.findings.every(f=>f.evidence.length===2));
   assert.equal(data.analysis.rewriteStatus, "clarification_draft");
   assert.match(data.analysis.suggestedRewrite, /Open questions:/);
   assert.equal(data.analysis.reviewCoverage.checked, REVIEW_DIMENSIONS.length);
-  assert.equal(data.analysis.reviewCoverage.reported, 1);
+  assert.equal(data.analysis.reviewCoverage.reported, 2);
   assert.equal(data.analysis.reviewContext.domain, "Sales");
-  assert.deepEqual(data.analysis.findingDimensions,["contradictions"]);
+  assert.deepEqual(data.analysis.findingDimensions,["contradictions","contradictions"]);
   assert.equal(data.analysis.modelUsage.calls,1);
   assert.equal(data.analysis.modelUsage.neurons,null);
   assert.equal(res.headers.get("cache-control"), "no-store");
@@ -808,4 +811,14 @@ test("2.4 retains source requirements that are missing from the rewrite core", (
   assert.match(draft,/Confirmed requirements/);
   assert.match(draft,/Do not collect payment card details/);
   assert.equal(containsAdditionalRequirements(task.description,"Create an onboarding page."),true);
+});
+
+
+test("2.4 retains separate audience and timing roots even when they cite the same two sentences",()=>{
+  const task=parseTask(originalTask);
+  const output=parseReviewV2(toV2(validAnalysis),task);
+  assert.deepEqual(output.analysis.findings.map(f=>f.title),[
+    "Deadline conflicts with prerequisite","Audience instructions conflict"
+  ]);
+  assert.equal(output.reviewCoverage.reported,2);
 });
