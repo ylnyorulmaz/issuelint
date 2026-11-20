@@ -443,3 +443,11 @@ footer span { line-height: 1.5; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition-duration: .01ms!important; animation-duration: .01ms!important; }
 }
+
+/* Compact result-panel masthead. */
+.result-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid var(--line);padding-bottom:12px;margin-bottom:12px;}
+.result-section-line{height:7px;max-width:70px;flex:1;background:repeating-linear-gradient(110deg,var(--red) 0 10px,transparent 10px 15px);}
+/* Preserve legibility on dark theme while retaining hard edges. */
+.app[data-theme=dark] .primary, .app[data-theme=dark] .result-start{color:#fff;}
+.app[data-theme=dark] .question{border-left-color:#171713;}
+@media(max-width:390px){.brand-word{font-size:22px}.section-index-rule{width:15px}.section-index-label{font-size:9px}}
