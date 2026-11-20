@@ -215,7 +215,7 @@ export function prioritizeChecks(checks: ReviewCheck[], task: Task): Finding[] {
 /** Derive the user-visible verdict from the FINAL selected findings, not the model's stale summary. */
 export function deriveReviewSummary(status: Analysis["status"], findings: Finding[], task: Task): string {
   const source = (task.title + " " + task.description).toLocaleLowerCase();
-  const turkish = /[çğıöşüı]|\\b(görev|kullanıcı|ekran|yapılacak|için|olmalı|gerekiyor)\\b/iu.test(source);
+  const turkish = /[çğıöşüı]|\b(görev|kullanıcı|ekran|yapılacak|için|olmalı|gerekiyor)\b/iu.test(source);
   const heads = findings.slice(0,2).map(f=>f.title.trim().replace(/[.!?]+$/g,"")).filter(Boolean).join("; ").slice(0,350);
   if(status==="blocked") return turkish
     ? "Görev çelişen talimatlar nedeniyle bloke: " + heads + ". Devam etmeden önce çelişkileri giderin."
