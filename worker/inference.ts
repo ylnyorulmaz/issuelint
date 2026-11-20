@@ -89,8 +89,9 @@ export function isGroundedCore(text: string, task: Task): boolean {
   const claimed = text.toLocaleLowerCase();
   const unsupported: RegExp[] = [
     /\bapproved\b|\bsigned.off\b/,
-    /\bfully.tested\b|\bproduction.ready\b|\brelease.ready\b/,
+    /\bfully.tested\b|\bproduction.ready\b|\brelease.ready\b|\bready for (?:release|production|deployment)\b/,
     /\bguarantee(?:d)?\b|\bverified\b|\bcertified\b/,
+    /\b(toggle|manual switch|theme switch|system preference|follow system settings)\b/,
   ];
   return unsupported.every(re=>!re.test(claimed) || re.test(original));
 }
