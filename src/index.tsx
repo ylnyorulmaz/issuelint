@@ -42,6 +42,7 @@ function App() {
   const [result, setResult] = createSignal<View | null>(null);
   const [error, setError] = createSignal('');
   const [loading, setLoading] = createSignal(false);
+  const [reviewSeconds, setReviewSeconds] = createSignal(0);
   const [available, setAvailable] = createSignal<'checking' | 'private' | 'demo'>('checking');
   const [accessCode, setAccessCode] = createSignal('');
   const [details, setDetails] = createSignal(false);
@@ -61,7 +62,8 @@ function App() {
     getHealth().then(health => {
       if (active) setAvailable(health.aiEnabled && health.aiBindingConfigured ? 'private' : 'demo');
     }).catch(() => { if (active) setAvailable('demo'); });
-    onCleanup(() => { active = false; requestController?.abort(); if (requestTimeout) clearTimeout(requestTimeout); });
+    const elapsedTicker = window.setInterval(() => { if (loading()) setReviewSeconds(seconds => seconds + 1); }, 1000);
+    onCleanup(() => { active = false; window.clearInterval(elapsedTicker); requestController?.abort(); if (requestTimeout) clearTimeout(requestTimeout); });
   });
 
   function chooseDesignTheme(next: DesignTheme) {
@@ -134,7 +136,7 @@ function App() {
       setError('AI is in private preview. Enter your access code or use the demo review.');
       return;
     }
-    setError(''); setResult(null); setLoading(true); setCopied(false);
+    setError(''); setResult(null); setReviewSeconds(0); setLoading(true); setCopied(false);
     trackAnalyticsEvent('review_started');
     setTab('findings');
     revealResults();
@@ -253,7 +255,25 @@ function App() {
 
       <div class="card result-card" id="results" data-clarity-mask="true" aria-live="polite" aria-busy={loading()}>
         <div class="result-section-head"><ScreenLabel index="03">REVIEW / FINDINGS</ScreenLabel><span class="result-section-line" aria-hidden="true"/></div>
-        <Show when={!loading()} fallback={<div class="empty loading-state"><div class="empty-icon spin">↗</div><h2>RUNNING REVIEW.</h2><p>Deep review: checking scope, behavior, completion and contradictions. This may take longer with the larger model…</p><button class="secondary-action" type="button" onClick={cancelRequest}>Cancel</button></div>}>
+        <Show when={!loading()} fallback={
+          <div class="review-running" role="status" aria-live="polite">
+            <div class="review-running-head">
+              <span class="review-running-symbol" aria-hidden="true">↗</span>
+              <div><span class="kicker">AI REVIEW IN PROGRESS</span><h2>Running review<span class="review-running-dots" aria-hidden="true">…</span></h2></div>
+              <span class="review-elapsed" aria-label={reviewSeconds() + ' seconds elapsed'}>{Math.floor(reviewSeconds() / 60)}:{String(reviewSeconds() % 60).padStart(2, '0')}</span>
+            </div>
+            <p class="review-running-intro">IssueLint is reviewing your task against 11 quality checks. It looks for unclear requirements, missing decisions, and contradictions before suggesting improvements.</p>
+            <div class="review-check-groups" aria-label="Quality dimensions being reviewed">
+              <div><span class="review-check-marker" aria-hidden="true">01</span><div><strong>Intent &amp; scope</strong><p>Actionability, scope, task size, and expected outcome</p></div></div>
+              <div><span class="review-check-marker" aria-hidden="true">02</span><div><strong>Implementation details</strong><p>Behavior, dependencies, and references</p></div></div>
+              <div><span class="review-check-marker" aria-hidden="true">03</span><div><strong>Delivery readiness</strong><p>Completion criteria and feasibility</p></div></div>
+              <div><span class="review-check-marker" aria-hidden="true">04</span><div><strong>Consistency &amp; clarity</strong><p>Contradictions and ambiguous wording</p></div></div>
+            </div>
+            <div class="review-running-outcome"><strong>What you'll get</strong><p>A readiness verdict, evidence-backed findings, clarification questions, and a suggested draft when possible.</p></div>
+            <p class="review-running-disclaimer">One AI request is running. These are the review criteria, not live step-by-step progress. The review may take longer for complex tasks.</p>
+            <button class="secondary-action review-cancel" type="button" onClick={cancelRequest}>Cancel review</button>
+          </div>
+        }>
           <Show when={result()} fallback={
             <Show when={error()} fallback={<div class="empty">
               <div class="empty-icon">↗</div><h2>AWAITING INPUT.</h2>
