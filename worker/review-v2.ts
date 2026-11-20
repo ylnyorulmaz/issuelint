@@ -97,6 +97,42 @@ export function contextHints(task: Task): {domain: typeof DOMAINS[number]; type:
   return {domain:candidate,type};
 }
 
+/** Conservative contradiction guard for explicit, source-verifiable conflicts.
+ * This supplements (never replaces) the model's cross-domain audit.
+ */
+export function highConfidenceContradictions(task: Task): Finding[] {
+  const sourceChunks=[task.title,task.description,task.criteria,task.context]
+    .flatMap(v=>v.split(/(?<=[.!?])\s+|\n+/u)).map(v=>v.trim()).filter(Boolean);
+  const result:Finding[]=[];
+  const urgency=sourceChunks.find(v=>
+    /\b(today|bugün)\b/iu.test(v) &&
+    /\b(contact|send|message|outreach|lead|everyone|all|reach|ulaş|gönder|mesaj|herkes)\b/iu.test(v));
+  const gate=sourceChunks.find(v=>
+    /\b(tomorrow|yarın)\b/iu.test(v) &&
+    /\b(do not|don't|must not|cannot|can't|before|until|approval|approved|onay|bekle|gönderme)\b/iu.test(v));
+  if(urgency && gate && urgency!==gate) {
+    result.push({
+      kind:"contradiction",severity:"critical",
+      title:"Deadline conflicts with prerequisite",
+      detail:"The task requires outreach today but also prohibits sending until an approval scheduled tomorrow.",
+      evidence:[urgency.slice(0,260),gate.slice(0,260)],
+      question:"Should the outreach deadline move until after approval, or is the approval date changing?",
+    });
+  }
+  const all=sourceChunks.find(v=>/\b(all|every|everyone)\b/iu.test(v) && /\b(lead|prospect|contact)\b/iu.test(v));
+  const only=sourceChunks.find(v=>/\bonly\b.{0,30}\b(qualified|eligible|selected)\b.{0,30}\b(leads?|prospects?|contacts?)\b/iu.test(v));
+  if(all && only && all!==only) {
+    result.push({
+      kind:"contradiction",severity:"critical",
+      title:"Audience instructions conflict",
+      detail:"One instruction includes every lead; another limits outreach to qualified leads only.",
+      evidence:[all.slice(0,260),only.slice(0,260)],
+      question:"Should outreach target all leads or qualified leads only?",
+    });
+  }
+  return result;
+}
+
 /** Remove generalized filler rather than treating it as a real finding. */
 function hasSourceDependency(task: Task): boolean {
   return /\b(after|before|until|pending|approval|approved|blocked|depend|waiting|sign.off|requires)\b|onay|bekle|bağımlılık/iu.test(
@@ -144,7 +180,13 @@ export function prioritizeChecks(checks: ReviewCheck[], task: Task): Finding[] {
     findings.push({kind:c.kind,severity:c.severity,title:c.title,detail:c.detail,evidence:c.evidence,question:c.question});
     if(findings.length===5)break;
   }
-  return findings;
+  const verified=highConfidenceContradictions(task);
+  for(const candidate of verified.reverse()){
+    const isDuplicate=findings.some(f=>f.kind==="contradiction" &&
+      f.evidence.some(e=>candidate.evidence.includes(e)));
+    if(!isDuplicate) findings.unshift(candidate);
+  }
+  return findings.slice(0,5);
 }
 
 export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
@@ -181,6 +223,15 @@ export function parseReviewV2(value: unknown, task: Task): ReviewedV2 {
   const domain=task.domain!=="Other"?task.domain:value.detectedDomain==="Other"?hints.domain:value.detectedDomain;
   const type=task.type!=="General"?task.type:value.detectedType==="General"?hints.type:value.detectedType;
   const findings=prioritizeChecks(checks,task);
+  if(findings.some(f=>f.kind==="contradiction"&&f.severity==="critical")) {
+    const conflict=checks.find(c=>c.dimension==="contradictions");
+    const first=findings.find(f=>f.kind==="contradiction");
+    if(conflict && first && conflict.assessment!=="gap"){
+      conflict.assessment="gap"; conflict.severity="critical"; conflict.kind="contradiction";
+      conflict.title=first.title;conflict.detail=first.detail;
+      conflict.evidence=first.evidence;conflict.question=first.question;
+    }
+  }
   const status=findings.some(f=>f.kind==="contradiction"&&f.severity==="critical")?"blocked":
     findings.some(f=>f.severity==="important"||f.severity==="critical")?"needs_clarification":"ready";
   const summary=text(value.summary,700);
