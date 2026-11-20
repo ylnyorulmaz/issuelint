@@ -12,6 +12,10 @@ export type Task = {
   domain: typeof DOMAINS[number];
   criteria: string;
   context: string;
+  /** Optional 2.3 fields; absent in older clients. */
+  scope?: string;
+  outcome?: string;
+  references?: string;
 };
 
 export type Finding = {
@@ -69,9 +73,21 @@ export function parseTask(value: unknown): Task {
     criteria: field(value.criteria ?? "", "criteria", 0, 1200),
     context: field(value.context ?? "", "context", 0, 1200),
   };
-  const length = task.title.length + task.description.length + task.criteria.length + task.context.length;
+  // Preserve compatibility with older API clients that do not send 2.3 fields.
+  const optionalFields = {
+    ...("scope" in value ? { scope: field(value.scope, "scope", 0, 1000) } : {}),
+    ...("outcome" in value ? { outcome: field(value.outcome, "outcome", 0, 1000) } : {}),
+    ...("references" in value ? { references: field(value.references, "references", 0, 1000) } : {}),
+  };
+  const length = task.title.length + task.description.length + task.criteria.length + task.context.length +
+    Object.values(optionalFields).reduce((total, v) => total + v.length, 0);
   if (length > 8000) throw new ValidationError("body", "Total text cannot exceed 8,000 characters.");
-  return task;
+  return { ...task, ...optionalFields };
+}
+
+/** Every user-supplied field is a valid evidence source; AI cannot invent quotes. */
+export function taskSource(task: Task): string {
+  return [task.title, task.description, task.criteria, task.context, task.scope ?? "", task.outcome ?? "", task.references ?? ""].join("\n");
 }
 
 export const ANALYSIS_JSON_SCHEMA = {
@@ -109,7 +125,7 @@ function outputString(value: unknown, name: string, min: number, max: number): s
   return value.trim();
 }
 function containsLiteral(task: Task, fragment: string): boolean {
-  const source = [task.title, task.description, task.criteria, task.context].join("\n")
+  const source = taskSource(task)
     .replace(/\s+/g, " ").toLocaleLowerCase();
   return source.includes(fragment.replace(/\s+/g, " ").trim().toLocaleLowerCase());
 }
