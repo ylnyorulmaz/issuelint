@@ -24,6 +24,9 @@ const FALLBACK_BY_DOMAIN: Partial<Record<string, readonly ReviewDimension[]>> = 
  * second review solely because some dimensions were marked clear.
  */
 export function suspiciousClearDimensions(task: Task, checks: ReviewCheck[]): ReviewDimension[] {
+  // A confirmed blocking contradiction already requires human clarification;
+  // an extra inference call is wasteful and may distract from the blocker.
+  if(checks.some(c=>c.dimension==="contradictions" && c.assessment==="gap" && c.severity==="critical"))return [];
   const hints=contextHints(task);
   const domain=task.domain==="Other"?hints.domain:task.domain;
   const type=task.type==="General"?hints.type:task.type;
