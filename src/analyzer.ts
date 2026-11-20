@@ -1,7 +1,7 @@
 export type TaskType='General'|'Bug'|'Feature'|'Improvement'|'Request';
 export type Domain='Software'|'Marketing'|'Sales'|'Operations'|'Other';
 export type Kind='missing'|'ambiguity'|'contradiction'|'suggestion';
-export type Task={title:string;description:string;type:TaskType;domain:Domain;criteria:string;context:string};
+export type Task={title:string;description:string;type:TaskType;domain:Domain;criteria:string;context:string;scope?:string;outcome?:string;references?:string};
 export type Finding={kind:Kind;title:string;detail:string;question?:string};
 export type Analysis={mode:'demo'|'basic';score:number|null;summary:string;findings:Finding[];draft:string};
 export const blank=():Task=>({title:'',description:'',type:'General',domain:'Other',criteria:'',context:''});
