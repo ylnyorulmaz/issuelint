@@ -89,7 +89,7 @@ export default {
         status: "ok",
         service: "issuelint",
         iteration: 2,
-        reviewEngineVersion: "2.3",
+        reviewEngineVersion: "2.4",
         aiBindingConfigured: env.AI != null,
         aiEnabled: env.ANALYZE_ENABLED === "true",
       });
