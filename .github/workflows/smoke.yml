@@ -18,6 +18,9 @@ jobs:
           done
           grep -q '<div id="root"></div>' /tmp/issue.html
           grep -q '<script type="module">' /tmp/issue.html
+          grep -q 'No review yet' /tmp/issue.html
+          grep -q 'Analyze with AI' /tmp/issue.html
+          grep -q 'Private AI access code' /tmp/issue.html
           curl -fsS --max-time 20 "$BASE/api/health" | node -e '
             let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
               const x=JSON.parse(s);
