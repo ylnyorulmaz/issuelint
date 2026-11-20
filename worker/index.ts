@@ -1,4 +1,4 @@
-import { runAnalysis, type AiRunner, type InferenceError } from "./inference.ts";
+import { runAnalysis, InferenceError, type AiRunner } from "./inference.ts";
 import { parseTask, ValidationError } from "./schema.ts";
 
 /** For Iteration 2, AI is disabled unless explicitly enabled and protected. */
@@ -47,7 +47,10 @@ async function readBody(request: Request): Promise<unknown> {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > MAX_REQUEST_BYTES) throw new ValidationError("size", "Request body exceeds the limit.");
+      if (size > MAX_REQUEST_BYTES) {
+        await reader.cancel();
+        throw new ValidationError("size", "Request body exceeds the limit.");
+      }
       text += decoder.decode(value, { stream: true });
     }
     text += decoder.decode();
@@ -122,7 +125,7 @@ export default {
         const analysis = await runAnalysis(task, env.AI, env.AI_MODEL);
         return json({ mode: "ai", analyzed: true, analysis });
       } catch (cause) {
-        if ((cause as InferenceError).kind === "invalid_response") {
+        if (cause instanceof InferenceError && cause.kind === "invalid_response") {
           return error("AI_INVALID_RESPONSE", "The model returned an invalid analysis. Please retry later.", 502);
         }
         return error("AI_UNAVAILABLE", "Unable to complete the analysis now.", 502);
