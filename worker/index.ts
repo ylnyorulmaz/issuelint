@@ -125,10 +125,19 @@ export default {
         const analysis = await runAnalysis(task, env.AI, env.AI_MODEL);
         return json({ mode: "ai", analyzed: true, analysis });
       } catch (cause) {
-        if (cause instanceof InferenceError && cause.kind === "invalid_response") {
-          return error("AI_INVALID_RESPONSE", "The model returned an invalid analysis. Please retry later.", 502);
+        const kind = cause instanceof InferenceError ? cause.kind : "upstream";
+        // Never log prompts, task content, authorization or raw provider errors.
+        console.warn("issuelint.inference_failed", {
+          category: kind,
+          model: env.AI_MODEL === "@cf/openai/gpt-oss-20b" ? "gpt-oss-20b" : "configured-model",
+        });
+        if (kind === "truncated") {
+          return error("AI_TRUNCATED", "The model ran out of output tokens. Please retry.", 502);
         }
-        return error("AI_UNAVAILABLE", "Unable to complete the analysis now.", 502);
+        if (kind === "invalid_response") {
+          return error("AI_INVALID_RESPONSE", "The model returned an invalid analysis. Please retry.", 502);
+        }
+        return error("AI_UNAVAILABLE", "The AI model is temporarily unavailable. Please retry later.", 502);
       }
     }
 

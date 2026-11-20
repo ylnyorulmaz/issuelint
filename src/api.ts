@@ -61,6 +61,8 @@ export async function analyzeLive(task: Task, token: string, signal: AbortSignal
     if (response.status === 401) message = 'The private preview access code is missing or incorrect.';
     else if (response.status === 429) message = 'Too many requests. Try again later.';
     else if (response.status === 503) message = 'AI analysis is currently disabled. Demo review is still available.';
+    else if (code === 'AI_TRUNCATED') message = 'The model did not finish its response. Please retry.';
+    else if (code === 'AI_INVALID_RESPONSE') message = 'The model returned an incomplete review. Please retry.';
     else if (response.status >= 500) message = 'The AI service could not complete the analysis. Please retry.';
     throw new ApiError(code, message);
   }
