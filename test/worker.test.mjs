@@ -265,7 +265,7 @@ test("empty primary draft triggers one focused AI rewrite repair", async () => {
     assert.equal(input.response_format.type, "json_schema");
     return { choices: [{ message: { content: JSON.stringify(calls === 1
       ? toV2(first)
-      : { suggestedRewrite: "Follow up with qualified leads after copy approval tomorrow. Open questions: Should the original today deadline be changed? Which leads qualify?" }) }, finish_reason: "stop" }] };
+      : { suggestedRewrite: "Write a short welcome message for new volunteers and confirm who should receive it." }) }, finish_reason: "stop" }] };
   } } });
   const res = await worker.fetch(post(repairTask), env);
   assert.equal(res.status, 200);
@@ -282,7 +282,7 @@ test("verbatim copy in primary output triggers rewrite repair", async () => {
     calls++;
     return { choices: [{ message: { content: JSON.stringify(calls === 1
       ? toV2({ ...repairAnalysis, suggestedRewrite: same })
-      : { suggestedRewrite: "Task: Contact qualified leads after approval tomorrow. Clarify whether the deadline should move from today to tomorrow." }) }, finish_reason: "stop" }] };
+      : { suggestedRewrite: "Prepare a welcome note for new volunteers and confirm the recipients before sending." }) }, finish_reason: "stop" }] };
   } } });
   const res = await worker.fetch(post(repairTask), env);
   assert.equal(res.status, 200);
@@ -693,4 +693,13 @@ test("2.3 structured rewrite separates confirmed context and unresolved choices"
   assert.match(a.suggestedRewrite,/Open questions:/);
   assert.match(a.suggestedRewrite,/Should selection persist after restart/);
   assert.doesNotMatch(a.suggestedRewrite,/selection will persist/i);
+});
+
+
+test("2.3 rejects unrelated or newly invented rewrite facts", () => {
+  const task=parseTask(repairTask);
+  assert.equal(isGroundedCore("Follow up with qualified leads after approval tomorrow.",task),false);
+  assert.equal(isGroundedCore("Write a welcome note for volunteers at https://invented.example",task),false);
+  assert.equal(isGroundedCore("Send 500 welcome notes to volunteers.",task),false);
+  assert.equal(isGroundedCore("Prepare a welcome note for new volunteers.",task),true);
 });
