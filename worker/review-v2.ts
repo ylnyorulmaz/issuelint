@@ -138,7 +138,7 @@ export function highConfidenceContradictions(task: Task): Finding[] {
 
 /** Remove generalized filler rather than treating it as a real finding. */
 function hasSourceDependency(task: Task): boolean {
-  return /\b(after|before|until|pending|approval|approved|blocked|depend|waiting|sign.off|requires)\b|onay|bekle|bağımlılık/iu.test(
+  return /\b(after|before|until|pending|approval|approved|blocked|depend|waiting|sign.off|requires|no repository access|no repo access|no test environment|no staging access|missing access|access unavailable)\b|onay|bekle|bağımlılık|erişim yok/iu.test(
     [task.title,task.description,task.criteria,task.context].join(" "));
 }
 function hasSourceReference(task: Task): boolean {
