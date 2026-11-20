@@ -1,4 +1,4 @@
-import type { Task } from "./schema.ts";
+import { taskSource, type Task } from "./schema.ts";
 import { contextHints, REVIEW_DIMENSIONS, type ReviewDimension, type ReviewCheck } from "./review-v2.ts";
 
 const IMPORTANT_BY_CONTEXT: Partial<Record<string, readonly ReviewDimension[]>> = {
@@ -31,7 +31,7 @@ export function suspiciousClearDimensions(task: Task, checks: ReviewCheck[]): Re
   const domain=task.domain==="Other"?hints.domain:task.domain;
   const type=task.type==="General"?hints.type:task.type;
   const candidates=IMPORTANT_BY_CONTEXT[domain+"/"+type]??FALLBACK_BY_DOMAIN[domain]??[];
-  const source=[task.title,task.description,task.criteria,task.context].join("\n");
+  const source=taskSource(task);
   // Source length is NOT an automatic defect; it only controls whether to
   // challenge a model's optimistic assessment with a second focused reviewer.
   if(task.criteria.trim().length>160 || source.length>1400 || candidates.length===0)return [];
@@ -83,7 +83,7 @@ function normalized(v:string):string{
   return v.normalize("NFKC").toLocaleLowerCase().replace(/[\p{P}\p{S}\s]+/gu," ").trim();
 }
 function quoteFromSource(q:string,task:Task):boolean{
-  const source=[task.title,task.description,task.criteria,task.context].join(" ").replace(/\s+/g," ").toLocaleLowerCase();
+  const source=taskSource(task).replace(/\s+/g," ").toLocaleLowerCase();
   return source.includes(q.replace(/\s+/g," ").toLocaleLowerCase());
 }
 
