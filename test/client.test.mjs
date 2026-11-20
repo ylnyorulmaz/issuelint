@@ -40,12 +40,13 @@ test('never renders fabricated successful response', async () => {
 
 import { DEFAULT_DESIGN_THEME, DESIGN_THEME_STORAGE_KEY, normalizeDesignTheme, readDesignTheme, saveDesignTheme } from '../src/design-theme.ts';
 
-test('Minimal Constructivism stays the default, including unknown preferences', () => {
-  assert.equal(DEFAULT_DESIGN_THEME, 'constructivist');
-  assert.equal(normalizeDesignTheme(null), 'constructivist');
-  assert.equal(normalizeDesignTheme('not-a-design'), 'constructivist');
+test('Minimalist is the default, including unknown preferences', () => {
+  assert.equal(DEFAULT_DESIGN_THEME, 'minimalist');
+  assert.equal(normalizeDesignTheme(null), 'minimalist');
+  assert.equal(normalizeDesignTheme('not-a-design'), 'minimalist');
   assert.equal(normalizeDesignTheme('neobrutalist'), 'neobrutalist');
-  assert.equal(normalizeDesignTheme('zen'), 'zen');
+  assert.equal(normalizeDesignTheme('minimalist'), 'minimalist');
+  assert.equal(normalizeDesignTheme('constructivist'), 'constructivist');
 });
 
 test('design theme preference survives a reload via storage', () => {
@@ -54,12 +55,12 @@ test('design theme preference survives a reload via storage', () => {
     getItem: key => values.get(key) ?? null,
     setItem: (key, value) => values.set(key, value),
   };
-  assert.equal(readDesignTheme(storage), 'constructivist');
+  assert.equal(readDesignTheme(storage), 'minimalist');
   saveDesignTheme('neobrutalist', storage);
   assert.equal(values.get(DESIGN_THEME_STORAGE_KEY), 'neobrutalist');
   assert.equal(readDesignTheme(storage), 'neobrutalist');
-  saveDesignTheme('zen', storage);
-  assert.equal(readDesignTheme(storage), 'zen');
+  saveDesignTheme('minimalist', storage);
+  assert.equal(readDesignTheme(storage), 'minimalist');
   saveDesignTheme('constructivist', storage);
   assert.equal(readDesignTheme(storage), 'constructivist');
   assert.equal(values.size, 1);
@@ -70,9 +71,9 @@ test('blocked or unavailable localStorage does not break the analyzer', () => {
     getItem: () => { throw Error('Blocked'); },
     setItem: () => { throw Error('Blocked'); },
   };
-  assert.equal(readDesignTheme(inaccessible), 'constructivist');
+  assert.equal(readDesignTheme(inaccessible), 'minimalist');
   assert.doesNotThrow(() => saveDesignTheme('neobrutalist', inaccessible));
-  assert.equal(readDesignTheme(), 'constructivist');
+  assert.equal(readDesignTheme(), 'minimalist');
 });
 
 test('clarification-only draft is labeled instead of silently presented as improved copy', async () => {
