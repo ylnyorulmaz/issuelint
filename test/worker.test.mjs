@@ -44,6 +44,22 @@ function toV2(analysis) {
   };
 }
 
+
+const repairTask = {
+  title:"Draft welcome note",
+  description:"Write a welcome note for new volunteers.",
+  type:"General",domain:"Other",criteria:"",context:"",
+};
+const repairAnalysis = {
+  status:"needs_clarification", summary:"The audience is not specified.",
+  findings:[{
+    kind:"missing",severity:"important",title:"Recipients need confirmation",
+    detail:"It is unclear which group of new volunteers should receive the message.",
+    evidence:["new volunteers"],question:"Which volunteers should receive the note?",
+  }],
+  suggestedRewrite:"Write a welcome note for new volunteers.",
+};
+
 function makeEnv(overrides = {}) {
   const calls = [];
   const env = {
@@ -80,7 +96,7 @@ test("GET /api/health reports Iteration 2 without running AI", async () => {
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.equal(data.iteration, 2);
-  assert.equal(data.reviewEngineVersion,"2.2");
+  assert.equal(data.reviewEngineVersion,"2.3");
   assert.equal(data.aiEnabled, false);
   assert.equal(data.aiBindingConfigured, true);
   assert.equal(calls.length, 0);
@@ -117,7 +133,7 @@ test("valid analysis calls the native AI binding once and returns validated JSON
   assert.equal(data.analyzed, true);
   assert.equal(data.analysis.status, "blocked");
   assert.deepEqual(data.analysis.findings, validAnalysis.findings);
-  assert.equal(data.analysis.rewriteStatus, "rewritten");
+  assert.equal(data.analysis.rewriteStatus, "clarification_draft");
   assert.match(data.analysis.suggestedRewrite, /Open questions:/);
   assert.equal(data.analysis.reviewCoverage.checked, REVIEW_DIMENSIONS.length);
   assert.equal(data.analysis.reviewCoverage.reported, 1);
@@ -243,7 +259,7 @@ test("GET /api/analyze is rejected", async () => {
 
 test("empty primary draft triggers one focused AI rewrite repair", async () => {
   let calls = 0;
-  const first = { ...validAnalysis, suggestedRewrite: "" };
+  const first = { ...repairAnalysis, suggestedRewrite: "" };
   const { env } = makeEnv({ AI: { run: async (_model, input) => {
     calls++;
     assert.equal(input.response_format.type, "json_schema");
@@ -251,7 +267,7 @@ test("empty primary draft triggers one focused AI rewrite repair", async () => {
       ? toV2(first)
       : { suggestedRewrite: "Follow up with qualified leads after copy approval tomorrow. Open questions: Should the original today deadline be changed? Which leads qualify?" }) }, finish_reason: "stop" }] };
   } } });
-  const res = await worker.fetch(post(), env);
+  const res = await worker.fetch(post(repairTask), env);
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.analysis.rewriteStatus, "rewritten");
@@ -261,14 +277,14 @@ test("empty primary draft triggers one focused AI rewrite repair", async () => {
 
 test("verbatim copy in primary output triggers rewrite repair", async () => {
   let calls = 0;
-  const same = [originalTask.title, originalTask.description].join("\n\n");
+  const same = [repairTask.title, repairTask.description].join("\n\n");
   const { env } = makeEnv({ AI: { run: async () => {
     calls++;
     return { choices: [{ message: { content: JSON.stringify(calls === 1
-      ? toV2({ ...validAnalysis, suggestedRewrite: same })
+      ? toV2({ ...repairAnalysis, suggestedRewrite: same })
       : { suggestedRewrite: "Task: Contact qualified leads after approval tomorrow. Clarify whether the deadline should move from today to tomorrow." }) }, finish_reason: "stop" }] };
   } } });
-  const res = await worker.fetch(post(), env);
+  const res = await worker.fetch(post(repairTask), env);
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(calls, 2);
@@ -281,10 +297,10 @@ test("failed second rewrite retains findings and labels a question checklist", a
   const { env } = makeEnv({ AI: { run: async () => {
     calls++;
     return { choices: [{ message: { content: JSON.stringify(calls === 1
-      ? toV2({ ...validAnalysis, suggestedRewrite: "" })
+      ? toV2({ ...repairAnalysis, suggestedRewrite: "" })
       : { suggestedRewrite: "" }) }, finish_reason: "stop" }] };
   } } });
-  const res = await worker.fetch(post(), env);
+  const res = await worker.fetch(post(repairTask), env);
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(calls, 2);
@@ -604,4 +620,77 @@ test("2.2 autonomous agent missing environment is a real dependency, not a unive
   const result=parseReviewV2(sample,task);
   assert.ok(result.findingDimensions.includes("dependencies"));
   assert.equal(result.analysis.status,"needs_clarification");
+});
+
+
+test("2.3 derives summary from final findings, ignoring optimistic model claims", () => {
+  const task = parseTask({
+    title:"Add dark mode",
+    description:"Users want dark mode on web and mobile. Follow the design from Figma.",
+    type:"Feature",domain:"Software",criteria:"",context:"",
+  });
+  const sample=toV2({summary:"The task is well-defined; no missing details are present.",findings:[],suggestedRewrite:"Implement dark mode."});
+  sample.detectedDomain="Software";sample.detectedType="Feature";
+  sample.checks=sample.checks.map(c=>c.dimension==="scope"
+    ? {...c,assessment:"gap",severity:"important",kind:"missing",title:"Screens unspecified",
+      detail:"No specific screens are listed for dark mode.",question:"Which screens are covered?",
+      evidence:["dark mode on web and mobile"]}
+    : c);
+  const parsed=parseReviewV2(sample,task);
+  assert.equal(parsed.analysis.status,"needs_clarification");
+  assert.match(parsed.analysis.summary,/Screens unspecified/);
+  assert.doesNotMatch(parsed.analysis.summary,/well-defined|no missing details/i);
+});
+
+test("2.3 accepts optional source fields without requiring them from legacy clients", () => {
+  const old=parseTask(originalTask);
+  assert.equal("scope" in old,false);
+  const task=parseTask({...originalTask,scope:"Only Settings screen",
+    outcome:"Users can select a theme",references:"https://example.com/design"});
+  assert.equal(task.scope,"Only Settings screen");
+  assert.equal(task.outcome,"Users can select a theme");
+  assert.equal(task.references,"https://example.com/design");
+  assert.throws(()=>parseTask({...originalTask,scope:42}),ValidationError);
+  assert.throws(()=>parseTask({...originalTask,references:"x".repeat(1001)}),ValidationError);
+  const sample=toV2({summary:"Missing component details.",findings:[],suggestedRewrite:"Review the theme feature."});
+  sample.checks=sample.checks.map(c=>c.dimension==="references"
+    ? {...c,assessment:"gap",severity:"important",kind:"missing",title:"Reference needs review",
+      detail:"The cited reference should be checked for design completeness.",
+      question:"Which reference frames apply?",evidence:["https://example.com/design"]}
+    : c);
+  assert.deepEqual(parseReviewV2(sample,task).analysis.findings[0].evidence,["https://example.com/design"]);
+  sample.checks.find(c=>c.dimension==="references").evidence=["https://example.com/fake"];
+  assert.throws(()=>parseReviewV2(sample,task),ValidationError);
+});
+
+test("2.3 structured rewrite separates confirmed context and unresolved choices", async () => {
+  const task={
+    title:"Add dark mode",description:"Implement dark mode following the design.",
+    type:"Feature",domain:"Software",
+    scope:"Web settings and mobile settings",outcome:"Users can use a dark theme",
+    references:"https://example.com/figma",criteria:"Theme is available in settings",
+    context:"Use existing design tokens",
+  };
+  const {env}=makeEnv({AI:{async run(){return {choices:[{message:{content:JSON.stringify({
+    detectedDomain:"Software",detectedType:"Feature",summary:"Looks good.",
+    rewriteCore:"Implement dark mode using the provided design and settings screens.",
+    checks:REVIEW_DIMENSIONS.map(d=>d==="behavior"
+      ? {dimension:d,assessment:"gap",severity:"important",kind:"ambiguity",
+        title:"Theme switching behavior unresolved",
+        detail:"The selection and persistence behavior must be specified.",
+        question:"Should selection persist after restart?",evidence:[]}
+      : {dimension:d,assessment:"clear",severity:"suggestion",kind:"suggestion",title:"",detail:"",question:"",evidence:[]}),
+  })},finish_reason:"stop"}]};}}});
+  const res=await worker.fetch(post(task),env);
+  assert.equal(res.status,200);
+  const a=(await res.json()).analysis;
+  assert.equal(a.status,"needs_clarification");
+  assert.match(a.suggestedRewrite,/Goal:/);
+  assert.match(a.suggestedRewrite,/Scope:\nWeb settings and mobile settings/);
+  assert.match(a.suggestedRewrite,/Expected outcome:\nUsers can use a dark theme/);
+  assert.match(a.suggestedRewrite,/Confirmed requirements/);
+  assert.match(a.suggestedRewrite,/References supplied/);
+  assert.match(a.suggestedRewrite,/Open questions:/);
+  assert.match(a.suggestedRewrite,/Should selection persist after restart/);
+  assert.doesNotMatch(a.suggestedRewrite,/selection will persist/i);
 });
