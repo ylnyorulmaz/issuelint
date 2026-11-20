@@ -1,0 +1,33 @@
+name: Export Cloudflare deploy bundle
+
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.0'
+      - name: Install and verify
+        run: |
+          npm install --no-audit --no-fund
+          npm run check
+      - name: Export built Worker and site to release-bundle branch
+        run: |
+          set -euo pipefail
+          mkdir -p export/worker export/site
+          cp .cloudflare/output/v1/workers/default/bundle/index.js export/worker/index.js
+          cp -r .cloudflare/output/v1/workers/default/assets/. export/site/
+          cd export
+          git init -b release-bundle
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Build assets from main"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push --force origin release-bundle
