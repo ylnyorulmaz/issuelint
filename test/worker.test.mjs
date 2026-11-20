@@ -518,3 +518,90 @@ test("2.1 rejects invented toggle and release-readiness commitments in rewrite",
   assert.equal(isGroundedCore("Implement dark mode, ready for release at the end of the sprint.",task),false);
   assert.equal(isGroundedCore("Implement dark mode on web and mobile following Figma.",task),true);
 });
+
+
+test("2.2 audited dimensions include actionability, granularity and outcome exactly once",()=>{
+  assert.equal(REVIEW_DIMENSIONS.length,11);
+  for(const name of ["actionability","granularity","outcome"])assert.ok(REVIEW_DIMENSIONS.includes(name));
+  const task=parseTask({title:"Build onboarding platform",description:"Create registration, billing, notifications, support and admin tools as one project.",type:"Feature",domain:"Software",criteria:"",context:""});
+  const draft=toV2({summary:"The task contains multiple deliverables.",findings:[],suggestedRewrite:"Create onboarding capabilities."});
+  draft.detectedDomain="Software"; draft.detectedType="Feature";
+  const size=draft.checks.find(c=>c.dimension==="granularity");
+  Object.assign(size,{assessment:"gap",severity:"important",kind:"suggestion",title:"Split into deliverable tasks",
+    detail:"Registration, billing and administration can be implemented, tested and shipped independently.",
+    question:"Which independently deliverable part should be implemented first?",evidence:[]});
+  const review=parseReviewV2(draft,task);
+  assert.equal(review.analysis.status,"needs_clarification");
+  assert.equal(review.reviewCoverage.checked,11);
+  assert.equal(review.findingDimensions[0],"granularity");
+  assert.match(review.analysis.findings[0].question,/implemented first/);
+});
+
+test("2.2 simple actionable tasks are not forced to have a separate business purpose or subtasks",()=>{
+  const task=parseTask({title:"Draft Q4 budget summary",
+    description:"Draft the Q4 budget summary from the approved workbook and send the PDF to the finance lead Friday.",
+    type:"General",domain:"Operations",criteria:"PDF emailed by Friday",context:"Approved workbook in shared folder."});
+  const draft=toV2({summary:"The request is executable and has a clear deliverable.",
+    findings:[],suggestedRewrite:"Draft the Q4 budget summary and send the final PDF by Friday."});
+  draft.detectedDomain="Operations";
+  const review=parseReviewV2(draft,task);
+  assert.equal(review.analysis.status,"ready");
+  assert.equal(review.analysis.findings.length,0);
+  assert.equal(review.reviewCoverage.checked,11);
+  assert.equal(review.checks.find(x=>x.dimension==="outcome").assessment,"clear");
+  assert.equal(review.checks.find(x=>x.dimension==="granularity").assessment,"clear");
+});
+
+test("2.2 ranks actionability and oversized epics above generic completion concerns",()=>{
+  const task=parseTask({title:"Q4 growth",description:"Q4 growth, improve everything and build a large platform for customers.",type:"General",domain:"Marketing",criteria:"",context:""});
+  const draft=toV2({summary:"This is a broad topic not a task.",findings:[],suggestedRewrite:"Define a specific growth deliverable."});
+  draft.detectedDomain="Marketing";
+  for(const [dimension,title,question] of [
+    ["completion","Completion is unclear","How will the work be recognized as done?"],
+    ["granularity","Several deliverables combined","Which independently releasable phase should happen first?"],
+    ["actionability","No executable action specified","What concrete deliverable should the assignee produce?"],
+  ]){
+    const check=draft.checks.find(c=>c.dimension===dimension);
+    Object.assign(check,{assessment:"gap",severity:"important",kind:"missing",title,
+      detail:"A specific decision is needed before this work can be assigned and delivered.",question,evidence:[]});
+  }
+  const review=parseReviewV2(draft,task);
+  assert.deepEqual(review.findingDimensions,["actionability","granularity","completion"]);
+});
+
+test("2.2 quality gate rechecks granularity when scope and behavior are already flagged",()=>{
+  const task=parseTask({title:"Build platform",description:"Build a new customer onboarding platform with payments, identity and analytics.",type:"Feature",domain:"Software",criteria:"",context:""});
+  const draft=toV2({summary:"Scope and behavior need decisions.",findings:[],suggestedRewrite:"Plan customer onboarding."});
+  draft.detectedDomain="Software"; draft.detectedType="Feature";
+  for(const d of ["scope","behavior"]){
+    Object.assign(draft.checks.find(c=>c.dimension===d),{
+      assessment:"gap",kind:"missing",severity:"important",title:"Missing "+d,
+      detail:"The work needs more specific design decisions to be executable.",
+      question:"Which "+d+" requirements are intended?",evidence:[]
+    });
+  }
+  const audit=parseReviewV2(draft,task);
+  assert.deepEqual(suspiciousClearDimensions(task,audit.checks),["granularity"]);
+  const checked=applyQualityGate(task,audit.checks,["granularity"],{checks:[{
+    dimension:"granularity",assessment:"gap",title:"Large multi-part epic",
+    detail:"Identity verification and payments are separate deliverables which can be split.",
+    question:"Which independently deliverable part of onboarding should be implemented first?",evidence:[]
+  }]});
+  const result=parseReviewV2({...draft,checks:checked},task);
+  assert.equal(result.analysis.findings.length,3);
+  assert.ok(result.findingDimensions.includes("granularity"));
+});
+
+test("2.2 autonomous agent missing environment is a real dependency, not a universal field requirement",()=>{
+  const task=parseTask({title:"Agent fixes auth",description:"Have an autonomous coding agent fix login, but the agent has no repository access and no test environment.",type:"Bug",domain:"Software",criteria:"Verify the fix before merging.",context:""});
+  const sample=toV2({summary:"The agent cannot run without a repository.",findings:[],suggestedRewrite:"Fix the authentication bug when access is available."});
+  sample.detectedDomain="Software";sample.detectedType="Bug";
+  Object.assign(sample.checks.find(c=>c.dimension==="dependencies"),{
+    assessment:"gap",kind:"missing",severity:"important",title:"Agent lacks source access",
+    detail:"The task states that the agent lacks access to the repository and cannot inspect or test code.",
+    question:"Which repository and safe test environment should the agent use?",evidence:["no repository access"]
+  });
+  const result=parseReviewV2(sample,task);
+  assert.ok(result.findingDimensions.includes("dependencies"));
+  assert.equal(result.analysis.status,"needs_clarification");
+});
