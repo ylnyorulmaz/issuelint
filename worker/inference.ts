@@ -83,8 +83,8 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
       ? { ...output as Record<string, unknown> }
       : output;
     if (normalized !== null && typeof normalized === "object" && !Array.isArray(normalized)) {
-      if (typeof normalized.suggestedRewrite !== "string" || normalized.suggestedRewrite.trim().length < 5) {
-        normalized.suggestedRewrite = [
+      if (typeof (normalized as Record<string, unknown>).suggestedRewrite !== "string" || (normalized as Record<string, unknown>).suggestedRewrite.trim().length < 5) {
+        (normalized as Record<string, unknown>).suggestedRewrite = [
           task.title,
           task.description,
           task.criteria ? "Completion criteria:\n" + task.criteria : "",
