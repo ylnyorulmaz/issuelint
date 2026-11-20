@@ -4,6 +4,7 @@ import { analyze, blank, examples, type Task, type TaskType, type Domain } from 
 import { analyzeLive, getHealth, ApiError, type ApiAnalysis, type ApiFinding } from './api';
 import './style.css';
 import './styles.neobrutalist.css';
+import './styles.zen.css';
 import { readDesignTheme, saveDesignTheme, type DesignTheme } from './design-theme';
 import { BrandEmblem, SectionIndex, PosterGeometry, FindingMark, ScreenLabel } from './components/Constructivist';
 
@@ -17,12 +18,13 @@ type View = {
   summary: string;
   findings: (ApiFinding | { kind: ApiFinding['kind']; title: string; detail: string; question?: string; evidence?: string[]; severity?: ApiFinding['severity'] })[];
   draft: string;
+  rewriteStatus?: ApiAnalysis['rewriteStatus'];
 };
 function displayStatus(status: View['status']): string {
   return ({ ready: 'Ready to work', needs_clarification: 'Needs clarification', blocked: 'Blocked — resolve first', not_scored: 'Basic review' })[status];
 }
 function fromLive(a: ApiAnalysis): View {
-  return { mode: 'live', score: null, status: a.status, summary: a.summary, findings: a.findings, draft: a.suggestedRewrite };
+  return { mode: 'live', score: null, status: a.status, summary: a.summary, findings: a.findings, draft: a.suggestedRewrite, rewriteStatus: a.rewriteStatus };
 }
 function fromDemo(task: Task): View {
   const a = analyze(task);
@@ -158,6 +160,9 @@ function App() {
           <button type="button" class="design-option" aria-pressed={designTheme() === 'neobrutalist'} title="Neobrutalism" onClick={() => chooseDesignTheme('neobrutalist')}>
             <span class="design-name-long">Neobrutalist</span><span class="design-name-short">Neo</span>
           </button>
+          <button type="button" class="design-option" aria-pressed={designTheme() === 'zen'} title="Minimalist Zen" onClick={() => chooseDesignTheme('zen')}>
+            <span class="design-name-long">Zen</span><span class="design-name-short">Zen</span>
+          </button>
         </div>
         <button class="theme" type="button" onClick={() => setDark(!dark())} aria-label={dark() ? 'Switch to light mode' : 'Switch to dark mode'} title={dark() ? 'Light mode' : 'Dark mode'}>{dark() ? '☀' : '☾'}</button>
       </div>
@@ -254,7 +259,29 @@ function App() {
                 <button type="button" role="tab" aria-selected={tab() === 'findings'} class={tab() === 'findings' ? 'active' : ''} onClick={() => setTab('findings')}>Findings</button>
                 <button type="button" role="tab" aria-selected={tab() === 'draft'} class={tab() === 'draft' ? 'active' : ''} onClick={() => setTab('draft')}>Suggested draft</button>
               </div>
-              <Show when={tab() === 'findings'} fallback={<div class="draft"><div class="draft-head"><strong>{a().mode === 'basic' ? 'Structured copy of your input' : 'Suggested rewrite'}</strong><button type="button" onClick={() => void copy()}>{copied() ? '✓ Copied' : '▢ Copy'}</button></div><pre>{a().draft}</pre><p>Verify the rewrite before using it. Unconfirmed details should remain questions.</p></div>}>
+              <Show when={tab() === 'findings'} fallback={<div class="draft">
+                <div class="draft-head"><strong>{
+                  a().mode !== 'live' ? (a().mode === 'basic' ? 'Structured input copy' : 'Illustrative draft') :
+                  a().rewriteStatus === 'rewritten' ? 'Improved task draft' :
+                  a().rewriteStatus === 'clarification_draft' ? 'Clarification checklist' : 'Rewrite unavailable'
+                }</strong>
+                  <Show when={a().draft.trim().length > 0}>
+                    <button type="button" onClick={() => void copy()}>{copied() ? '✓ Copied' : '▢ Copy'}</button>
+                  </Show>
+                </div>
+                <Show when={a().draft.trim().length > 0} fallback={<div class="rewrite-unavailable">
+                  No improved draft was generated. Your original text has not been presented as a rewrite. Review the findings to refine the task.
+                </div>}>
+                  <pre>{a().draft}</pre>
+                  <p>{
+                    a().mode === 'live' && a().rewriteStatus === 'clarification_draft'
+                      ? 'The original task is preserved with outstanding questions. This is not an AI rewrite; resolve questions before execution.'
+                      : a().mode === 'live'
+                      ? 'AI-generated rewrite. Verify all details against the source. Unresolved questions are not confirmed requirements.'
+                      : 'Illustrative or structural output. Verify before using.'
+                  }</p>
+                </Show>
+              </div>}>
                 <div class="findings"><Show when={a().findings.length === 0}><div class="no-findings">No issues identified. Verify the task details yourself before proceeding.</div></Show>
                   <For each={a().findings}>{f => <article class="finding"><FindingMark kind={f.kind}/><div class="finding-content">
                     <span class={'kind ' + f.kind}>{f.kind}{f.severity ? ' · ' + f.severity : ''}</span>
