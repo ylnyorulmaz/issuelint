@@ -56,8 +56,8 @@ export function parseAdminFixture(input:unknown, source:AdminSource):AdminFixtur
     const keys=['title','description','type','domain','criteria','context','scope','outcome','references'];
     if(!keys.every(k=>typeof t[k]==='string')||
       !TYPES.has(String(t.type))||!DOMAINS.has(String(t.domain))||
-      t.domain!==raw.domain||t.title.length<1||t.title.length>180||
-      t.description.length<1||t.description.length>6500||
+      t.domain!==raw.domain||(t.title as string).length<1||(t.title as string).length>180||
+      (t.description as string).length<1||(t.description as string).length>6500||
       String(t.criteria).length>1200||String(t.context).length>1200||
       ['scope','outcome','references'].some(k=>String(t[k]).length>1000)||
       keys.filter(k=>k!=='type'&&k!=='domain').reduce((n,k)=>n+String(t[k]).length,0)>8000)
