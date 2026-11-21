@@ -246,7 +246,7 @@ export async function analyzeDecisionLive(
       !Array.isArray(auditRaw.selected) || auditRaw.selected.length!==expectedSelected.length ||
       auditRaw.selected.some((v,i)=>v!==expectedSelected[i]) ||
       !Array.isArray(auditChecks) || !Array.isArray(auditFindings) ||
-      auditRaw.findings.length>5 || typeof auditRaw.durationMs!=='number' ||
+      auditFindings.length>5 || typeof auditRaw.durationMs!=='number' ||
       !Number.isFinite(auditRaw.durationMs) || auditRaw.durationMs<0) fail();
   const status=auditRaw.status as ApiDecisionAudit['status'];
   if ((status==='complete' && auditChecks.length!==expectedSelected.length) ||
