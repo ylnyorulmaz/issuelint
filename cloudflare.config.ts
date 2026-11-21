@@ -20,10 +20,9 @@ export default defineConfig(({ mode, isPreview }) => {
         AI_MODEL: bindings.text("@cf/openai/gpt-oss-120b"),
         FEEDBACK_VERIFIER_MODE: bindings.text(privateProduction ? "on" : "off"),
         SAYGM_API_KEY: bindings.secret(),
-        // GEMINI_API_KEY is provisioned independently in Worker Secrets.
-        // A declared bindings.secret() is REQUIRED at deploy time in cf, so
-        // declaring it before the key exists blocks all production deployments.
-        // WorkerEnv reads it when provisioned; V2 fails closed until then.
+        // Production Gemini key is now provisioned in Cloudflare secrets.
+        // Branch previews do not require this secret and keep AI disabled.
+        ...(privateProduction ? { GEMINI_API_KEY: bindings.secret() } : {}),
       },
       observability: {
         enabled: true,
