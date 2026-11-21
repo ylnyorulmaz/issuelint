@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="robots" content="index,follow,max-image-preview:large"/>
+  <meta name="theme-color" content="#f6f6f1"/>
+  <title>How to Write a Clear Task or Ticket: Checklist &amp; Examples | IssueLint</title>
+  <meta name="description" content="A practical checklist and examples for writing clear tasks, work tickets and briefs. Define scope, expected behavior, completion criteria and missing decisions."/>
+  <link rel="canonical" href="https://issuelint.com/guides/how-to-write-a-clear-task/"/>
+  <link rel="icon" type="image/png" href="/brand/favicon.png"/>
+  <link rel="stylesheet" href="/about/about.css"/>
+  <link rel="stylesheet" href="/site-footer.css"/>
+  <meta property="og:type" content="article"/>
+  <meta property="og:site_name" content="IssueLint"/>
+  <meta property="og:url" content="https://issuelint.com/guides/how-to-write-a-clear-task/"/>
+  <meta property="og:title" content="How to Write Clear Tasks and Tickets: Checklist + Examples"/>
+  <meta property="og:description" content="A practical task-writing guide with a small template and examples that avoid vague scope, contradictions and missing requirements."/>
+  <meta property="og:image" content="https://issuelint.com/brand/logo-light.webp"/>
+  <meta property="og:image:alt" content="IssueLint logo — AI task and ticket quality checker"/>
+  <meta name="twitter:card" content="summary"/>
+  <meta name="twitter:title" content="How to Write a Clear Task or Ticket | IssueLint"/>
+  <meta name="twitter:description" content="A six-step checklist, short task template and before-and-after examples."/>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Article","headline":"How to Write a Clear Task or Ticket: Checklist and Examples","description":"A practical guide to writing actionable tasks, tickets and briefs.","mainEntityOfPage":"https://issuelint.com/guides/how-to-write-a-clear-task/","author":{"@type":"Organization","name":"IssueLint"},"publisher":{"@type":"Organization","name":"IssueLint","url":"https://issuelint.com/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://issuelint.com/"},{"@type":"ListItem","position":2,"name":"Task Writing Guide","item":"https://issuelint.com/guides/how-to-write-a-clear-task/"}]}]}</script>
+  <script src="/about/appearance.js"></script>
+  <style>
+    .guide-breadcrumb{font-size:13px;color:var(--muted);padding:30px 0 0}.guide-breadcrumb a:hover{text-decoration:underline}
+    .guide-intro{font-size:clamp(17px,1.8vw,21px);line-height:1.75;color:var(--muted);max-width:830px;margin:25px 0}
+    .guide-article .about-section{scroll-margin-top:35px}
+    .guide-article .about-section-content li{font-size:16px;line-height:1.75;color:var(--muted);margin:0 0 12px}
+    .guide-article .about-section-content li strong,.guide-article .about-section-content p strong{color:var(--ink)}
+    .guide-article .about-section-content a{color:var(--red-text);text-decoration:underline;text-underline-offset:3px}
+    .guide-template{margin:22px 0;border:1px solid var(--line);background:var(--paper);border-radius:9px;padding:20px}
+    .guide-template pre{font:14px/1.85 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:var(--ink)}
+    .guide-case{padding:19px 0;border-top:1px solid var(--line)}.guide-case h3{font-size:20px;margin-bottom:12px}
+    .guide-case p{font-size:15px;line-height:1.8;color:var(--muted);margin-bottom:11px}
+    .guide-note{background:var(--soft);padding:18px;border-left:2px solid var(--red-text);border-radius:0 8px 8px 0;font-size:15px!important}
+    @media(max-width:550px){.guide-template{padding:13px}.guide-template pre{font-size:12px}}
+  </style>
+</head>
+<body class="about-app">
+  <a class="skip-link" href="#guide-content">Skip to content</a>
+  <header class="about-header">
+    <div class="about-header-inner">
+      <a class="about-brand" href="/" aria-label="IssueLint home">
+        <img class="brand-light" src="/brand/logo-light.webp" alt="IssueLint" width="480" height="92"/>
+        <img class="brand-dark" src="/brand/logo-dark.webp" alt="" width="480" height="92"/>
+      </a>
+      <nav class="about-top-nav" aria-label="Primary navigation">
+        <a href="/#analyze">Quick Scan</a>
+        <a href="/#guide">How it works</a>
+        <a href="/about/">About</a>
+      </nav>
+      <div class="about-appearance" role="group" aria-label="Choose light or dark appearance">
+        <button type="button" data-appearance="light" aria-pressed="true">Light</button>
+        <button type="button" data-appearance="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+  </header>
+  <main id="guide-content">
+    <nav class="guide-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> / Task writing guide</nav>
+    <article class="guide-article">
+      <header class="about-hero">
+        <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> PRACTICAL GUIDE / TASK QUALITY</p>
+        <h1>How to write a <em>clear task or ticket</em></h1>
+        <p class="guide-intro">Good task writing is not about filling in a huge template. It is about giving the next person enough information to act without inventing requirements. Here is a practical checklist, a lightweight template and examples.</p>
+        <div class="about-traits"><span><b>01</b> Define the work</span><span><b>02</b> Remove ambiguity</span><span><b>03</b> Check before handoff</span></div>
+      </header>
+
+      <section class="about-section" aria-labelledby="why-heading">
+        <div class="about-section-label">01 / THE PROBLEM</div>
+        <div class="about-section-content">
+          <h2 id="why-heading">Clear is better than <em>long.</em></h2>
+          <p>“Improve checkout” sounds like a task. But which problem is being fixed? What should happen differently? What would count as done? A long specification can be equally hard to execute if it contains two requirements that contradict each other.</p>
+          <p>The right question is: <strong>Could a capable teammate start this work without making a material business decision for the author?</strong> If the answer is no, the task needs one more conversation or one clearer sentence.</p>
+        </div>
+      </section>
+
+      <section class="about-section" aria-labelledby="checklist-heading">
+        <div class="about-section-label">02 / CHECKLIST</div>
+        <div class="about-section-content">
+          <h2 id="checklist-heading">Six questions before handoff.</h2>
+          <ol>
+            <li><strong>What should change?</strong> Specify the requested action or outcome. “Make it better” is usually not enough.</li>
+            <li><strong>Where does it apply?</strong> Name the screen, workflow, system, audience or boundary when it matters.</li>
+            <li><strong>What behavior should happen?</strong> Explain relevant rules, exceptions and user interactions.</li>
+            <li><strong>How will we recognize completion?</strong> State an observable test, result or boundary. Do not invent numerical targets.</li>
+            <li><strong>What must the assignee access?</strong> Link necessary design files, documentation or approvals. Do not assume “see Figma” identifies a usable artifact.</li>
+            <li><strong>Is anything contradictory?</strong> Check dates, guarantees and exclusions. Raise an open question instead of choosing an unapproved rule.</li>
+          </ol>
+          <p class="guide-note">A tiny task does not need six separate fields. The point is to identify <strong>material</strong> gaps, not to reward bureaucracy.</p>
+        </div>
+      </section>
+
+      <section class="about-section" aria-labelledby="template-heading">
+        <div class="about-section-label">03 / TEMPLATE</div>
+        <div class="about-section-content">
+          <h2 id="template-heading">A lightweight task template.</h2>
+          <p>Start with a title and plain-text description. Add other lines only when they genuinely help the assignee.</p>
+          <div class="guide-template"><pre>Title: [Action + intended change]
+
+Task: [What to change, and where]
+
+Expected behavior: [What should happen]
+
+Done when: [How to verify completion]
+
+References: [Required designs or docs]
+
+Open decisions: [Questions not yet resolved]</pre></div>
+          <p>For a one-line button rename, the exact screen, current label, new label and “do not change behavior” may already be enough.</p>
+        </div>
+      </section>
+
+      <section class="about-section" aria-labelledby="examples-heading">
+        <div class="about-section-label">04 / EXAMPLES</div>
+        <div class="about-section-content">
+          <h2 id="examples-heading">Before and after.</h2>
+          <div class="guide-case">
+            <h3>Vague feature request</h3>
+            <p><strong>Before:</strong> “Add dark mode to the app.”</p>
+            <p><strong>Clearer:</strong> “Add a theme toggle in Settings on web and mobile. If a user has not chosen a theme, use the system preference. Save an explicit selection across sessions. Check both themes on the Settings screen.”</p>
+            <p><strong>Why:</strong> The second version defines the interaction and persistence behavior. If an existing Figma design is binding, the task should also identify how to find it.</p>
+          </div>
+          <div class="guide-case">
+            <h3>Contradictory event rules</h3>
+            <p><strong>Before:</strong> “Deliver all webhook events in strict FIFO order. After two minutes of failures, skip the failed event and deliver newer events for the same tenant.”</p>
+            <p><strong>Clarify:</strong> “Does FIFO still apply during failures? If skipping is permitted, is the failed event retained and retried? Can later events be delivered first?”</p>
+            <p><strong>Why:</strong> The implementer cannot decide between conflicting requirements on behalf of the author.</p>
+          </div>
+          <div class="guide-case">
+            <h3>A small task that is already clear</h3>
+            <p><strong>Task:</strong> “On the /settings page, rename the Save button from ‘Submit’ to ‘Save changes’. Do not change the button behavior.”</p>
+            <p><strong>Why:</strong> Location, exact change and scope are explicit. An elaborate specification would not improve execution.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="about-section" aria-labelledby="review-heading">
+        <div class="about-section-label">05 / SECOND OPINION</div>
+        <div class="about-section-content">
+          <h2 id="review-heading">Check it before you send it.</h2>
+          <p><a href="/#analyze">IssueLint Quick Scan</a> checks eleven task-quality dimensions—including contradictions, behavior, scope, references, completion and dependencies—with a short ✓/✕ checklist. The optional Analyze v2 mode adds independent reasoning and evidence for selected dimensions.</p>
+          <p>A green tick means no issue was flagged, or that the dimension did not apply. <strong>It is not a guarantee that a task is correct.</strong> Neither AI mode replaces review by the people responsible for the work.</p>
+          <p>IssueLint is currently a <strong>private AI preview</strong>: a valid access code is required for live model analysis. For more details, read <a href="/about/">About IssueLint</a>.</p>
+        </div>
+      </section>
+    </article>
+    <section class="about-cta" aria-labelledby="cta-heading">
+      <span class="eyebrow">A SECOND OPINION BEFORE WORK BEGINS</span>
+      <h2 id="cta-heading">Have a task in mind?</h2>
+      <p>Paste it as written. A long template isn't required.</p>
+      <a class="about-primary-link" href="/#analyze">Try Quick Scan <span aria-hidden="true">↗</span></a>
+    </section>
+  </main>
+  <footer class="site-footer" aria-label="IssueLint site footer">
+    <div class="site-footer-inner">
+      <div class="site-footer-intro">
+        <a class="site-footer-logo" href="/" aria-label="IssueLint home">
+          <img class="site-footer-logo-light" src="/brand/logo-light.webp" alt="IssueLint" width="480" height="92" loading="lazy"/>
+          <img class="site-footer-logo-dark" src="/brand/logo-dark.webp" alt="" width="480" height="92" loading="lazy"/>
+        </a>
+        <p>A second opinion for every task. Make the work clear before it starts.</p>
+        <span class="site-footer-tag">PLAIN TEXT IN · CLEARER WORK OUT</span>
+      </div>
+      <nav class="site-footer-nav" aria-label="Footer navigation">
+        <div class="site-footer-col">
+          <span class="site-footer-heading">Explore</span>
+          <a href="/#analyze">Quick Scan</a>
+          <a href="/#guide">How it works</a>
+          <a href="/about/">About IssueLint</a>
+        </div>
+        <div class="site-footer-col">
+          <span class="site-footer-heading">Get in touch</span>
+          <a href="mailto:yorulmazyln@gmail.com">yorulmazyln@gmail.com</a>
+          <a href="https://ylnyorulmaz.com" target="_blank" rel="noopener noreferrer">ylnyorulmaz.com <span aria-hidden="true">↗</span></a>
+        </div>
+      </nav>
+    </div>
+    <div class="site-footer-bottom">
+      <span>© 2026 IssueLint. Built for clearer handoffs.</span>
+      <span>Private AI preview · Human judgment still matters.</span>
+    </div>
+  </footer>
+</body>
+</html>
