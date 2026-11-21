@@ -1,0 +1,215 @@
+/* Readability pass for the sole active Minimalist design.
+ * Typographic overrides only: preserve existing layout, colors and AI behavior.
+ * Imported after the component/theme styles to avoid rewriting legacy design files.
+ */
+.app[data-design="minimalist"] {
+  --muted: #536052;
+  font-size: 16px;
+  line-height: 1.55;
+}
+.app[data-design="minimalist"][data-theme="dark"] {
+  --muted: #ccd5c7;
+}
+.app[data-design="minimalist"] :is(p, li, q, pre) {
+  overflow-wrap: anywhere;
+}
+.app[data-design="minimalist"] :is(input, textarea, select) {
+  font-size: 16px;
+  line-height: 1.6;
+}
+.app[data-design="minimalist"] :is(input, textarea)::placeholder {
+  opacity: .8;
+}
+.app[data-design="minimalist"] :is(button, input, textarea, select) {
+  min-height: 42px;
+}
+
+/* Navigation, appearance, task entry and status hints. */
+.app[data-design="minimalist"] .header nav a { font-size: 13px; }
+.app[data-design="minimalist"] .appearance-switcher-caption { font-size: 12px; }
+.app[data-design="minimalist"] .appearance-option {
+  font-size: 13px;
+  min-height: 40px;
+  min-width: 58px;
+}
+.app[data-design="minimalist"] .entry-eyebrow { font-size: 12px; }
+.app[data-design="minimalist"] .entry-intro p {
+  font-size: 16px;
+  line-height: 1.65;
+}
+.app[data-design="minimalist"] .entry-example-link { font-size: 14px; }
+.app[data-design="minimalist"] .card-intro h2 { font-size: 20px; }
+.app[data-design="minimalist"] .card-intro p { font-size: 14px; line-height: 1.6; }
+.app[data-design="minimalist"] .panel-code { font-size: 12px; }
+.app[data-design="minimalist"] .availability { font-size: 12px; }
+.app[data-design="minimalist"] label,
+.app[data-design="minimalist"] .preview-code label {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.app[data-design="minimalist"] .optional-field { font-size: 13px; }
+.app[data-design="minimalist"] #description {
+  font-size: 16px;
+  line-height: 1.7;
+}
+.app[data-design="minimalist"] .input-mode-switch button { font-size: 14px; }
+.app[data-design="minimalist"] .paste-helper,
+.app[data-design="minimalist"] .build-hint,
+.app[data-design="minimalist"] .input-card .counter,
+.app[data-design="minimalist"] .input-card .preview-code p,
+.app[data-design="minimalist"] .privacy-note,
+.app[data-design="minimalist"] .decision-setup-note { font-size: 13px; line-height: 1.6; }
+.app[data-design="minimalist"] .preview-code-footer button,
+.app[data-design="minimalist"] .secondary-action,
+.app[data-design="minimalist"] .disclosure small { font-size: 13px; line-height: 1.5; }
+.app[data-design="minimalist"] .disclosure b { font-size: 15px; }
+.app[data-design="minimalist"] .primary-actions .primary,
+.app[data-design="minimalist"] .decision-action,
+.app[data-design="minimalist"] .optional-analyze { font-size: 14px; line-height: 1.4; }
+.app[data-design="minimalist"] .decision-action { min-height: 53px; }
+
+/* Main review results, draft, examples and privacy disclosure. */
+.app[data-design="minimalist"] .screen-label { font-size: 13px; }
+.app[data-design="minimalist"] .screen-label-index { font-size: 12px; }
+.app[data-design="minimalist"] .empty > p,
+.app[data-design="minimalist"] .result-top p,
+.app[data-design="minimalist"] .finding p,
+.app[data-design="minimalist"] .result-failure p { font-size: 15px; line-height: 1.7; }
+.app[data-design="minimalist"] .empty-features,
+.app[data-design="minimalist"] .result-failure span:not(.failure-icon),
+.app[data-design="minimalist"] .score-box p,
+.app[data-design="minimalist"] .draft p,
+.app[data-design="minimalist"] .disclaimer,
+.app[data-design="minimalist"] .no-findings { font-size: 13px; line-height: 1.65; }
+.app[data-design="minimalist"] .kicker,
+.app[data-design="minimalist"] .kind,
+.app[data-design="minimalist"] .pill,
+.app[data-design="minimalist"] .note { font-size: 12px; }
+.app[data-design="minimalist"] .finding h3 { font-size: 17px; }
+.app[data-design="minimalist"] .evidence,
+.app[data-design="minimalist"] .question { font-size: 14px; line-height: 1.65; }
+.app[data-design="minimalist"] .draft pre {
+  font: 15px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+.app[data-design="minimalist"] .tabs button,
+.app[data-design="minimalist"] .draft-link,
+.app[data-design="minimalist"] .draft-head button,
+.app[data-design="minimalist"] .result-start { font-size: 13px; }
+.app[data-design="minimalist"] .draft-head { font-size: 15px; }
+.app[data-design="minimalist"] .score-box strong { font-size: 15px; }
+.app[data-design="minimalist"] .example p,
+.app[data-design="minimalist"] .steps p,
+.app[data-design="minimalist"] .section-heading p { font-size: 15px; line-height: 1.65; }
+.app[data-design="minimalist"] .example-link,
+.app[data-design="minimalist"] .example-number { font-size: 13px; }
+.app[data-design="minimalist"] footer,
+.app[data-design="minimalist"] .privacy-settings,
+.app[data-design="minimalist"] .consent-banner p { font-size: 13px; line-height: 1.6; }
+.app[data-design="minimalist"] .consent-banner strong { font-size: 16px; }
+.app[data-design="minimalist"] .consent-actions button { font-size: 14px; }
+
+/* Running review and Decision v2. These were especially small in /admin. */
+.app[data-design="minimalist"] .review-running-copy,
+.app[data-design="minimalist"] .decision-loading p { font-size: 15px; line-height: 1.65; }
+.app[data-design="minimalist"] .review-running-timer,
+.app[data-design="minimalist"] .review-running-note,
+.app[data-design="minimalist"] .review-running-checks > span { font-size: 13px; }
+.app[data-design="minimalist"] .review-running-checks b { font-size: 14px; }
+.app[data-design="minimalist"] .decision-overview small,
+.app[data-design="minimalist"] .decision-meta,
+.app[data-design="minimalist"] .decision-gate-number,
+.app[data-design="minimalist"] .decision-gate-outcome,
+.app[data-design="minimalist"] .decision-gate-confidence,
+.app[data-design="minimalist"] .decision-probability { font-size: 13px; }
+.app[data-design="minimalist"] .decision-gate-title { font-size: 17px; }
+.app[data-design="minimalist"] .decision-gate > p,
+.app[data-design="minimalist"] .decision-disclaimer,
+.app[data-design="minimalist"] .decision-audit-overview p,
+.app[data-design="minimalist"] .decision-reviewed p,
+.app[data-design="minimalist"] .decision-audit-evidence q,
+.app[data-design="minimalist"] .decision-audit-question,
+.app[data-design="minimalist"] .decision-prioritized-item p { font-size: 14px; line-height: 1.7; }
+.app[data-design="minimalist"] .decision-audit-overview strong,
+.app[data-design="minimalist"] .decision-reviewed-head > strong,
+.app[data-design="minimalist"] .decision-prioritized-item strong { font-size: 15px; }
+.app[data-design="minimalist"] .decision-audit-evidence b,
+.app[data-design="minimalist"] .decision-audit-question b,
+.app[data-design="minimalist"] .decision-prioritized-item span,
+.app[data-design="minimalist"] .decision-gate .decision-skipped { font-size: 12px; }
+.app[data-design="minimalist"] .decision-prioritized h3 { font-size: 17px; }
+.app[data-design="minimalist"] .decision-probability {
+  grid-template-columns: 48px minmax(0, 1fr) 42px;
+  gap: 10px;
+}
+.app[data-design="minimalist"] .decision-prob-track { height: 7px; }
+
+/* Admin benchmark station: task input and model comparisons must be readable. */
+.app[data-design="minimalist"].admin-app .admin-label,
+.app[data-design="minimalist"].admin-app .admin-kicker,
+.app[data-design="minimalist"].admin-app .admin-section-label,
+.app[data-design="minimalist"].admin-app .admin-case-id { font-size: 12px; }
+.app[data-design="minimalist"].admin-app .admin-header-links a,
+.app[data-design="minimalist"].admin-app .admin-title-row p,
+.app[data-design="minimalist"].admin-app .admin-dataset-heading p { font-size: 15px; line-height: 1.65; }
+.app[data-design="minimalist"].admin-app .admin-small-counter span,
+.app[data-design="minimalist"].admin-app .admin-load-button span,
+.app[data-design="minimalist"].admin-app .admin-load-button small,
+.app[data-design="minimalist"].admin-app .admin-control-footer,
+.app[data-design="minimalist"].admin-app .admin-case-tags span { font-size: 12px; line-height: 1.55; }
+.app[data-design="minimalist"].admin-app .admin-access > label { font-size: 13px; }
+.app[data-design="minimalist"].admin-app .admin-access p,
+.app[data-design="minimalist"].admin-app .admin-error,
+.app[data-design="minimalist"].admin-app .admin-empty p { font-size: 14px; line-height: 1.65; }
+.app[data-design="minimalist"].admin-app .admin-load-button strong { font-size: 18px; line-height: 1.4; }
+.app[data-design="minimalist"].admin-app :is(.admin-code-input button, .admin-detail-toggle, .admin-oracle-toggle, .admin-filters button, .admin-case-actions button, .admin-executing button) {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.app[data-design="minimalist"].admin-app .admin-case-identity h3 { font-size: 20px; line-height: 1.4; }
+.app[data-design="minimalist"].admin-app .admin-field > span,
+.app[data-design="minimalist"].admin-app .admin-expected-issue strong { font-size: 12px; }
+.app[data-design="minimalist"].admin-app .admin-field p {
+  font-size: 16px;
+  line-height: 1.7;
+}
+.app[data-design="minimalist"].admin-app .admin-oracle > p,
+.app[data-design="minimalist"].admin-app .admin-expected-issue p { font-size: 15px; line-height: 1.7; }
+.app[data-design="minimalist"].admin-app .admin-executing,
+.app[data-design="minimalist"].admin-app .admin-meta,
+.app[data-design="minimalist"].admin-app .admin-awaiting { font-size: 14px; line-height: 1.6; }
+.app[data-design="minimalist"].admin-app .admin-result-column h4 { font-size: 18px; }
+.app[data-design="minimalist"].admin-app .admin-result-column h4 small,
+.app[data-design="minimalist"].admin-app .admin-result-summary span,
+.app[data-design="minimalist"].admin-app .admin-severity,
+.app[data-design="minimalist"].admin-app .admin-footnote { font-size: 13px; line-height: 1.6; }
+.app[data-design="minimalist"].admin-app .admin-review-summary,
+.app[data-design="minimalist"].admin-app .admin-finding p,
+.app[data-design="minimalist"].admin-app .admin-quoted q,
+.app[data-design="minimalist"].admin-app .admin-draft pre {
+  font-size: 15px;
+  line-height: 1.7;
+}
+.app[data-design="minimalist"].admin-app .admin-finding-top strong,
+.app[data-design="minimalist"].admin-app .admin-draft summary { font-size: 16px; }
+.app[data-design="minimalist"].admin-app .admin-draft pre { font-family: inherit; }
+
+/* Protect reading width on tablets, narrow laptops and phones. */
+@media (max-width: 1180px) {
+  .app[data-design="minimalist"].admin-app .admin-result-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 650px) {
+  .app[data-design="minimalist"] .entry-intro p { font-size: 15px; }
+  .app[data-design="minimalist"] .primary-actions .primary,
+  .app[data-design="minimalist"] .primary-actions .decision-action { font-size: 13px; }
+  .app[data-design="minimalist"] .appearance-option {
+    min-width: 48px;
+    min-height: 40px;
+    padding: 7px 9px;
+    font-size: 13px;
+  }
+  .app[data-design="minimalist"].admin-app .admin-field p { font-size: 15px; }
+  .app[data-design="minimalist"].admin-app .admin-result-column { padding: 16px; }
+}
