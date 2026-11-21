@@ -32,3 +32,23 @@ Run `npm run check:worker` and `npm run test:worker`. This iteration adds `test/
 
 ## Data protection
 Task content is sensitive user-provided text. No third-party provider request is made by Iteration 1. Later iterations must disclose SayGM processing, store credentials as Cloudflare secrets, avoid logging task content, and enforce timeouts and fail-open-to-validated-primary behavior.
+
+## Iteration 2 — SayGM transport and shadow mode
+
+- Verified SayGM OpenAI-compatible endpoint: `https://api.saygm.com/v1/chat/completions`.
+- Model ID: `deepseek-v4.1-flash-1017`. Confirm catalog availability and account balance before live use.
+- `SAYGM_API_KEY` is a Worker secret; never put it in `.env`, GitHub, plaintext variables, logs, or responses.
+- `FEEDBACK_VERIFIER_MODE`: `off` (default), `shadow`, `on`. **In Iteration 2, `on` deliberately behaves as `shadow`**: patch application is not yet implemented.
+- Shadow requests send the original task and the complete 11-dimension primary assessment to SayGM. No patch is applied to user-visible feedback.
+- One request only, default timeout 12 seconds (clamped to 1–30 seconds), no retries, bounded response size, JSON validation using the Iteration 1 contract.
+- Any verifier error is isolated from the primary review. The old 2.4 conditional quality gate remains active until Iteration 3 replaces it.
+- Logs contain only success/failure category, patch count, latency, and token usage. No prompts, findings, or provider response bodies.
+- The health endpoint exposes only configured/not configured and effective `off`/`shadow` mode, not secrets.
+- The verifier adds third-party processing of task content. Do not enable shadow or on before updating the privacy disclosure and checking provider data handling terms.
+- Run `npm run check:worker`, `npm run test:worker`, and `npm run check` before enabling shadow.
+
+### Cloudflare setup
+Set `SAYGM_API_KEY` using the Cloudflare secret manager / `cf` secret command for the `issuelint-dev` Worker, then explicitly set `FEEDBACK_VERIFIER_MODE=shadow` when ready. Leave `off` until a successful provider smoke test and privacy review. Do not switch to `on` expecting patches to affect output before Iteration 3.
+
+### Deployment note
+Merging code does not prove the Worker has been deployed. Verify the deployed version, bindings, health endpoint, and actual shadow request separately.
