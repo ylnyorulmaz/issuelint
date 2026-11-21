@@ -859,3 +859,53 @@ test("2.4 retains separate audience and timing roots even when they cite the sam
   ]);
   assert.equal(output.reviewCoverage.reported,2);
 });
+
+
+test("API correlation IDs are returned to client, without logging task content or access token", async () => {
+  const originalInfo=console.info, originalWarn=console.warn;
+  const messages=[];
+  console.info=(...args)=>messages.push(args);
+  console.warn=(...args)=>messages.push(args);
+  try {
+    const {env}=makeEnv();
+    const req=post(originalTask,{"X-Request-ID":"frontend-trace-test-01"});
+    const res=await worker.fetch(req,env);
+    assert.equal(res.status,200);
+    assert.equal(res.headers.get("X-Request-ID"),"frontend-trace-test-01");
+    const serialized=JSON.stringify(messages);
+    assert.match(serialized,/issuelint.request_started/);
+    assert.match(serialized,/issuelint.inference_stage/);
+    assert.match(serialized,/issuelint.analysis_result/);
+    assert.doesNotMatch(serialized,/Contact all leads today|test-preview-secret-with-24-plus-characters/);
+  } finally { console.info=originalInfo; console.warn=originalWarn; }
+});
+
+test("private frontend diagnostics endpoint accepts only bounded, authenticated, allowlisted values", async () => {
+  const {env}=makeEnv();
+  const urlBase=url+"/api/client-events";
+  const payload={event:"review_failed",category:"http",status:502,durationMs:3210};
+  const send=(body,headers={})=>worker.fetch(new Request(urlBase,{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer test-preview-secret-with-24-plus-characters",
+      "X-Request-ID":"browser-trace-001",...headers},
+    body:typeof body==="string"?body:JSON.stringify(body)
+  }),env);
+  const originalWarn=console.warn;
+  const captured=[];
+  console.warn=(...args)=>captured.push(args);
+  try {
+    const ok=await send(payload);
+    assert.equal(ok.status,200);
+    assert.equal(ok.headers.get("X-Request-ID"),"browser-trace-001");
+    assert.equal((await ok.json()).ok,true);
+    assert.match(JSON.stringify(captured),/issuelint.client_event/);
+    assert.doesNotMatch(JSON.stringify(captured),/test-preview-secret-with-24-plus-characters/);
+    const noAuth=await send(payload,{Authorization:""});
+    assert.equal(noAuth.status,401);
+    const arbitrary=await send({...payload,task:"should never appear in logs"});
+    assert.equal(arbitrary.status,422);
+    const huge=await send("x".repeat(1100));
+    assert.equal(huge.status,422);
+    assert.doesNotMatch(JSON.stringify(captured),/should never appear in logs/);
+  }finally{console.warn=originalWarn;}
+});
