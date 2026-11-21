@@ -31,7 +31,7 @@ The review contract lives in:
 ## Security and privacy
 
 - `POST /api/analyze` is private: `Authorization: Bearer <PREVIEW_TOKEN>`, with a server-side token length minimum of **24**. Do not weaken this to allow a short plain-text PIN, or place the secret in the frontend.
-- Required Worker bindings: `AI`, `ASSETS`; inference flags and secrets: `AI_MODEL`, `ANALYZE_ENABLED`, `PREVIEW_TOKEN`, `SAYGM_API_KEY`, `FEEDBACK_VERIFIER_MODE`. Defaults in `cloudflare.config.ts` are safe-off (`ANALYZE_ENABLED=false`, verifier `off`); real deployed values must be verified separately.
+- Required Worker bindings: `AI`, `ASSETS`; inference flags and secrets: `AI_MODEL`, `ANALYZE_ENABLED`, `PREVIEW_TOKEN`, `SAYGM_API_KEY`, `FEEDBACK_VERIFIER_MODE`. `cloudflare.config.ts` has safe-off defaults for local development and Preview builds; protected production builds explicitly use `ANALYZE_ENABLED=true` and verifier `on`, while preserving the Bearer secret gate. Check actual deployed values separately.
 - Enabling `shadow` or `on` sends user text and review checks to SayGM. Confirm privacy disclosure and provider data-processing conditions before public use; do not imply it is local-only.
 - User text, preview token and access code must not be sent to GA4/Clarity. Tracking remains optional and consent-gated. Theme preference is persisted; during private testing, a manually entered preview access code can also persist in that browser's `localStorage` through `src/preview-access.ts`. Never hardcode a token into shipped JavaScript or send it to analytics; users can use **Forget code** to clear the local copy.
 - Avoid adding unbounded external calls, token leaks, unlimited logging, false auth guarantees or unnecessary dependencies.
@@ -50,12 +50,12 @@ The review contract lives in:
 
 - Worker: `issuelint-dev`; custom domain: `issuelint.com`; fallback URL: `issuelint-dev.yorulmazyln.workers.dev`.
 - Cloudflare Workers Builds is connected to GitHub `ylnyorulmaz/issuelint`, production branch `main`, with dashboard build `npx cf build` and deploy `npx cf deploy --prebuilt`. Verify **actual build logs and Worker version** after a push.
-- Local deployment command is `npm run deploy`, invoking `cf deploy`; do not replace the `cf`-based setup with an unrelated Wrangler configuration.
+- Local deployment command is `npm run deploy`, invoking `cf deploy`; the production Workers Builds deploy command uses `cf deploy --prebuilt --force` to resolve legacy Dashboard/API metadata conflicts. `--force` applies repository configuration, including production `true`/`on`; verify secrets, bindings, query-string redaction and flags after deployment. Do not replace this `cf` setup with Wrangler.
 - Confirm `PREVIEW_TOKEN` and `SAYGM_API_KEY` remain Worker **secrets**, not text or repo files; check effective flags after deployment.
 - Health should report `iteration: 5`, `reviewEngineVersion: "2.5"`, appropriate `aiEnabled`, `feedbackVerifierMode` and `feedbackVerifierConfigured`. These fields demonstrate configuration, **not** successful DeepSeek usage.
 - Test an authorized analysis; search Cloudflare logs for `issuelint.verifier_result` with `ok: true` when verifier is active. Never print credentials or task content during verification.
 - Roll back verifier to `off` if reliability, cost or quality regresses; this does not require rewriting code.
-- `.github/workflows/smoke.yml` contains an **outdated** 2.3/2.4 health/inline-HTML assertion. Update it before relying on the smoke workflow as a 2.5 deployment gate.
+- `.github/workflows/smoke.yml` is a manual (`workflow_dispatch`) 2.5/native-assets smoke test. Run it **after** Cloudflare confirms a successful build and deployment; a push-triggered smoke check can race the previous version.
 
 ## Project boundaries and known gaps
 
