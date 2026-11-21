@@ -20,7 +20,9 @@ export type AuditCheck = {
   question: string;
 };
 export type AuditResult = {
-  status: "complete" | "unavailable";
+  status: "complete" | "partial" | "unavailable";
+  /** Selected dimensions whose independent review could not be validated. */
+  unverified: ReviewDimension[];
   model: "@cf/openai/gpt-oss-120b";
   threshold: number;
   selected: ReviewDimension[];
@@ -52,6 +54,15 @@ export function exactSourceQuote(task: Task, quote: string): boolean {
   if (!quote || quote.length > 260) return false;
   const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLocaleLowerCase();
   return normalize(taskSource(task)).includes(normalize(quote));
+}
+/** Remove purely typographic quotation marks IF a literal excerpt then matches.
+ * Never fuzzy-match, infer a missing quote, or change the actual source.
+ */
+function canonicalQuote(task: Task, raw: string): string {
+  const trimmed = raw.trim();
+  if (exactSourceQuote(task, trimmed)) return trimmed;
+  const unwrapped = trimmed.replace(/^[“”"'‘’`]+|[“”"'‘’`]+$/gu, "").trim();
+  return exactSourceQuote(task, unwrapped) ? unwrapped : trimmed;
 }
 
 export function routeDecisionGates(decision: DecisionResult): ReviewDimension[] {
@@ -150,7 +161,7 @@ export function parseAuditResponse(value: unknown, task: Task, selected: readonl
     const question=plainText(raw.question,300,false);
     if (!Array.isArray(raw.evidence) || raw.evidence.length>2 ||
         raw.evidence.some(q=>typeof q!=="string")) throw new AuditError("invalid_response");
-    const evidence: string[]=raw.evidence.map(q=>(q as string).trim());
+    const evidence: string[]=raw.evidence.map(q=>canonicalQuote(task,q as string));
     if (evidence.some(q=>!exactSourceQuote(task,q))) throw new AuditError("invalid_response");
     const assessment=raw.assessment as AuditAssessment;
     if (assessment==="gap") {
@@ -168,6 +179,49 @@ export function parseAuditResponse(value: unknown, task: Task, selected: readonl
   if (seen.size!==selected.length) throw new AuditError("invalid_response");
   // Maintain the request's stable order even if the model returned a shuffled array.
   return selected.map(d=>checks.find(c=>c.dimension===d)!);
+}
+
+/** Preserve independently valid Gate results even when one model-created quote
+ * is not present in the source. Invalid gates are NEVER displayed as findings.
+ * The strict parseAuditResponse remains available for full atomic validation.
+ */
+export function parseAuditPartially(
+  value: unknown, task: Task, selected: readonly ReviewDimension[],
+  onRejected?: (dimension: ReviewDimension, reason: "evidence_not_in_task" | "duplicate_or_missing" | "invalid_check") => void,
+): {checks: AuditCheck[]; unverified: ReviewDimension[]} {
+  if (!record(value) || !Array.isArray(value.checks) ||
+      value.checks.length > REVIEW_DIMENSIONS.length ||
+      Object.keys(value).some(key => key !== "checks"))
+    throw new AuditError("invalid_response");
+
+  const groups=new Map<ReviewDimension, unknown[]>();
+  for (const dimension of selected) groups.set(dimension, []);
+  for (const raw of value.checks) {
+    if (!record(raw) || typeof raw.dimension !== "string") continue;
+    const dimension=raw.dimension as ReviewDimension;
+    groups.get(dimension)?.push(raw);
+  }
+  const checks: AuditCheck[]=[];
+  const unverified: ReviewDimension[]=[];
+  for (const dimension of selected) {
+    const candidates=groups.get(dimension)??[];
+    if (candidates.length!==1) {
+      unverified.push(dimension);
+      onRejected?.(dimension,"duplicate_or_missing");
+      continue;
+    }
+    try {
+      checks.push(parseAuditResponse({checks:candidates},task,[dimension])[0]);
+    } catch {
+      unverified.push(dimension);
+      const item=candidates[0];
+      const quoteInvalid=record(item) && Array.isArray(item.evidence) &&
+        item.evidence.some(q=>typeof q==="string" &&
+          !exactSourceQuote(task,canonicalQuote(task,q)));
+      onRejected?.(dimension,quoteInvalid?"evidence_not_in_task":"invalid_check");
+    }
+  }
+  return {checks,unverified};
 }
 
 function validatedFindings(checks: AuditCheck[],task:Task): Finding[] {
@@ -190,10 +244,10 @@ export async function runSelectiveAudit(
   const emit=(stage:string,fields:Record<string,string|number|boolean>)=>{try{onEvent?.(stage,fields)}catch{}};
   emit("routed",{selected:selected.length,skipped:11-selected.length,threshold:CLEAR_ROUTING_THRESHOLD});
   const base={model:"@cf/openai/gpt-oss-120b" as const,threshold:CLEAR_ROUTING_THRESHOLD,selected};
-  if (!selected.length) return {...base,status:"complete",checks:[],findings:[],durationMs:0};
+  if (!selected.length) return {...base,status:"complete",checks:[],findings:[],unverified:[],durationMs:0};
   if (!ai) {
     emit("failed",{category:"not_configured",durationMs:0});
-    return {...base,status:"unavailable",checks:[],findings:[],durationMs:0,errorCategory:"not_configured"};
+    return {...base,status:"unavailable",checks:[],findings:[],unverified:selected,durationMs:0,errorCategory:"not_configured"};
   }
   let raw:unknown;
   try {
@@ -201,17 +255,25 @@ export async function runSelectiveAudit(
     raw=await ai.run(selectModel(model),buildAuditRequest(task,selected));
   } catch {
     emit("failed",{category:"upstream",durationMs:Date.now()-started});
-    return {...base,status:"unavailable",checks:[],findings:[],durationMs:Date.now()-started,errorCategory:"upstream"};
+    return {...base,status:"unavailable",checks:[],findings:[],unverified:selected,durationMs:Date.now()-started,errorCategory:"upstream"};
   }
   try {
-    const checks=parseAuditResponse(extractJsonResponse(raw),task,selected);
+    const {checks,unverified}=parseAuditPartially(extractJsonResponse(raw),task,selected,
+      (dimension,reason)=>emit("gate_rejected",{dimension,reason}));
     const findings=validatedFindings(checks,task);
     const durationMs=Date.now()-started;
-    emit("completed",{durationMs,checked:checks.length,gaps:checks.filter(c=>c.assessment==="gap").length,findings:findings.length});
-    return {...base,status:"complete",checks,findings,durationMs};
+    const status=unverified.length===0 ? "complete" :
+      checks.length>0 ? "partial" : "unavailable";
+    emit(status==="complete"?"completed":status==="partial"?"partial":"failed",{
+      durationMs,checked:checks.length,unverified:unverified.length,
+      gaps:checks.filter(c=>c.assessment==="gap").length,findings:findings.length,
+      ...(status==="unavailable"?{category:"invalid_response"}:{}),
+    });
+    return {...base,status,checks,findings,unverified,durationMs,
+      ...(status==="unavailable"?{errorCategory:"invalid_response" as const}:{})};
   } catch (cause) {
     const category=cause instanceof InferenceError && cause.kind==="truncated" ? "truncated" : "invalid_response";
     emit("failed",{category,durationMs:Date.now()-started});
-    return {...base,status:"unavailable",checks:[],findings:[],durationMs:Date.now()-started,errorCategory:category};
+    return {...base,status:"unavailable",checks:[],findings:[],unverified:selected,durationMs:Date.now()-started,errorCategory:category};
   }
 }

@@ -39,7 +39,8 @@ export type DecisionAuditCheck = {
   question: string;
 };
 export type ApiDecisionAudit = {
-  status: 'complete' | 'unavailable';
+  status: 'complete' | 'partial' | 'unavailable';
+  unverified: DecisionDimension[];
   model: '@cf/openai/gpt-oss-120b';
   threshold: 0.85;
   selected: DecisionDimension[];
@@ -242,18 +243,25 @@ export async function analyzeDecisionLive(
   const auditFindings=auditRaw.findings as unknown[];
   const expectedSelected=gates.filter(g=>g.probabilities.clear<0.85).map(g=>g.dimension);
   const fail=(): never => {throw new ApiError('INVALID_RESPONSE','Malformed independent audit.',response.status,requestId);};
-  if (!['complete','unavailable'].includes(String(auditRaw.status)) ||
+  if (!['complete','partial','unavailable'].includes(String(auditRaw.status)) ||
       auditRaw.model!=='@cf/openai/gpt-oss-120b' || auditRaw.threshold!==0.85 ||
       !Array.isArray(auditRaw.selected) || auditRaw.selected.length!==expectedSelected.length ||
       auditRaw.selected.some((v,i)=>v!==expectedSelected[i]) ||
+      !Array.isArray(auditRaw.unverified) ||
       !Array.isArray(auditChecks) || !Array.isArray(auditFindings) ||
       auditFindings.length>5 || typeof auditRaw.durationMs!=='number' ||
       !Number.isFinite(auditRaw.durationMs) || auditRaw.durationMs<0) fail();
   const status=auditRaw.status as ApiDecisionAudit['status'];
-  if ((status==='complete' && auditChecks.length!==expectedSelected.length) ||
+  const unverified=auditRaw.unverified as DecisionDimension[];
+  if (new Set(unverified).size!==unverified.length ||
+      unverified.some(v=>!expectedSelected.includes(v)) ||
+      unverified.length+auditChecks.length!==expectedSelected.length ||
+      (status==='complete' && unverified.length>0) ||
+      (status==='partial' && (unverified.length===0 || auditChecks.length===0)) ||
       (status==='unavailable' && (auditChecks.length!==0 || auditFindings.length!==0 ||
         !['upstream','truncated','invalid_response','not_configured'].includes(String(auditRaw.errorCategory)))))
     fail();
+  const verifiedDimensions=expectedSelected.filter(v=>!unverified.includes(v));
   const knownKinds=['missing','ambiguity','contradiction','suggestion'];
   const knownSeverities=['critical','important','suggestion'];
   const quoteValid=(value:unknown)=>Array.isArray(value) && value.length<=2 &&
@@ -261,7 +269,7 @@ export async function analyzeDecisionLive(
   const checkedAudits: DecisionAuditCheck[]=[];
   for (const [i,raw] of auditChecks.entries()) {
     const v=raw as Record<string,unknown>;
-    if (!object(v) || v.dimension!==expectedSelected[i] ||
+    if (!object(v) || v.dimension!==verifiedDimensions[i] ||
         !DECISION_ASSESSMENTS.includes(v.assessment as DecisionAssessment) ||
         typeof v.reason!=='string' || v.reason.trim().length<8 || v.reason.length>800 ||
         !knownKinds.includes(String(v.kind)) || !knownSeverities.includes(String(v.severity)) ||
@@ -283,7 +291,7 @@ export async function analyzeDecisionLive(
   }
   const audit:ApiDecisionAudit={
     status,model:'@cf/openai/gpt-oss-120b',threshold:0.85,
-    selected:expectedSelected,checks:checkedAudits,findings,durationMs:auditRaw.durationMs as number,
+    selected:expectedSelected,unverified,checks:checkedAudits,findings,durationMs:auditRaw.durationMs as number,
     ...(status==='unavailable'?{errorCategory:auditRaw.errorCategory as ApiDecisionAudit['errorCategory']}:{})
   };
   return {model:'gemini-decision-1',gates,checked:11,durationMs:d.durationMs as number,audit};
