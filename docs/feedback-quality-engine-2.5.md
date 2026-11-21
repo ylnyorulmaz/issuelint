@@ -52,3 +52,17 @@ Set `SAYGM_API_KEY` using the Cloudflare secret manager / `cf` secret command fo
 
 ### Deployment note
 Merging code does not prove the Worker has been deployed. Verify the deployed version, bindings, health endpoint, and actual shadow request separately.
+
+## Iteration 3 — Validated patch application
+
+- `off`: original GPT-OSS 120B + conditional 2.4 gate, no SayGM request.
+- `shadow`: SayGM receives task and all eleven primary checks; validated verdict is observed but does not affect user output. Existing 2.4 gate remains active.
+- `on`: SayGM receives task and all eleven primary checks; the old conditional gate is **not run**. Only a fully valid verdict is applied. On SayGM error or invalid patch, the validated primary review is returned without a second opinion.
+- Actions `KEEP`, `SUPPRESS`, `DOWNGRADE`, `REVISE`, `ADD` are applied atomically, then the existing `parseReviewV2` pipeline re-derives source grounding, deduplication, finding priority, status, summary, and coverage.
+- The backend does not let the verifier introduce critical severity or remove/downgrade critical findings. Verifier-added gaps are classified as ambiguity, not independently proven contradiction.
+- Rewrite text remains grounded in the primary task and final selected findings; broader editorial repair is Iteration 4.
+- Provider response failures are isolated; only coarse usage and error-category telemetry is logged.
+- `on` must not be enabled without provider secret, privacy review, and real golden-task comparisons.
+
+### Operational prerequisite
+The repository is not automatically linked to Cloudflare Workers Builds. Merging to main does not deploy. Use the repository's `cf deploy` from a checked-out build environment with Cloudflare credentials and installed dependencies; verify Worker settings and deployment ID afterwards. Keep `FEEDBACK_VERIFIER_MODE=off` by default.
