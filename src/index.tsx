@@ -13,12 +13,15 @@ import { analyticsConfigured, readAnalyticsConsent, saveAnalyticsConsent, enable
 import './styles.entry.css';
 import './styles.review-loading.css';
 import { ReviewLoading } from './components/ReviewLoading';
+import { ReviewBrandAnimation, ReviewWaitGuidance } from './components/ReviewWaitGuidance';
 import { DecisionScorecard } from './components/DecisionScorecard';
 import { AdminStation } from './components/AdminStation';
 import './styles.admin.css';
 import './styles.appearance.css';
 import './styles.decision.css';
 import './styles.readability.css';
+import './styles.decision-compact.css';
+import './styles.review-wait.css';
 import { readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from './preview-access';
 import { logClient, newRequestId, reportClientFailure } from './diagnostics';
 
@@ -389,7 +392,7 @@ function App() {
       <div class="card result-card" id="results" data-clarity-mask="true" aria-live="polite" aria-busy={loading()}>
         <div class="result-section-head"><ScreenLabel index="03">REVIEW / FINDINGS</ScreenLabel><span class="result-section-line" aria-hidden="true"/></div>
         <Show when={!loading()} fallback={activePipeline()==='decision'
-          ? <div class="decision-loading" role="status"><span class="decision-loading-spinner" aria-hidden="true"/><h2>Checking 11 Gates…</h2><p>Gemini screens 11 gates, then GPT-OSS independently audits selected dimensions in one request.</p><button type="button" onClick={cancelRequest}>Cancel review</button></div>
+          ? <div class="decision-loading" role="status"><ReviewBrandAnimation/><h2>Checking 11 quality dimensions…</h2><p>Gemini screens the task; GPT-OSS independently audits selected dimensions in one request.</p><ReviewWaitGuidance/><button type="button" onClick={cancelRequest}>Cancel review</button></div>
           : <ReviewLoading onCancel={cancelRequest}/>}>
           <Show when={decisionResult()}>{d => <DecisionScorecard data={d()}/>}</Show>
           <Show when={!decisionResult()}>

@@ -406,3 +406,16 @@ test("supplied IssueLint artwork is present in both appearance modes", async () 
     assert.ok(bytes.byteLength > 500, asset + " must not be empty");
   }
 });
+
+import { presentDecisionGate } from '../src/decision-presentation.ts';
+
+test('compact status uses audited GPT-OSS verdict over Gemini score',()=>{
+  const g=(p,assessment='clear')=>({dimension:'scope',assessment,confidence:p,probabilities:{clear:p,gap:1-p,not_applicable:0}});
+  const a={threshold:.85,selected:['scope'],checks:[],status:'complete',unverified:[],findings:[],durationMs:5,model:'@cf/openai/gpt-oss-120b'};
+  const check=assessment=>({dimension:'scope',assessment,reason:'test',title:'',question:'',evidence:[],severity:'suggestion',kind:'suggestion'});
+  assert.deepEqual(presentDecisionGate(g(.52),{...a,checks:[check('clear')]}),{mark:'pass',source:'gpt-oss'});
+  assert.deepEqual(presentDecisionGate(g(.63,'gap'),{...a,checks:[check('gap')]}),{mark:'issue',source:'gpt-oss'});
+  assert.deepEqual(presentDecisionGate(g(.52),a),{mark:'unverified',source:'unverified'});
+  assert.deepEqual(presentDecisionGate(g(.9),{...a,selected:[]}),{mark:'pass',source:'gemini'});
+  assert.deepEqual(presentDecisionGate(g(.2,'not_applicable'),{...a,checks:[check('not_applicable')]}),{mark:'not_applicable',source:'gpt-oss'});
+});

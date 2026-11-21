@@ -1,0 +1,26 @@
+/* CSS animation based on the supplied IssueLint logo; no GIF or JS animation timer. */
+.review-brand-animation{
+  position:relative;width:62px;height:62px;flex:none;display:grid;place-items:center;
+  border-radius:15px;background:var(--paper);border:1px solid var(--line);
+  overflow:hidden;animation:review-brand-breathe 2.1s ease-in-out infinite
+}
+.review-brand-animation img{position:absolute;width:52px;height:52px;object-fit:contain}
+.review-brand-animation .review-brand-dark{display:none}
+.app[data-theme="dark"] .review-brand-animation .review-brand-light{display:none}
+.app[data-theme="dark"] .review-brand-animation .review-brand-dark{display:block}
+.review-brand-scan{
+  position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(180deg,transparent 0%,transparent 40%,var(--red-text) 50%,transparent 60%,transparent 100%);
+  opacity:.24;transform:translateY(-100%);animation:review-brand-sweep 2.5s ease-in-out infinite
+}
+.review-wait-guidance{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:13px 15px;margin:14px 0 10px;text-align:left;max-width:100%}
+.review-wait-guidance p{margin:0 0 8px!important;font-size:13px!important;line-height:1.6!important;color:var(--ink)!important}
+.review-wait-guidance p:last-child{margin-bottom:0!important}
+.review-wait-guidance strong{font-weight:700}
+.review-wait-yes,.review-wait-no{font-weight:800;margin-right:5px}
+.review-wait-yes{color:var(--red-text)}
+.review-wait-no{color:var(--ink)}
+@keyframes review-brand-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.065)}}
+@keyframes review-brand-sweep{0%{transform:translateY(-100%)}70%,100%{transform:translateY(100%)}}
+@media(max-width:460px){.review-brand-animation{width:51px;height:51px}.review-brand-animation img{width:45px;height:45px}.review-wait-guidance{padding:11px 12px}}
+@media(prefers-reduced-motion:reduce){.review-brand-animation,.review-brand-scan{animation:none!important}.review-brand-scan{display:none}}

@@ -1,4 +1,5 @@
 import { createSignal, onCleanup, onMount } from 'solid-js';
+import { ReviewBrandAnimation, ReviewWaitGuidance } from './ReviewWaitGuidance';
 
 /** Review is one server request. Shown categories are not live backend steps. */
 export function ReviewLoading(props: { onCancel: () => void }) {
@@ -11,7 +12,7 @@ export function ReviewLoading(props: { onCancel: () => void }) {
   const formatted = () => Math.floor(seconds() / 60) + ':' + String(seconds() % 60).padStart(2, '0');
   return <div class="review-running" role="status" aria-label="AI task review in progress">
     <div class="review-running-head">
-      <span class="review-spinner" aria-hidden="true"><span class="review-spinner-core"/></span>
+      <ReviewBrandAnimation/>
       <div class="review-running-heading">
         <span class="kicker">AI REVIEW IN PROGRESS</span>
         <h2>Reviewing your task<span class="review-ellipsis" aria-hidden="true">...</span></h2>
@@ -40,6 +41,7 @@ export function ReviewLoading(props: { onCancel: () => void }) {
       <span class="review-skeleton-block review-skeleton-line medium"/>
       <span class="review-skeleton-block review-skeleton-line short"/>
     </div>
+    <ReviewWaitGuidance/>
     <p class="review-running-note">These are review focus areas, not completed live stages. Results will replace these placeholders when the analysis finishes.</p>
     <button class="secondary-action review-running-cancel" type="button" onClick={props.onCancel}>Cancel review</button>
   </div>;
