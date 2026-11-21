@@ -8,31 +8,44 @@
   </head>
   <body>
     <header class="topbar">
-      <div class="brand">
-        <img src="/icons/icon-32.png" width="20" height="20" alt="" />
-        <span>IssueLint <b>Clipper</b></span>
-      </div>
+      <a class="brand" href="https://issuelint.com" target="_blank" rel="noopener noreferrer" aria-label="IssueLint (opens issuelint.com)">
+        <svg class="brand-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+          <path d="M7 3.5H3.5v17H7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" />
+          <path d="M17 3.5h3.5v17H17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" />
+          <path class="brand-bars" d="M7.5 8.5h9M7.5 12h9M7.5 15.5h9" stroke-width="1.9" />
+        </svg>
+        <span class="wordmark"><span class="wm-issue">Issue</span><span class="wm-lint">Lint</span></span>
+      </a>
       <div class="topbar-actions">
-        <button id="reextract" class="btn btn-ghost" type="button" title="Extract the active tab again">
-          <span aria-hidden="true">↻</span> Re-extract
+        <button id="reextract" class="icon-btn" type="button" title="Re-extract the active tab" aria-label="Re-extract">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+            <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+            <path d="M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
-        <button id="settings-toggle" class="btn btn-icon" type="button" aria-expanded="false" aria-controls="settings" title="Settings">
-          <span aria-hidden="true">⚙</span><span class="sr-only">Settings</span>
+        <button id="settings-toggle" class="icon-btn" type="button" aria-expanded="false" aria-controls="settings" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6" />
+            <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
         </button>
       </div>
     </header>
 
-    <div class="urlbar">
+    <div class="subbar">
+      <span class="kicker">Clip → Review</span>
+      <span id="backend-badge" class="pill"><i class="dot"></i><span id="backend-badge-text"></span></span>
+      <span id="mock-badge" class="pill pill-mock" hidden><i class="dot"></i>Mock</span>
+    </div>
+    <div class="urlrow">
       <span id="url-badge" class="url-badge" title="">No page extracted yet</span>
-      <span id="backend-badge" class="pill pill-backend"></span>
-      <span id="mock-badge" class="pill pill-mock" hidden>MOCK</span>
     </div>
 
-    <section id="settings" class="card settings" hidden aria-label="Settings">
-      <h2>Settings</h2>
+    <section id="settings" class="card settings" hidden aria-labelledby="settings-heading">
+      <div class="card-kicker"><span class="kicker" id="settings-heading">Settings</span></div>
       <form id="settings-form" novalidate>
         <label class="field">
-          <span>Backend</span>
+          <span class="field-label">Backend</span>
           <select id="mode">
             <option value="quick_scan">IssueLint · Quick Scan</option>
             <option value="analyze_v2">IssueLint · Analyze v2 (Decision)</option>
@@ -40,15 +53,15 @@
           </select>
         </label>
         <label class="field" id="server-url-field">
-          <span>IssueLint server</span>
+          <span class="field-label">IssueLint server</span>
           <input id="server-url" type="url" placeholder="https://issuelint.com" autocomplete="off" spellcheck="false" />
         </label>
         <label class="field" id="api-url-field" hidden>
-          <span>API URL</span>
+          <span class="field-label">API URL</span>
           <input id="api-url" type="url" placeholder="https://your-backend.example/api/clip" autocomplete="off" spellcheck="false" />
         </label>
         <label class="field">
-          <span id="api-key-label">Preview access code</span>
+          <span class="field-label" id="api-key-label">Preview access code</span>
           <div class="input-row">
             <input id="api-key" type="password" autocomplete="off" spellcheck="false" />
             <button id="api-key-reveal" class="btn btn-ghost btn-small" type="button" aria-pressed="false">Show</button>
@@ -76,18 +89,23 @@
     </div>
 
     <main>
-      <section class="card" aria-labelledby="preview-heading">
+      <section class="card" aria-labelledby="extract-heading">
         <div class="card-head">
-          <h2 id="preview-heading">Extraction</h2>
-          <span id="mode-pill" class="pill" hidden></span>
-          <span id="char-count" class="char-count" aria-live="polite"></span>
+          <span class="step" aria-hidden="true">01</span>
+          <h2 id="extract-heading" class="kicker"><span class="sr-only">01 </span>Extract</h2>
+        </div>
+        <div class="segmented" role="group" aria-label="Extraction source">
+          <span class="seg" data-mode="selection">Selection</span>
+          <span class="seg" data-mode="modal">Modal</span>
+          <span class="seg" data-mode="page">Full Page</span>
         </div>
         <p id="page-title" class="page-title"></p>
-        <textarea id="markdown" spellcheck="false" placeholder="Click Re-extract (or the toolbar icon) to clip the current page. Select text first to clip only the selection." aria-label="Extracted Markdown"></textarea>
+        <textarea id="markdown" spellcheck="false" placeholder="Re-extract (↻) or click the toolbar icon to clip the current page. Select text first to clip only the selection." aria-label="Extracted Markdown"></textarea>
         <p id="limit-hint" class="limit-hint" role="status" hidden></p>
-        <div class="row">
-          <button id="copy" class="btn btn-ghost btn-small" type="button" disabled>Copy Markdown</button>
+        <div class="meta-row">
+          <span id="char-count" class="char-count" aria-live="polite"></span>
           <span id="copy-status" class="status-text" role="status"></span>
+          <button id="copy" class="text-btn" type="button" disabled>Copy</button>
         </div>
       </section>
 
@@ -96,7 +114,7 @@
         <button id="cancel" class="btn btn-ghost" type="button" hidden>Cancel</button>
       </div>
 
-      <section id="results" class="card results" hidden aria-live="polite" aria-busy="false"></section>
+      <section id="results" class="card results" hidden aria-live="polite" aria-busy="false" aria-label="Review and findings"></section>
     </main>
 
     <script type="module" src="./sidepanel.ts"></script>
