@@ -91,8 +91,8 @@ export function parseVerifierVerdict(raw: unknown, task: Task, checks: readonly 
     const patch: VerifierPatch = { dimension, action, reason };
     if (action === "SUPPRESS" || action === "DOWNGRADE" || action === "REVISE") {
       if (check.assessment !== "gap") throw new VerifierContractError("Cannot change an absent finding");
-      if (check.severity === "critical" && (action === "SUPPRESS" || action === "DOWNGRADE"))
-        throw new VerifierContractError("Critical finding cannot be removed or downgraded");
+      if (check.severity === "critical" && (action === "SUPPRESS" || action === "DOWNGRADE" || action === "REVISE"))
+        throw new VerifierContractError("Critical finding cannot be modified by verifier");
     }
     if (action === "ADD" && check.assessment === "gap")
       throw new VerifierContractError("ADD cannot overwrite an existing gap");
