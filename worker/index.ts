@@ -196,6 +196,7 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
             console.warn("issuelint.verifier_result", {
               requestId, ok: false,
               category: cause instanceof SaygmError ? cause.category : "unknown",
+              validationCode: cause instanceof SaygmError ? (cause.validationCode ?? "none") : "none",
               httpStatus: cause instanceof SaygmError ? (cause.httpStatus ?? 0) : 0,
               latencyMs: Date.now() - verifierStarted,
             });
