@@ -103,7 +103,7 @@ export async function analyzeLive(task: Task, token: string, signal: AbortSignal
   try {
     response = await fetch('/api/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, 'X-Request-ID': id },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), 'X-Request-ID': id },
       body: JSON.stringify(task),
       signal,
       cache: 'no-store',
@@ -185,7 +185,7 @@ export async function analyzeDecisionLive(
   try {
     response = await fetch('/api/analyze-v2', {
       method:'POST', cache:'no-store', signal,
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,'X-Request-ID':id},
+      headers:{'Content-Type':'application/json',...(token ? {Authorization:'Bearer '+token} : {}),'X-Request-ID':id},
       body:JSON.stringify(task),
     });
   } catch {
@@ -315,7 +315,7 @@ export async function analyzeQuickScanLive(
   try {
     response = await fetch('/api/quick-scan', {
       method:'POST',cache:'no-store',signal,
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,'X-Request-ID':id},
+      headers:{'Content-Type':'application/json',...(token ? {Authorization:'Bearer '+token} : {}),'X-Request-ID':id},
       body:JSON.stringify(task),
     });
   } catch {
