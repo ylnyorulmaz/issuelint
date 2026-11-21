@@ -335,7 +335,7 @@ function App() {
   return <div class="app" data-theme={dark() ? 'dark' : 'light'} data-design="minimalist">
     <header class="header site-header"><div class="header-inner site-header-inner">
       <a class="brand site-header-brand" href="/" aria-label="IssueLint home"><img class="brand-logo" src={dark() ? "/brand/logo-dark.webp" : "/brand/logo-light.webp"} alt="" width="480" height="92" decoding="async"/></a>
-      <nav class="site-header-nav" aria-label="Primary"><a href="/#analyze" class="nav-current" aria-current="page">01 / Analyze</a><a href="/#examples">02 / Examples</a><a href="/#guide">03 / Process</a><a href="/about/">04 / About</a></nav>
+      <nav class="site-header-nav" aria-label="Primary"><a href="/#analyze" class="nav-current" aria-current="page">01 / Analyze</a><a href="/#examples">02 / Examples</a><a href="/#guide">03 / Process</a><a href="/about/">04 / About</a><a href="/blog/">05 / Blog</a></nav>
       <div class="header-right site-header-right">
         <div class="appearance-switcher" role="group" aria-label="Choose light or dark appearance">
           <span class="appearance-switcher-caption" aria-hidden="true">MODE</span>
@@ -552,6 +552,7 @@ function App() {
             <a href="/#analyze">Quick Scan</a>
             <a href="/#guide">How it works</a>
             <a href="/guides/how-to-write-a-clear-task/">Task writing guide</a>
+            <a href="/blog/">Blog</a>
             <a href="/about/">About IssueLint</a>
           </div>
           <div class="site-footer-col">
