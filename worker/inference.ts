@@ -229,7 +229,7 @@ async function repairRewrite(task: Task, findings: Finding[], ai: AiRunner, mode
   }
 }
 
-export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODEL): Promise<ReviewedAnalysis> {
+export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODEL, onPrimaryReview?: (checks: readonly import("./review-v2.ts").ReviewCheck[]) => Promise<void>): Promise<ReviewedAnalysis> {
   const selected = selectModel(model);
   const usage=emptyUsage();
   const started=Date.now();
@@ -254,6 +254,10 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
   try {
     const parsed=extractJsonResponse(raw);
     reviewed = parseReviewV2(parsed, task);
+    if (onPrimaryReview) {
+      try { await onPrimaryReview(reviewed.checks); }
+      catch { /* Independent verifier errors never break primary review. */ }
+    }
     const uncertain=suspiciousClearDimensions(task,reviewed.checks);
     if(uncertain.length && record(parsed)) {
       try {
