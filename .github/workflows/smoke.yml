@@ -1,49 +1,43 @@
 name: Cloudflare live smoke test
+
+# Intentionally manual: a main push starts the Workers Build asynchronously.
+# Checking immediately on push can report the PREVIOUS deployment as successful.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Check public site and private API boundary
+      - name: Confirm deployed 2.5 assets, private API gate and verifier config
         shell: bash
         run: |
           set -euo pipefail
-          BASE="https://issuelint-dev.yorulmazyln.workers.dev"
-          for i in 1 2 3 4 5; do
-            if curl -fsS --max-time 20 "$BASE/" -o /tmp/issue.html; then break; fi
-            sleep 3
-          done
+          BASE="https://issuelint.com"
+          curl -fsS --max-time 20 "$BASE/" -o /tmp/issue.html
           grep -q '<div id="root"></div>' /tmp/issue.html
-          grep -q '<script type="module">' /tmp/issue.html
-          grep -q 'AWAITING INPUT.' /tmp/issue.html
-          grep -q 'Analyze with AI' /tmp/issue.html
-          grep -q 'Private AI access code' /tmp/issue.html
-          grep -Eq 'Paste a task. Make it clear.|Paste or build a task. Make it clear.' /tmp/issue.html
-          grep -q 'Paste your task, ticket or brief' /tmp/issue.html
-          grep -q 'brand-word' /tmp/issue.html
-          grep -q 'design-switcher' /tmp/issue.html
-          grep -q 'data-design' /tmp/issue.html
-          grep -q 'issuelint.design-theme.v2' /tmp/issue.html
-          grep -q 'neobrutalist' /tmp/issue.html
-          grep -q 'zen-pale' /tmp/issue.html
-          grep -q 'rewriteStatus' /tmp/issue.html
-          grep -q 'Minimalist' /tmp/issue.html
-          echo 'Task review UI and rewrite contract present in deployed Worker (2.3/2.4 transition)'
-          echo 'Three design themes and the preference control are in the live bundle'
+          JS_PATH=$(grep -oE 'src="/assets/[^"]+\.js"' /tmp/issue.html | head -n1 | cut -d'"' -f2)
+          test -n "$JS_PATH"
+          curl -fsS --max-time 20 "$BASE$JS_PATH" -o /tmp/issue.js
+          grep -q 'Private AI access code' /tmp/issue.js
+          grep -q 'Forget code' /tmp/issue.js
           curl -fsS --max-time 20 "$BASE/api/health" | node -e '
-            let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
-              const x=JSON.parse(s);
-              if(x.status!=="ok"||x.iteration!==2||!["2.3","2.4"].includes(x.reviewEngineVersion)||!x.aiBindingConfigured||!x.aiEnabled){
-                process.exit(1);
-              }
-              console.log("Healthy live AI Worker ("+x.reviewEngineVersion+") with private preview gate");
+            let text="";
+            process.stdin.on("data", chunk => text+=chunk);
+            process.stdin.on("end", () => {
+              const x=JSON.parse(text);
+              if(x.status!=="ok" || x.iteration!==5 || x.reviewEngineVersion!=="2.5" ||
+                 !x.aiBindingConfigured || !x.aiEnabled || !x.feedbackVerifierConfigured ||
+                 x.feedbackVerifierMode!=="on") process.exit(1);
+              console.log("Live IssueLint 2.5 ready for private AI testing");
             });
           '
           STATUS=$(curl -sS -o /tmp/issue-api.json -w '%{http_code}' --max-time 20 \
             -X POST "$BASE/api/analyze" -H 'content-type: application/json' \
             -d '{"title":"Test","description":"Check","type":"General","domain":"Other"}')
           test "$STATUS" = "401"
-          echo "Unauthorized AI requests correctly denied (HTTP $STATUS)"
+          echo "Unauthenticated review rejected with HTTP 401"
