@@ -16,6 +16,14 @@ The review contract lives in:
 
 **Do not change the HTTP or review output contracts silently.** Preserve compatibility with six-field task requests; the `scope`, `outcome` and `references` fields are optional. Findings must be source-grounded, with two literal quotations for contradictions. Recompute status and summary from **final** findings. Keep at most five actionable, deduplicated findings; don't artificially manufacture gaps for each dimension.
 
+## Decision Engine iteration 1 invariants
+
+- `POST /api/analyze-v2` is a **separate, Bearer-protected** Gemini Decision 1 classification-only endpoint; never route V1 through it or silently change V1's response schema.
+- `worker/decision.ts` uses `gemini-decision-1` on Google's `v1beta/decisions`: exactly **one request with 11 independent choice questions**, exactly three options (`clear`, `gap`, `not_applicable`) per gate. Preserve strict 11-answer completeness and probability checks; never synthesize missing scores.
+- `GEMINI_API_KEY` is a **server-side Cloudflare secret**, never a build-time frontend variable. If unset, health says `decisionConfigured:false` and Decision v2 is disabled; no fake or paid-provider fallback.
+- The scorecard is a decision-model diagnostic, **not** source-grounded findings, a readiness verdict or a rewrite. Reuse all task fields, Bearer auth, size constraints and sanitized request-ID logs. Do not expose provider bodies or task text in logs.
+- Do not add GPT-OSS explanations/grounding or auto-approve thresholds in Iteration 1. Those belong to later iterations after independent evaluation.
+
 ## Inference and verifier invariants
 
 - Primary model allowlist: `@cf/openai/gpt-oss-120b` via Workers AI.
