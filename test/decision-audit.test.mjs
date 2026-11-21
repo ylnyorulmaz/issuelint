@@ -184,7 +184,7 @@ test("pure quotation wrappers are stripped only when literal original passage ma
   const ai=mockAi({checks:[check("scope","gap",{
     title:"Dark mode coverage unspecified",
     reason:"The change names platforms but leaves the affected page boundaries unclear.",
-    evidence:["“Users want dark mode on web and mobile.”"],
+    evidence:['"Users want dark mode on web and mobile."'],
     question:"Which pages should use dark mode?",
   })]});
   const res=await runSelectiveAudit(task,d,ai);
