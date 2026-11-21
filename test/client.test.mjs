@@ -139,3 +139,43 @@ test('preview storage handles disabled storage, blank and oversized inputs witho
   storage.setItem(PREVIEW_ACCESS_STORAGE_KEY, 'x'.repeat(257));
   assert.equal(readRememberedPreviewCode(storage), '');
 });
+
+
+import { reportClientFailure, safeRequestId, newRequestId } from '../src/diagnostics.ts';
+
+test('browser diagnostics send only allowlisted metadata with the current correlation id', async () => {
+  const previousFetch=globalThis.fetch;
+  const previousWarn=console.warn;
+  const logs=[];
+  let capture;
+  globalThis.fetch=async (url,init)=>{capture={url,init};return new Response(JSON.stringify({ok:true}),{status:200});};
+  console.warn=(...args)=>logs.push(args);
+  const secret='test-private-preview-secret-not-for-logging';
+  try {
+    assert.match(newRequestId(),/^[a-zA-Z0-9_-]{8,64}$/);
+    assert.equal(safeRequestId('request-12345'),'request-12345');
+    assert.equal(safeRequestId('bad token\n'),undefined);
+    reportClientFailure('review_failed','http',secret,'frontend-error-001',502,442.7);
+    assert.equal(capture.url,'/api/client-events');
+    assert.equal(capture.init.headers.Authorization,'Bearer '+secret);
+    assert.equal(capture.init.headers['X-Request-ID'],'frontend-error-001');
+    assert.deepEqual(JSON.parse(capture.init.body),{
+      event:'review_failed',category:'http',status:502,durationMs:443,
+    });
+    assert.doesNotMatch(JSON.stringify(logs),/test-private-preview-secret-not-for-logging/);
+  }finally{globalThis.fetch=previousFetch;console.warn=previousWarn;}
+});
+
+test('client errors preserve the server correlation id without displaying the bearer code', async () => {
+  const previousFetch=globalThis.fetch;
+  globalThis.fetch=async()=>new Response(JSON.stringify({error:'AI_UNAVAILABLE',message:'down'}),{
+    status:502,headers:{'X-Request-ID':'server-trace-001'}
+  });
+  try {
+    await assert.rejects(
+      ()=>analyzeLive(validTask,'another-secret-private-code',new AbortController().signal,'frontend-trace-001'),
+      e=>e instanceof ApiError && e.status===502 && e.requestId==='server-trace-001' &&
+        !e.message.includes('another-secret-private-code'),
+    );
+  }finally{globalThis.fetch=previousFetch;}
+});
