@@ -56,6 +56,12 @@ export type ApiDecisionResult = {
   durationMs: number;
   audit: ApiDecisionAudit;
 };
+export type ApiQuickScanResult = {
+  model: 'gemini-decision-1';
+  checked: 11;
+  durationMs: number;
+  gates: { dimension: DecisionDimension; assessment: DecisionAssessment }[];
+};
 export type Health = { status: string; aiEnabled: boolean; aiBindingConfigured: boolean; decisionConfigured: boolean };
 
 export class ApiError extends Error {
@@ -295,4 +301,60 @@ export async function analyzeDecisionLive(
     ...(status==='unavailable'?{errorCategory:auditRaw.errorCategory as ApiDecisionAudit['errorCategory']}:{})
   };
   return {model:'gemini-decision-1',gates,checked:11,durationMs:d.durationMs as number,audit};
+}
+
+
+/** Gemini-only screening; no GPT-OSS audit or Original AI/SayGM invocation. */
+export async function analyzeQuickScanLive(
+  task: Task, token: string, signal: AbortSignal, suppliedId?: string,
+): Promise<ApiQuickScanResult> {
+  const id = safeRequestId(suppliedId) ?? newRequestId();
+  const started = Date.now();
+  logClient('info','quick_scan_request',{requestId:id});
+  let response: Response;
+  try {
+    response = await fetch('/api/quick-scan', {
+      method:'POST',cache:'no-store',signal,
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,'X-Request-ID':id},
+      body:JSON.stringify(task),
+    });
+  } catch {
+    logClient('warn',signal.aborted?'quick_scan_cancelled':'quick_scan_network_failed',
+      {requestId:id,category:signal.aborted?'timeout':'network',durationMs:Date.now()-started});
+    throw new ApiError(signal.aborted?'CANCELLED':'NETWORK_ERROR',
+      signal.aborted?'Quick Scan cancelled.':'Network error. Retry Quick Scan.',0,id);
+  }
+  const requestId=safeRequestId(response.headers.get('X-Request-ID'))??id;
+  logClient(response.ok?'info':'warn','quick_scan_http_response',
+    {requestId,status:response.status,durationMs:Date.now()-started});
+  let payload: unknown;
+  try {payload=await response.json();}
+  catch {throw new ApiError('INVALID_RESPONSE','Unreadable Quick Scan response.',response.status,requestId);}
+  if(!response.ok) {
+    const err=object(payload)?payload:{};
+    const code=typeof err.error==='string'?err.error:'QUICK_SCAN_UNAVAILABLE';
+    const message=response.status===401?'Private access code is missing or incorrect.':
+      code==='DECISION_NOT_CONFIGURED'?'Gemini Decision 1 is not configured.':
+      code==='DECISION_RATE_LIMIT'?'Gemini rate limit reached. Try again later.':
+      response.status===422?'The task input is invalid.':
+      'Quick Scan could not complete. Please retry.';
+    throw new ApiError(code,message,response.status,requestId);
+  }
+  if(!object(payload)||payload.mode!=='quick_scan'||payload.analyzed!==true||!object(payload.scan))
+    throw new ApiError('INVALID_RESPONSE','Unexpected Quick Scan response.',response.status,requestId);
+  const scan=payload.scan;
+  if(scan.model!=='gemini-decision-1'||scan.checked!==11||
+      typeof scan.durationMs!=='number'||!Number.isFinite(scan.durationMs)||scan.durationMs<0||
+      !Array.isArray(scan.gates)||scan.gates.length!==DECISION_DIMENSIONS.length)
+    throw new ApiError('INVALID_RESPONSE','Incomplete Quick Scan checklist.',response.status,requestId);
+  const gates:ApiQuickScanResult['gates']=[];
+  for(let i=0;i<DECISION_DIMENSIONS.length;i++) {
+    const gate=scan.gates[i];
+    if(!object(gate)||gate.dimension!==DECISION_DIMENSIONS[i]||
+        !DECISION_ASSESSMENTS.includes(gate.assessment as DecisionAssessment)||
+        Object.keys(gate).some(key=>key!=='dimension'&&key!=='assessment'))
+      throw new ApiError('INVALID_RESPONSE','Malformed Quick Scan result.',response.status,requestId);
+    gates.push({dimension:gate.dimension as DecisionDimension,assessment:gate.assessment as DecisionAssessment});
+  }
+  return {model:'gemini-decision-1',checked:11,durationMs:scan.durationMs as number,gates};
 }

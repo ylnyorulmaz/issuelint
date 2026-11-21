@@ -942,3 +942,63 @@ test("Worker verifier logs safe contract subcode, never raw SayGM response or ta
     console.warn=originalWarn;
   }
 });
+
+test("Quick Scan runs only Gemini and exposes eleven compact classifications",async()=>{
+  const old=globalThis.fetch;
+  const {REVIEW_DIMENSIONS}=await import('../worker/review-v2.ts');
+  let geminiCalls=0,workersCalls=0;
+  globalThis.fetch=async(_url,opts)=>{
+    geminiCalls++;
+    assert.equal(JSON.parse(opts.body).model,'gemini-decision-1');
+    return new Response(JSON.stringify({answers:Object.fromEntries(REVIEW_DIMENSIONS.map((dimension,i)=>[
+      dimension,{choice:i===0?'gap':i===1?'not_applicable':'clear',
+        confidence:.93,probabilities:i===0?{clear:.03,gap:.93,not_applicable:.04}:
+          i===1?{clear:.04,gap:.03,not_applicable:.93}:{clear:.93,gap:.04,not_applicable:.03}}
+    ]))}),{status:200});
+  };
+  const {env}=makeEnv({GEMINI_API_KEY:'server-only-test-key',AI:{
+    async run(){workersCalls++;throw Error('GPT-OSS must not run for Quick Scan');}
+  }});
+  const request=new Request(url+'/api/quick-scan',{method:'POST',headers:{
+    'content-type':'application/json','authorization':'Bearer test-preview-secret-with-24-plus-characters'
+  },body:JSON.stringify(originalTask)});
+  try {
+    const response=await worker.fetch(request,env);
+    assert.equal(response.status,200);
+    const data=await response.json();
+    assert.equal(data.mode,'quick_scan');
+    assert.equal(data.analyzed,true);
+    assert.equal(data.scan.model,'gemini-decision-1');
+    assert.equal(data.scan.checked,11);
+    assert.equal(data.scan.gates.length,11);
+    assert.equal(data.scan.gates[0].assessment,'gap');
+    assert.equal(data.scan.gates[1].assessment,'not_applicable');
+    assert.deepEqual(Object.keys(data.scan.gates[0]).sort(),['assessment','dimension']);
+    assert.equal(data.scan.audit,undefined);
+    assert.equal(data.scan.gates[0].probabilities,undefined);
+    assert.equal(geminiCalls,1);
+    assert.equal(workersCalls,0);
+  }finally{globalThis.fetch=old;}
+});
+
+test("Quick Scan protects preview, configuration, validation and HTTP method",async()=>{
+  const {env}=makeEnv({GEMINI_API_KEY:'test-key',AI:{async run(){throw Error('should not execute');}}});
+  const req=(payload=originalTask,headers={})=>new Request(url+'/api/quick-scan',{
+    method:'POST',headers:{'content-type':'application/json',
+      authorization:'Bearer test-preview-secret-with-24-plus-characters',...headers},
+    body:JSON.stringify(payload)
+  });
+  const denied=await worker.fetch(req(originalTask,{authorization:''}),env);
+  assert.equal(denied.status,401);
+  const missing=await worker.fetch(req(),{...env,GEMINI_API_KEY:undefined});
+  assert.equal(missing.status,503);
+  assert.equal((await missing.json()).error,'DECISION_NOT_CONFIGURED');
+  const disabled=await worker.fetch(req(),{...env,ANALYZE_ENABLED:'false'});
+  assert.equal(disabled.status,503);
+  const invalid=await worker.fetch(req({...originalTask,description:''}),env);
+  assert.equal(invalid.status,422);
+  const wrongContent=await worker.fetch(req(originalTask,{'content-type':'text/plain'}),env);
+  assert.equal(wrongContent.status,415);
+  const wrongMethod=await worker.fetch(new Request(url+'/api/quick-scan',{method:'GET'}),env);
+  assert.equal(wrongMethod.status,405);
+});

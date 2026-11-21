@@ -1,0 +1,24 @@
+/* Minimalist-only lightweight scan checklist. No expandable rows or scores. */
+.app[data-design="minimalist"] .quick-scorecard .result-top{margin-bottom:18px}
+.app[data-design="minimalist"] .quick-scorecard .result-top h2{font-size:24px;margin:5px 0 8px}
+.app[data-design="minimalist"] .quick-scorecard .result-top p{font-size:14px;line-height:1.6}
+.app[data-design="minimalist"] .quick-scan-list{list-style:none;margin:0;padding:0}
+.app[data-design="minimalist"] .quick-scan-row{
+  display:grid;grid-template-columns:28px minmax(0,1fr) 30px;align-items:center;
+  gap:12px;min-height:51px;border-bottom:1px solid var(--line);padding:9px 3px;color:var(--ink)
+}
+.app[data-design="minimalist"] .quick-scan-index{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.app[data-design="minimalist"] .quick-scan-row strong{font-size:15px;font-weight:680;min-width:0}
+.app[data-design="minimalist"] .quick-scan-mark{
+  display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;
+  border:1px solid transparent;font-size:17px;font-weight:800
+}
+.app[data-design="minimalist"] .quick-scan-mark.pass{color:#285d3e;background:#e5efe5;border-color:#9fbea5}
+.app[data-design="minimalist"] .quick-scan-mark.issue{color:#a52d32;background:#faeceb;border-color:#d9a5a5}
+.app[data-design="minimalist"][data-theme="dark"] .quick-scan-mark.pass{color:#bde0bf;background:#274232;border-color:#497a55}
+.app[data-design="minimalist"][data-theme="dark"] .quick-scan-mark.issue{color:#ffb7b9;background:#442b2d;border-color:#986364}
+.app[data-design="minimalist"] .quick-scan-note{margin:15px 0 0;font-size:12px;line-height:1.6;color:var(--muted)}
+@media(max-width:460px){
+ .app[data-design="minimalist"] .quick-scan-row{min-height:47px;grid-template-columns:21px minmax(0,1fr) 27px;gap:9px}
+ .app[data-design="minimalist"] .quick-scan-row strong{font-size:14px}
+}
