@@ -335,7 +335,7 @@ function App() {
   return <div class="app" data-theme={dark() ? 'dark' : 'light'} data-design="minimalist">
     <header class="header"><div class="header-inner">
       <a class="brand" href="#top" aria-label="IssueLint home"><img class="brand-logo" src={dark() ? "/brand/logo-dark.webp" : "/brand/logo-light.webp"} alt="" width="480" height="92" decoding="async"/></a>
-      <nav aria-label="Primary"><a href="#analyze" class="nav-current">01 / Analyze</a><a href="#examples">02 / Examples</a><a href="#guide">03 / Process</a></nav>
+      <nav aria-label="Primary"><a href="#analyze" class="nav-current">01 / Analyze</a><a href="#examples">02 / Examples</a><a href="#guide">03 / Process</a><a href="/about/">04 / About</a></nav>
       <div class="header-right">
         <div class="appearance-switcher" role="group" aria-label="Choose light or dark appearance">
           <span class="appearance-switcher-caption" aria-hidden="true">MODE</span>
@@ -536,8 +536,33 @@ function App() {
 
     <section id="guide" class="guide"><SectionIndex number="05" label="The method"/><h2>FROM NOISE TO ACTION.</h2><div class="steps"><div><span>01</span><h3>Describe</h3><p>Enter a title, description, and type. Add context if it matters.</p></div><div><span>02</span><h3>Inspect</h3><p>Review questions, missing details, and possible conflicts.</p></div><div><span>03</span><h3>Refine</h3><p>Copy your improved task into whatever tool your team uses.</p></div></div><p class="disclaimer">AI preview access is restricted. Demo reviews use examples or simple checks; they are not semantic AI analysis.</p></section>
     </main>
-    <footer><div><b>ISSUE/LINT ↗</b><span>Clear work starts here.</span></div>
-      <div class="footer-meta"><span>NO ACCOUNT · NO STORED TASKS · AI REVIEWS: CLOUDFLARE · DECISION V2: GOOGLE GEMINI + CLOUDFLARE AI</span>
+    <footer class="site-footer" aria-label="IssueLint site footer">
+      <div class="site-footer-inner">
+        <div class="site-footer-intro">
+          <a class="site-footer-logo" href="/" aria-label="IssueLint home">
+            <img class="site-footer-logo-light" src="/brand/logo-light.webp" alt="IssueLint" width="480" height="92" loading="lazy"/>
+            <img class="site-footer-logo-dark" src="/brand/logo-dark.webp" alt="" width="480" height="92" loading="lazy"/>
+          </a>
+          <p>A second opinion for every task. Make the work clear before it starts.</p>
+          <span class="site-footer-tag">PLAIN TEXT IN · CLEARER WORK OUT</span>
+        </div>
+        <nav class="site-footer-nav" aria-label="Footer navigation">
+          <div class="site-footer-col">
+            <span class="site-footer-heading">Explore</span>
+            <a href="/#analyze">Quick Scan</a>
+            <a href="/#guide">How it works</a>
+            <a href="/about/">About IssueLint</a>
+          </div>
+          <div class="site-footer-col">
+            <span class="site-footer-heading">Get in touch</span>
+            <a href="mailto:yorulmazyln@gmail.com">yorulmazyln@gmail.com</a>
+            <a href="https://ylnyorulmaz.com" target="_blank" rel="noopener noreferrer">ylnyorulmaz.com <span aria-hidden="true">↗</span></a>
+          </div>
+        </nav>
+      </div>
+      <div class="site-footer-bottom">
+        <span>© {new Date().getFullYear()} IssueLint. Built for clearer handoffs.</span>
+        <span>Private AI preview · Human judgment still matters.</span>
         <Show when={analyticsConfigured}><button type="button" class="privacy-settings" onClick={() => setShowPrivacyChoices(true)}>Analytics preferences</button></Show>
       </div>
     </footer>

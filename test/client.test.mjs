@@ -497,3 +497,45 @@ test('Quick Scan homepage stays compact and full/original engines remain accessi
   assert.doesNotMatch(quick,/<details|<summary|probabilities|\.reason|\.question|\.evidence|percent\(/);
   assert.match(quick,/class="quick-scan-row"/);
 });
+
+test('public About page is static, crawlable and has canonical metadata and real contact links',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const [about,home,footer,sitemap,robots]=await Promise.all([
+    readFile(new URL('../public/about/index.html',import.meta.url),'utf8'),
+    readFile(new URL('../index.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/site-footer.css',import.meta.url),'utf8'),
+    readFile(new URL('../public/sitemap.xml',import.meta.url),'utf8'),
+    readFile(new URL('../public/robots.txt',import.meta.url),'utf8'),
+  ]);
+  assert.match(about,/<html lang="en"/);
+  assert.match(about,/<title>About IssueLint/);
+  assert.match(about,/rel="canonical" href="https:\/\/issuelint\.com\/about\/"/);
+  assert.match(about,/type="application\/ld\+json"/);
+  assert.match(about,/<h1 id="about-heading">/);
+  assert.match(about,/What does IssueLint check\?/);
+  assert.match(about,/Quick Scan/);
+  assert.match(about,/Analyze v2/);
+  assert.match(about,/not a substitute|not that the task is guaranteed correct/i);
+  assert.match(about,/mailto:yorulmazyln@gmail\.com/);
+  assert.match(about,/https:\/\/ylnyorulmaz\.com/);
+  assert.match(about,/rel="noopener noreferrer"/);
+  assert.match(about,/href="\/#analyze"/);
+  assert.doesNotMatch(about,/GEMINI_API_KEY|PREVIEW_TOKEN|SAYGM_API_KEY/);
+  assert.match(home,/rel="canonical" href="https:\/\/issuelint\.com\/"/);
+  assert.match(home,/href="\/site-footer\.css"/);
+  assert.match(footer,/\.site-footer-inner/);
+  assert.match(sitemap,/<loc>https:\/\/issuelint\.com\/about\/</);
+  assert.match(robots,/Disallow: \/admin/);
+});
+
+test('homepage header and footer link to About and the requested contacts without altering model routes',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const source=await readFile(new URL('../src/index.tsx',import.meta.url),'utf8');
+  assert.match(source,/<a href="\/about\/">04 \/ About<\/a>/);
+  assert.match(source,/class="site-footer"/);
+  assert.match(source,/href="mailto:yorulmazyln@gmail\.com"/);
+  assert.match(source,/href="https:\/\/ylnyorulmaz\.com"/);
+  assert.match(source,/onClick=\{\(\) => void runDecision\(\)\}/);
+  assert.match(source,/void runQuickScan\(\)/);
+  assert.match(source,/async function runAI\(/);
+});

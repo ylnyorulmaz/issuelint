@@ -3,6 +3,8 @@
 **The second opinion for every task.** IssueLint is a lightweight, platform-independent AI review tool for tasks, tickets, to-dos, user stories, and work briefs. Paste a request, identify potential execution problems in a fast checklist, and run a deeper evidence-oriented review when clarification is needed.
 
 **Live site:** https://issuelint.com  
+**About page:** https://issuelint.com/about/ — static, crawlable product introduction, supported by shared site footer/contact navigation.  
+**Contact:** yorulmazyln@gmail.com · https://ylnyorulmaz.com  
 **Source of truth:** [`main`](https://github.com/ylnyorulmaz/issuelint/tree/main)  
 **Stage:** private AI preview / pre-public-beta evaluation. **Not** a generally available, rate-limited, multi-user production service.  
 **Product strategy and ICP:** [PRODUCT.md](PRODUCT.md)  
