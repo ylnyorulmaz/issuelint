@@ -554,7 +554,9 @@ test('static SEO guide and public page metadata are crawlable, unique and linked
   const pages=[
     ['https://issuelint.com/',home],
     ['https://issuelint.com/about/',about],
-    ['https://issuelint.com/guides/how-to-write-a-clear-task/',guide]
+    ['https://issuelint.com/guides/how-to-write-a-clear-task/',guide],
+    ['https://issuelint.com/blog/',await readFile(new URL('../public/blog/index.html',import.meta.url),'utf8')],
+    ['https://issuelint.com/blog/what-makes-a-good-task/',await readFile(new URL('../public/blog/what-makes-a-good-task/index.html',import.meta.url),'utf8')]
   ];
   const titles=[];
   for (const [url,content] of pages) {
@@ -571,8 +573,8 @@ test('static SEO guide and public page metadata are crawlable, unique and linked
     assert.ok(ld);
     assert.equal(JSON.parse(ld)['@context'],'https://schema.org');
   }
-  assert.equal(new Set(titles).size,3,'unique public titles');
-  assert.equal((sitemap.match(/<loc>/g)||[]).length,3);
+  assert.equal(new Set(titles).size,5,'unique public titles');
+  assert.equal((sitemap.match(/<loc>/g)||[]).length,5);
   assert.match(robots,/Disallow: \/admin/);
   assert.doesNotMatch(sitemap,/\/admin|\/api\//);
   assert.match(guide,/<article class="guide-article">/);
@@ -599,12 +601,16 @@ test('public pages share the exact homepage navigation, header layout and appear
     readFile(new URL('../public/about/appearance.js',import.meta.url),'utf8')
   ]);
   const nav=src=>src.match(/<nav class="site-header-nav" aria-label="Primary">([\s\S]*?)<\/nav>/)?.[1];
-  const items=src=>(nav(src)?.match(/>(0[1-4] \/ [^<]+)<\/a>/g)||[]).map(item=>item.replace(/^>/,'').replace(/<\/a>$/,''));
-  const expected=['01 / Analyze','02 / Examples','03 / Process','04 / About'];
+  const items=src=>(nav(src)?.match(/>(0[1-5] \/ [^<]+)<\/a>/g)||[]).map(item=>item.replace(/^>/,'').replace(/<\/a>$/,''));
+  const expected=['01 / Analyze','02 / Examples','03 / Process','04 / About','05 / Blog'];
   assert.deepEqual(items(app),expected);
   assert.deepEqual(items(about),expected);
   assert.deepEqual(items(guide),expected);
-  for(const src of [app,about,guide]) {
+  const blog=await readFile(new URL('../public/blog/index.html',import.meta.url),'utf8');
+  const post=await readFile(new URL('../public/blog/what-makes-a-good-task/index.html',import.meta.url),'utf8');
+  assert.deepEqual(items(blog),expected);
+  assert.deepEqual(items(post),expected);
+  for(const src of [app,about,guide,blog,post]) {
     assert.match(src,/class="(?:header )?site-header"/);
     assert.match(src,/class="(?:header-inner )?site-header-inner"/);
     assert.match(src,/class="(?:brand )?site-header-brand"/);
@@ -616,6 +622,7 @@ test('public pages share the exact homepage navigation, header layout and appear
     assert.match(src,/href="\/#examples"/);
     assert.match(src,/href="\/#guide"/);
     assert.match(src,/href="\/about\/"/);
+    assert.match(src,/href="\/blog\/"/);
   }
   assert.match(app,/class="header site-header"/);
   assert.match(app,/class="header-inner site-header-inner"/);
@@ -624,12 +631,66 @@ test('public pages share the exact homepage navigation, header layout and appear
   assert.match(about,/aria-current="page">04 \/ About/);
   assert.match(about,/data-appearance="dark"/);
   assert.match(guide,/data-appearance="dark"/);
+  assert.match(blog,/data-appearance="dark"/);
+  assert.match(post,/data-appearance="dark"/);
+  assert.match(post,/aria-current="page">05 \/ Blog/);
   assert.match(appearance,/localStorage\.setItem\(KEY, next\)/);
   assert.match(css,/max-width: 1220px/);
   assert.match(css,/min-height: 72px/);
   assert.match(css,/@media \(max-width: 650px\)/);
   assert.match(css,/html\[data-theme="dark"\]/);
-  for(const page of [home,about,guide]) {
+  for(const page of [home,about,guide,blog,post]) {
     assert.match(page,/href="\/site-header\.css"/);
   }
+});
+
+
+test('blog article explains exactly 11 IssueLint review dimensions and links verified sources',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const [blog,article,css,sitemap,home,source]=await Promise.all([
+    readFile(new URL('../public/blog/index.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/blog/what-makes-a-good-task/index.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/blog/blog.css',import.meta.url),'utf8'),
+    readFile(new URL('../public/sitemap.xml',import.meta.url),'utf8'),
+    readFile(new URL('../index.html',import.meta.url),'utf8'),
+    readFile(new URL('../src/index.tsx',import.meta.url),'utf8')
+  ]);
+  const canonical='https://issuelint.com/blog/what-makes-a-good-task/';
+  assert.match(blog,/href="\/blog\/what-makes-a-good-task\/"/);
+  assert.ok(blog.includes('rel="canonical" href="https://issuelint.com/blog/"'));
+  assert.ok(article.includes('rel="canonical" href="'+canonical+'"'));
+  assert.match(article,/<article class="blog-article">/);
+  assert.match(article,/<h1>What is a task/);
+  assert.match(article,/<time datetime="2026-11-22">/);
+  assert.match(article,/This rubric is our own practical engineering synthesis/);
+  assert.match(article,/HUD is describing benchmark design/);
+  assert.match(article,/not proof of correctness/);
+  const ids=Array.from(article.matchAll(/id="check-(\d{2})"/g),m=>m[1]);
+  assert.deepEqual(ids,Array.from({length:11},(_,i)=>String(i+1).padStart(2,'0')));
+  assert.equal((article.match(/class="blog-check"/g)||[]).length,11);
+  for(const label of ['Contradictions','Actionability','Scope','Granularity','Behavior','Completion',
+       'Outcome','References','Dependencies','Clarity','Feasibility']){
+    assert.ok(article.includes('<h3>'+label+'</h3>'),label);
+  }
+  for(const url of [
+    'https://www.hud.ai/research/what-is-a-good-task',
+    'https://www.optimedge.co.uk/blog/how-to-write-effective-tasks',
+    'https://exploringtheblackbox.org/2018/10/08/how-to-write-good-tasks/',
+    'https://alexkitchens.net/elements-of-effective-tasklist'
+  ])assert.ok(article.includes('href="'+url+'"'),url+' reference missing');
+  assert.match(article,/href="\/guides\/how-to-write-a-clear-task\/"/);
+  assert.match(article,/href="\/#analyze"/);
+  const ld=article.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(ld);
+  const data=JSON.parse(ld);
+  assert.equal(data['@context'],'https://schema.org');
+  assert.equal(data['@graph'][0]['@type'],'BlogPosting');
+  assert.equal(data['@graph'][0].mainEntityOfPage,canonical);
+  assert.equal(data['@graph'][0].datePublished,'2026-11-22');
+  assert.match(sitemap,/<loc>https:\/\/issuelint\.com\/blog\/<\/loc>/);
+  assert.match(sitemap,/<loc>https:\/\/issuelint\.com\/blog\/what-makes-a-good-task\/<\/loc>/);
+  assert.match(css,/@media\(max-width:650px\)/);
+  assert.match(home,/href="\/blog\/"/);
+  assert.match(source,/href="\/blog\/"/);
+  assert.doesNotMatch(article,/PREVIEW_TOKEN|GEMINI_API_KEY|SAYGM_API_KEY/);
 });
