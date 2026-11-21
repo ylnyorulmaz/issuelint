@@ -267,7 +267,7 @@ export async function analyzeDecisionLive(
         !knownKinds.includes(String(v.kind)) || !knownSeverities.includes(String(v.severity)) ||
         typeof v.title!=='string' || v.title.length>160 ||
         typeof v.question!=='string' || v.question.length>300 || !quoteValid(v.evidence)) fail();
-    if (v.assessment==='gap' && (v.title.trim().length<3 || v.question.trim().length<8 ||
+    if (v.assessment==='gap' && ((v.title as string).trim().length<3 || (v.question as string).trim().length<8 ||
         (v.evidence as string[]).length===0 || (v.kind==='contradiction' && (v.evidence as string[]).length!==2))) fail();
     if (v.assessment!=='gap' && (v.title!=='' || v.question!=='' ||
         (v.evidence as string[]).length!==0)) fail();
