@@ -2,6 +2,7 @@ import { callSaygmVerifier, verifierMode, SaygmError } from "./saygm.ts";
 import { runAnalysis, InferenceError, type AiRunner } from "./inference.ts";
 import { parseTask, ValidationError } from "./schema.ts";
 import { callGeminiDecisions, DecisionError } from "./decision.ts";
+import { runSelectiveAudit } from "./decision-audit.ts";
 
 /** For Iteration 2, AI is disabled unless explicitly enabled and protected. */
 interface WorkerEnv {
@@ -185,7 +186,9 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
           gap: result.gates.filter(g => g.assessment === "gap").length,
           notApplicable: result.gates.filter(g => g.assessment === "not_applicable").length,
         });
-        return json({ mode: "decision", analyzed: true, decision: result });
+        const audit = await runSelectiveAudit(task, result, env.AI, env.AI_MODEL,
+          (stage, fields) => logApi(stage === "failed" ? "warn" : "info", "issuelint.decision_audit", {requestId, stage, ...fields}));
+        return json({ mode: "decision", analyzed: true, decision: {...result, audit} });
       } catch (cause) {
         const code = cause instanceof DecisionError ? cause.code : "unknown";
         const httpStatus = cause instanceof DecisionError ? cause.providerStatus : 0;

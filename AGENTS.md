@@ -24,6 +24,15 @@ The review contract lives in:
 - The scorecard is a decision-model diagnostic, **not** source-grounded findings, a readiness verdict or a rewrite. Reuse all task fields, Bearer auth, size constraints and sanitized request-ID logs. Do not expose provider bodies or task text in logs.
 - Do not add GPT-OSS explanations/grounding or auto-approve thresholds in Iteration 1. Those belong to later iterations after independent evaluation.
 
+## Decision Engine iteration 2 invariants
+
+- V2 **does not call the V1** pipeline, and V1 must remain behaviorally unchanged. Keep `/api/analyze-v2` private behind the same `PREVIEW_TOKEN` Bearer access control and input caps.
+- Route strictly on **`P(clear) < 0.85`**, not Gemini's chosen-answer confidence, not `P(gap)` and not the largest probability. Even a Gemini `not_applicable` answer may be routed. `P(clear) = 0.85` is skipped. These are experimental routing rules, not calibrated truth.
+- Pass ONLY task fields and selected Gate IDs + rubrics to GPT-OSS. Never pass Gemini's decision, confidence, probability distribution, threshold or selected rationale into the GPT prompt. Use **one GPT-OSS 120B call with high reasoning** for all selected Gate IDs; use zero when none are selected.
+- Reviewer may independently return `clear`, `gap`, `not_applicable`; source-quoted actionable GAP explanations are required. Strictly verify returned Gate set, unique IDs, bounded text, literal quotes and contradiction evidence; reuse prior root-issue deduplication and source-grounding safeguards.
+- On provider/validator failure, return `audit.status:"unavailable"`, empty reviewer checks/findings and safe categorical diagnostic. Never imply an unfinished review was verified. The UI shows unreviewed gates as such.
+- The Gemini secret is now present in the **production** Worker and the config declares its binding only in production mode. Keep `GEMINI_API_KEY`, `PREVIEW_TOKEN` and `SAYGM_API_KEY` server-side. Do not log tasks, prompts, model responses, authorization or secrets.
+
 ## Inference and verifier invariants
 
 - Primary model allowlist: `@cf/openai/gpt-oss-120b` via Workers AI.

@@ -385,14 +385,14 @@ function App() {
               {loading() ? 'Analyzing…' : available() === 'private' ? 'Analyze with AI →' : 'Review task →'}
             </button>
           </div></Show>
-          <p class="privacy-note">Analyze with AI uses Cloudflare Workers AI. Decision v2 sends task fields to Google Gemini Decisions via the Worker. Demo review runs in your browser.</p>
+          <p class="privacy-note">Analyze with AI uses Cloudflare Workers AI. Decision v2 sends task fields to Google Gemini Decisions and Cloudflare Workers AI via the Worker. Demo review runs in your browser.</p>
         </form>
       </div>
 
       <div class="card result-card" id="results" data-clarity-mask="true" aria-live="polite" aria-busy={loading()}>
         <div class="result-section-head"><ScreenLabel index="03">REVIEW / FINDINGS</ScreenLabel><span class="result-section-line" aria-hidden="true"/></div>
         <Show when={!loading()} fallback={activePipeline()==='decision'
-          ? <div class="decision-loading" role="status"><span class="decision-loading-spinner" aria-hidden="true"/><h2>Checking 11 Gates…</h2><p>Gemini Decision 1 is evaluating all dimensions in one request.</p><button type="button" onClick={cancelRequest}>Cancel review</button></div>
+          ? <div class="decision-loading" role="status"><span class="decision-loading-spinner" aria-hidden="true"/><h2>Checking 11 Gates…</h2><p>Gemini screens 11 gates, then GPT-OSS independently audits selected dimensions in one request.</p><button type="button" onClick={cancelRequest}>Cancel review</button></div>
           : <ReviewLoading onCancel={cancelRequest}/>}>
           <Show when={decisionResult()}>{d => <DecisionScorecard data={d()}/>}</Show>
           <Show when={!decisionResult()}>
@@ -479,7 +479,7 @@ function App() {
     <section id="guide" class="guide"><SectionIndex number="05" label="The method"/><h2>FROM NOISE TO ACTION.</h2><div class="steps"><div><span>01</span><h3>Describe</h3><p>Enter a title, description, and type. Add context if it matters.</p></div><div><span>02</span><h3>Inspect</h3><p>Review questions, missing details, and possible conflicts.</p></div><div><span>03</span><h3>Refine</h3><p>Copy your improved task into whatever tool your team uses.</p></div></div><p class="disclaimer">AI preview access is restricted. Demo reviews use examples or simple checks; they are not semantic AI analysis.</p></section>
     </main>
     <footer><div><b>ISSUE/LINT ↗</b><span>Clear work starts here.</span></div>
-      <div class="footer-meta"><span>NO ACCOUNT · NO STORED TASKS · AI REVIEWS: CLOUDFLARE · DECISION V2: GOOGLE GEMINI</span>
+      <div class="footer-meta"><span>NO ACCOUNT · NO STORED TASKS · AI REVIEWS: CLOUDFLARE · DECISION V2: GOOGLE GEMINI + CLOUDFLARE AI</span>
         <Show when={analyticsConfigured}><button type="button" class="privacy-settings" onClick={() => setShowPrivacyChoices(true)}>Analytics preferences</button></Show>
       </div>
     </footer>

@@ -21,7 +21,11 @@ This file supplements [AGENTS.md](AGENTS.md). **Read AGENTS.md first**; it is th
 
 ## Decision Engine iteration 1
 
-The experimental Analyze v2 button invokes only `worker/decision.ts` via `POST /api/analyze-v2`; the legacy V1 pipeline is unchanged. The provider requires a Cloudflare secret named `GEMINI_API_KEY`, which must not be hardcoded or placed in browser code. Validate **all eleven** `choice` answers and 3 probability values per gate; scorecard outcomes are not justified findings or source evidence. Tests mock the provider and verify one call, Bearer rejection, no-key fail-closed behavior, sanitized logs and strict response parsing. Keep the responsive two-button layout in `src/styles.decision.css`, without changing the three visual themes.
+Iteration 1 of Analyze v2 introduced the Gemini stage; Iteration 2 appends a separate selective GPT-OSS audit via `POST /api/analyze-v2`. The legacy V1 pipeline is unchanged. The provider requires a Cloudflare secret named `GEMINI_API_KEY`, which must not be hardcoded or placed in browser code. Validate **all eleven** `choice` answers and 3 probability values per gate; scorecard outcomes are not justified findings or source evidence. Tests mock the provider and verify one call, Bearer rejection, no-key fail-closed behavior, sanitized logs and strict response parsing. Keep the responsive two-button layout in `src/styles.decision.css`, without changing the three visual themes.
+
+## Decision Engine iteration 2
+
+`worker/decision-audit.ts` implements selective second-pass auditing. Read it alongside `worker/decision.ts`, `worker/review-v2.ts` and `test/decision-audit.test.mjs` before changes. If `P(clear)<0.85` for any Gate, call `@cf/openai/gpt-oss-120b` **once** at high reasoning with the original task and only selected Gate names/rubrics. Do not include Gemini scores or verdicts in the second model's messages. Validate all selected outputs, exact source quotes and actionable questions. On GPT failures, preserve Gemini output with an explicitly unavailable audit; never fabricate reviewer results. Keep V1's low-reasoning and optional DeepSeek stages unchanged. Display each independent explanation and whether a Gate was skipped in `src/components/DecisionScorecard.tsx`. The current threshold is a hypothesis for future evaluation, not a calibrated accuracy claim.
 
 ## Diagnostic development
 
