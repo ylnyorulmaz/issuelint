@@ -41,7 +41,12 @@ export function DecisionScorecard(props: {data:ApiDecisionResult}) {
         ? props.data.audit.selected.length===0
           ? 'No second call needed'
           : props.data.audit.findings.length+' prioritized issue(s) · '+(props.data.audit.durationMs/1000).toFixed(2)+' s'
-        : 'Review unavailable — Gemini classification only'}</p>
+        : props.data.audit.status==='partial'
+          ? props.data.audit.checks.length+' verified gate(s) · '+props.data.audit.unverified.length+' need rechecking · '+(props.data.audit.durationMs/1000).toFixed(2)+' s'
+          : 'Review unavailable — Gemini classification only'}</p>
+      <Show when={props.data.audit.status==='partial'}>
+        <p class="decision-audit-warning">Only source-verified GPT-OSS results are shown. {props.data.audit.unverified.length} gate(s) could not be validated and are not presented as findings.</p>
+      </Show>
       <Show when={props.data.audit.status==='unavailable'}>
         <p class="decision-audit-warning">GPT-OSS verification did not complete. The Gemini decisions below are unverified; please retry. No reviewer results have been fabricated.</p>
       </Show>
@@ -73,7 +78,9 @@ export function DecisionScorecard(props: {data:ApiDecisionResult}) {
             }</For>
           </div>
           <Show when={props.data.audit.checks.find(c=>c.dimension===gate.dimension)} fallback={
-            <Show when={props.data.audit.status==='complete'}>
+            <Show when={!props.data.audit.selected.includes(gate.dimension)} fallback={
+              <p class="decision-skipped decision-unverified">GPT-OSS review unavailable or could not be validated for this gate.</p>
+            }>
               <p class="decision-skipped">No GPT-OSS review · P(Clear) ≥ 85%</p>
             </Show>
           }>
