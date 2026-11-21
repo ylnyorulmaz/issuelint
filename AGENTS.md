@@ -33,7 +33,7 @@ The review contract lives in:
 - `POST /api/analyze` is private: `Authorization: Bearer <PREVIEW_TOKEN>`, with a server-side token length minimum of **24**. Do not weaken this to allow a short plain-text PIN, or place the secret in the frontend.
 - Required Worker bindings: `AI`, `ASSETS`; inference flags and secrets: `AI_MODEL`, `ANALYZE_ENABLED`, `PREVIEW_TOKEN`, `SAYGM_API_KEY`, `FEEDBACK_VERIFIER_MODE`. Defaults in `cloudflare.config.ts` are safe-off (`ANALYZE_ENABLED=false`, verifier `off`); real deployed values must be verified separately.
 - Enabling `shadow` or `on` sends user text and review checks to SayGM. Confirm privacy disclosure and provider data-processing conditions before public use; do not imply it is local-only.
-- User text, preview token and access code must not be sent to GA4/Clarity. Tracking remains optional and consent-gated; theme choice alone is persisted.
+- User text, preview token and access code must not be sent to GA4/Clarity. Tracking remains optional and consent-gated. Theme preference is persisted; during private testing, a manually entered preview access code can also persist in that browser's `localStorage` through `src/preview-access.ts`. Never hardcode a token into shipped JavaScript or send it to analytics; users can use **Forget code** to clear the local copy.
 - Avoid adding unbounded external calls, token leaks, unlimited logging, false auth guarantees or unnecessary dependencies.
 
 ## Workflow for every change
