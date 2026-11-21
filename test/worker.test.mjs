@@ -118,10 +118,32 @@ test("unauthenticated requests cannot invoke live model", async () => {
   assert.equal(calls.length, 0);
 });
 
-test("missing preview secret also blocks inference", async () => {
-  const { env } = makeEnv({ PREVIEW_TOKEN: undefined });
+test("missing or too-short preview secret reports configuration failure without inference", async () => {
+  for (const secret of [undefined, "", "yalin", "  short-preview-token  ", "x".repeat(257)]) {
+    const { env, calls } = makeEnv({ PREVIEW_TOKEN: secret });
+    const res = await worker.fetch(post(), env);
+    assert.equal(res.status, 503);
+    const output = await res.json();
+    assert.equal(output.error, "PREVIEW_AUTH_MISCONFIGURED");
+    assert.ok(!JSON.stringify(output).includes(secret ?? "no-secret-value"));
+    assert.equal(calls.length, 0);
+  }
+});
+
+test("preview token accepts accidental outer whitespace in Cloudflare secret only", async () => {
+  const { env, calls } = makeEnv({ PREVIEW_TOKEN: "  test-preview-secret-with-24-plus-characters\\n" });
   const res = await worker.fetch(post(), env);
+  assert.notEqual(res.status, 401);
+  assert.notEqual(res.status, 503);
+  assert.ok(calls.length >= 1);
+});
+
+test("incorrect but well-formed token still returns 401 without invoking AI", async () => {
+  const { env, calls } = makeEnv();
+  const res = await worker.fetch(post(originalTask, { authorization: "Bearer wrong-preview-token-with-valid-length" }), env);
   assert.equal(res.status, 401);
+  assert.equal((await res.json()).error, "PREVIEW_AUTH_REQUIRED");
+  assert.equal(calls.length, 0);
 });
 
 test("valid analysis calls the native AI binding once and returns validated JSON", async () => {
