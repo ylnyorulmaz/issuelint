@@ -24,6 +24,7 @@
 
     <div class="urlbar">
       <span id="url-badge" class="url-badge" title="">No page extracted yet</span>
+      <span id="backend-badge" class="pill pill-backend"></span>
       <span id="mock-badge" class="pill pill-mock" hidden>MOCK</span>
     </div>
 
@@ -31,17 +32,30 @@
       <h2>Settings</h2>
       <form id="settings-form" novalidate>
         <label class="field">
+          <span>Backend</span>
+          <select id="mode">
+            <option value="quick_scan">IssueLint · Quick Scan</option>
+            <option value="analyze_v2">IssueLint · Analyze v2 (Decision)</option>
+            <option value="custom">Custom endpoint</option>
+          </select>
+        </label>
+        <label class="field" id="server-url-field">
+          <span>IssueLint server</span>
+          <input id="server-url" type="url" placeholder="https://issuelint.com" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="field" id="api-url-field" hidden>
           <span>API URL</span>
           <input id="api-url" type="url" placeholder="https://your-backend.example/api/clip" autocomplete="off" spellcheck="false" />
         </label>
         <label class="field">
-          <span>API key <em>(optional, sent as Bearer token)</em></span>
+          <span id="api-key-label">Preview access code</span>
           <div class="input-row">
             <input id="api-key" type="password" autocomplete="off" spellcheck="false" />
             <button id="api-key-reveal" class="btn btn-ghost btn-small" type="button" aria-pressed="false">Show</button>
           </div>
-          <small class="hint">Stored only on this device (not synced).</small>
+          <small class="hint">Sent as a Bearer token. Stored only on this device (not synced).</small>
         </label>
+        <p id="privacy-hint" class="hint privacy"></p>
         <label class="switch">
           <input id="mock-mode" type="checkbox" />
           <span class="switch-track" aria-hidden="true"></span>
@@ -70,6 +84,7 @@
         </div>
         <p id="page-title" class="page-title"></p>
         <textarea id="markdown" spellcheck="false" placeholder="Click Re-extract (or the toolbar icon) to clip the current page. Select text first to clip only the selection." aria-label="Extracted Markdown"></textarea>
+        <p id="limit-hint" class="limit-hint" role="status" hidden></p>
         <div class="row">
           <button id="copy" class="btn btn-ghost btn-small" type="button" disabled>Copy Markdown</button>
           <span id="copy-status" class="status-text" role="status"></span>

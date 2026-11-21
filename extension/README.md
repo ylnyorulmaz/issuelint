@@ -30,7 +30,7 @@ Other scripts:
 | Command | What it does |
 | --- | --- |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Unit tests: Markdown cleanup, URL validation, scorecard normalization, API client (mocked `fetch`) |
+| `npm test` | Unit tests: Markdown cleanup, URL validation, IssueLint request mapping and limits, Quick Scan / Decision / generic normalization, API client (mocked `fetch`) |
 | `npm run test:e2e` | Runs the built `dist/content.js` in headless Chromium (Playwright) against fixture pages |
 | `npm run check` | build + unit + e2e |
 | `npm run zip` | Zips `dist/` for upload to the Chrome Web Store |
@@ -44,7 +44,7 @@ toolbar click / Alt+Shift+L
 sidepanel.ts
   ├─ chrome.scripting.executeScript(content.js) → __issuelintClipperExtract()
   ├─ editable Markdown + character count (8,000 soft limit) + Copy
-  └─ Analyze Task → Mock mode sample OR POST to API_URL → scorecard view
+  └─ Analyze Task → Mock sample OR POST to IssueLint /api/quick-scan | /api/analyze-v2 | custom URL → result view
 content.ts (injected only on demand, never modifies the page, makes no network requests)
   1. selection  – the selected HTML fragment
   2. modal      – the largest visible [role=dialog] / [aria-modal=true] / dialog[open] with ≥200 chars
@@ -61,7 +61,7 @@ content.ts (injected only on demand, never modifies the page, makes no network r
 | `scripting` | Inject `content.js` on demand. |
 | `sidePanel` | The UI. |
 | `storage` | Settings. |
-| `optional_host_permissions` (`https://*/*`, `http://*/*`) | **Nothing is granted at install.** Chrome asks for one origin at a time: the API host when you save Settings, and optionally "Always allow on <site>" if you want Re-extract to work on a site without clicking the toolbar icon first. |
+| `optional_host_permissions` (`https://*/*`, `http://*/*`) | **Nothing is granted at install.** Chrome asks for one origin at a time: the IssueLint server (or custom API host) when you save Settings, and optionally "Always allow on <site>" if you want Re-extract to work on a site without clicking the toolbar icon first. |
 
 No `<all_urls>` host permission, no `tabs` permission, no persistent content scripts, no remote code.
 
@@ -72,29 +72,53 @@ Chrome blocks all extensions on `chrome://` pages and the Web Store.
 
 Open the ⚙ button in the side panel.
 
-- **API URL**: stored in `chrome.storage.sync` (`API_URL`). Must be `https://`; `http://` only for `localhost`.
-- **API key** (optional): sent as `Authorization: Bearer <key>`. Stored in `chrome.storage.local`
-  (`API_KEY`), so it stays on this device and is never synced to your Google account.
-- **Mock mode**: on by default. Returns built-in sample data (a fictional checkout ticket, labelled
-  "Sample data") and never makes a network request.
+| Setting | Stored in | Notes |
+| --- | --- | --- |
+| **Backend** | `chrome.storage.sync` (`MODE`) | `IssueLint · Quick Scan` (default), `IssueLint · Analyze v2 (Decision)`, or `Custom endpoint` |
+| **IssueLint server** | `sync` (`SERVER_URL`) | Default `https://issuelint.com`. `http://` only for `localhost` (e.g. `http://localhost:8787` for local dev) |
+| **API URL** | `sync` (`API_URL`) | Custom endpoint only |
+| **Preview access code / API key** | `chrome.storage.local` (`API_KEY`) | Sent as `Authorization: Bearer …`. Never synced. For IssueLint this is the same private-preview code you use on the website (the Worker's `PREVIEW_TOKEN`, ≥24 characters) |
+| **Mock mode** | `sync` (`MOCK_MODE`) | On by default. Returns sample data in the selected backend's exact response shape and sends nothing |
 
-## API contract
+On Save (and on the first Analyze), Chrome asks once for access to the server's origin.
 
-Request (`POST <API_URL>`):
+## What Analyze sends
 
-```http
-Content-Type: application/json
-Authorization: Bearer <API_KEY>        (only if set)
-X-Request-ID: <uuid>
+All modes: `POST`, `Content-Type: application/json`, `X-Request-ID: <uuid>`, Bearer key if set,
+`credentials: "omit"`, redirects rejected, 180-second timeout, cancellable.
+
+### IssueLint · Quick Scan → `POST <server>/api/quick-scan`
+### IssueLint · Analyze v2 → `POST <server>/api/analyze-v2`
+
+Body matches the Worker's task contract (`worker/schema.ts`), with the web app's paste-flow defaults:
+
+```json
+{ "title": "<page title, or first Markdown line>", "description": "<edited Markdown>", "type": "General", "domain": "Other" }
 ```
+
+- `title` ≤ 180 characters; `description` ≤ **6,500** characters (the counter switches to this hard limit and
+  Analyze is disabled above it — nothing is truncated silently).
+- The page URL is **not** added to the task text.
+- Privacy: Quick Scan sends the title and text to IssueLint, which asks Google Gemini; Analyze v2 additionally uses
+  Cloudflare Workers AI (GPT-OSS 120B) for gates where Gemini's P(clear) < 0.85.
+
+Responses:
+- **Quick Scan** `{ mode: "quick_scan", scan: { gates: [{ dimension, assessment }] } }` → an 11-row ✓/✕ list.
+  ✓ means *nothing flagged* (clear or not applicable), not that the task is correct. No evidence, no score.
+- **Analyze v2** `{ mode: "decision", decision: { gates, audit } }` → gap rows with reason, quotes and question,
+  plus every gate with its source (GPT-OSS / Gemini) and Gemini's P(Clear). Marks follow the web app's
+  `presentDecisionGate`: a validated GPT-OSS check wins; a gate routed for audit but not validated is
+  **unverified** (`?`), never a pass. Partial / unavailable audits are stated explicitly.
+- Errors use the Worker's `{ error, message }`: 401 → check the access code; 422/413 → task too long or invalid;
+  502 rate limit / provider failure; 503 → analysis not enabled on that server. The request ID is shown for support.
+
+### Custom endpoint → `POST <API_URL>`
+
 ```json
 { "source_url": "https://…", "page_title": "…", "markdown": "…" }
 ```
 
-Cookies are not sent (`credentials: "omit"`), redirects are rejected, and requests time out after 180 seconds.
-The user can cancel at any time.
-
-Expected response (any extra fields are ignored; also accepted wrapped as `{ "analysis": { … } }`):
+Expected response (extra fields ignored; also accepted wrapped as `{ "analysis": { … } }`):
 
 ```json
 {
@@ -116,14 +140,8 @@ Expected response (any extra fields are ignored; also accepted wrapped as `{ "an
 }
 ```
 
-- `checks` (one per dimension) drives the counts and the "Other dimensions" chips; `gap` checks become findings.
-- `findings` (same fields as a gap check) can be sent instead of, or in addition to, `checks`;
-  when present it is used as the final finding list.
-- `counts` is optional and is derived from `checks` when omitted.
-- Errors: non-2xx responses are shown with the status and an optional `{ "error": "…" }` message.
-
-> The current IssueLint Worker endpoints (`/api/analyze`, `/api/analyze-v2`) take a different request body,
-> so point the clipper at a backend route that accepts the payload above (or keep Mock mode on).
+`checks` drives counts and the "Other dimensions" chips; `findings` (same fields) can be sent instead and wins
+when present; `counts` is derived when omitted.
 
 ## Layout
 
@@ -141,6 +159,6 @@ extension/
     sidepanel.html
     sidepanel.ts         UI, settings, analyze flow, scorecard rendering (textContent only)
     styles.css           dark theme
-    lib/                 api client, URL checks, settings, scorecard normalizer, mock data, Markdown cleanup
+    lib/                 IssueLint request mapping, api client, URL checks, settings, scorecard normalizer, mock data, Markdown cleanup
   test/                  node:test unit tests + Playwright extraction test
 ```
