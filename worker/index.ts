@@ -3,6 +3,8 @@ import { runAnalysis, InferenceError, type AiRunner } from "./inference.ts";
 import { parseTask, ValidationError } from "./schema.ts";
 import { callGeminiDecisions, DecisionError } from "./decision.ts";
 import { runSelectiveAudit } from "./decision-audit.ts";
+import chatgptFixture from "../test/fixtures/task-review-control-v1.json" with { type: "json" };
+import geminiFixture from "../test/fixtures/task-review-gemini-v1.json" with { type: "json" };
 
 /** For Iteration 2, AI is disabled unless explicitly enabled and protected. */
 interface WorkerEnv {
@@ -147,6 +149,25 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
         status: entry.status as number, durationMs: entry.durationMs as number,
       });
       return json({ ok: true });
+    }
+
+    if (pathname === "/api/admin/test-cases") {
+      if (request.method !== "GET") return methodNotAllowed("GET");
+      if (env.ANALYZE_ENABLED !== "true")
+        return error("ADMIN_DISABLED", "Private test station is not enabled.", 503);
+      if (!previewTokenConfigured(env.PREVIEW_TOKEN))
+        return error("PREVIEW_AUTH_MISCONFIGURED", "Private preview authentication is not configured correctly.", 503);
+      if (!(await verifiedToken(request, env.PREVIEW_TOKEN!)))
+        return error("PREVIEW_AUTH_REQUIRED", "A valid preview token is required.", 401);
+      const source = new URL(request.url).searchParams.get("source");
+      if (source !== "chatgpt" && source !== "gemini")
+        return error("INVALID_SOURCE", "Choose chatgpt or gemini.", 400);
+      const fixture = source === "chatgpt" ? chatgptFixture : geminiFixture;
+      logApi("info", "issuelint.admin_fixture_loaded", { requestId, source, count: fixture.cases.length });
+      return json({
+        source, dataset_id: fixture.dataset_id, schema_version: fixture.schema_version,
+        status: fixture.status, cases: fixture.cases,
+      });
     }
 
     if (pathname === "/api/analyze-v2") {

@@ -36,6 +36,16 @@ The app currently has no user accounts, database, third-party task-platform sync
 - **API response:** `{mode:"decision",analyzed:true,decision:{model:"gemini-decision-1",gates:[{dimension,assessment,confidence,probabilities:{clear,gap,not_applicable}}],checked:11,durationMs}}`.
 - **Future:** No binary acceptance threshold or automatically blocking tickets. We will benchmark/calibrate on labeled examples before using decision scores to control the user verdict. V2 presently makes no grounding claims; original V1 validation remains unchanged.
 
+## Private admin test station (`/admin`)
+
+- Open `https://issuelint.com/admin`. This is a **private-preview test page**, not a public dashboard or an admin role-management system. Enter the same `PREVIEW_TOKEN` access code as the main app. Test datasets and author-labeled expectations are served by the protected `GET /api/admin/test-cases?source=chatgpt|gemini` endpoint, never shipped to the public client bundle.
+- **Load test cases from ChatGPT** reads `test/fixtures/task-review-control-v1.json` (12 cases, 3 flawed + 1 clean per domain). **Load test cases from Gemini** reads `test/fixtures/task-review-gemini-v1.json` (12 Gemini-origin reviewed task inputs from the user-supplied reviewed fixture; summarized oracle labels for comparison).
+- Each case has expandable **exact task details**, a separate hidden-by-default oracle, **Send to Original AI** (`POST /api/analyze`, GPT-OSS / optional SayGM verifier) and **Send to Decision Model** (`POST /api/analyze-v2`, Gemini Decision 1 → selective GPT-OSS high-reasoning audit). Neither pipeline is modified by this page. Both outputs are retained locally in the current browser view for side-by-side inspection, with per-run duration and error messages.
+- Only the `task` object is sent to the analysis API. Never send benchmark `oracle`, quality flag, expected severity, or control-group source to either model. One run is user-initiated at a time; no automatic paid/batch executions or persistent server history.
+- `PREVIEW_TOKEN` is a **shared preview token**, not distinct role-based admin authentication. Do not put sensitive or proprietary benchmark content in these datasets while this is the only auth boundary. If wider beta access is planned, give `/api/admin/test-cases` a separate admin identity/access policy.
+- Regression tests: `test/admin.test.mjs`. Auth, invalid source, 12-case distribution, schema and no leaked oracle in task payloads are checked by the standard `npm run check`.
+- Oracle matches are **not auto-graded semantically**: model findings are compared manually to author expectations; a name/wording mismatch is not automatically a model miss.
+
 ## Decision Engine — Iteration 2 (selective independent audit)
 
 **Live V2 sequence:** `POST /api/analyze-v2` (private Bearer) → Google `gemini-decision-1` returns all 11 Gate probabilities → Cloudflare Worker selects **only** Gate IDs where `P(clear) < 0.85` → **one** native Workers AI `@cf/openai/gpt-oss-120b` call with `reasoning_effort: "high"` → strict source quote validation, de-duplication and separate scorecard explanation.
