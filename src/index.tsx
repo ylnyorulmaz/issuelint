@@ -13,6 +13,7 @@ import './styles.entry.css';
 import './styles.review-loading.css';
 import { ReviewLoading } from './components/ReviewLoading';
 import { readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from './preview-access';
+import { logClient, newRequestId, reportClientFailure } from './diagnostics';
 
 const types: TaskType[] = ['General', 'Bug', 'Feature', 'Improvement', 'Request'];
 const domains: Domain[] = ['Software', 'Marketing', 'Sales', 'Operations', 'Other'];
@@ -58,14 +59,32 @@ function App() {
   const [showPrivacyChoices, setShowPrivacyChoices] = createSignal(false);
   let requestController: AbortController | undefined;
   let requestTimeout: ReturnType<typeof setTimeout> | undefined;
+  let activeRequestId: string | undefined;
 
   onMount(() => {
     if (analyticsConfigured && analyticsConsent() === 'accepted') enableAnalytics();
     let active = true;
+    const onError = () => reportClientFailure('ui_error','client',accessCode().trim(),newRequestId());
+    const onRejection = () => reportClientFailure('unhandled_rejection','client',accessCode().trim(),newRequestId());
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
     getHealth().then(health => {
-      if (active) setAvailable(health.aiEnabled && health.aiBindingConfigured ? 'private' : 'demo');
-    }).catch(() => { if (active) setAvailable('demo'); });
-    onCleanup(() => { active = false; requestController?.abort(); if (requestTimeout) clearTimeout(requestTimeout); });
+      if (active) {
+        setAvailable(health.aiEnabled && health.aiBindingConfigured ? 'private' : 'demo');
+        logClient('info', 'health_checked', {requestId:newRequestId(),status:200});
+      }
+    }).catch(() => {
+      if (active) {
+        setAvailable('demo');
+        reportClientFailure('health_failed','network',accessCode().trim(),newRequestId());
+      }
+    });
+    onCleanup(() => {
+      active = false;
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+      requestController?.abort(); if (requestTimeout) clearTimeout(requestTimeout);
+    });
   });
 
   function chooseDesignTheme(next: DesignTheme) {
@@ -97,7 +116,10 @@ function App() {
     }
   }
   function cancelRequest() {
+    if (requestController && activeRequestId)
+      logClient('info','review_cancelled',{requestId:activeRequestId});
     requestController?.abort();
+    activeRequestId = undefined;
     requestController = undefined;
     if (requestTimeout) clearTimeout(requestTimeout);
     requestTimeout = undefined;
@@ -147,12 +169,16 @@ function App() {
     setTab('findings');
     revealResults();
     const controller = new AbortController();
+    const requestId = newRequestId();
+    const started = Date.now();
+    activeRequestId = requestId;
     requestController = controller;
     requestTimeout = setTimeout(() => controller.abort(), 180000);
     try {
-      const output = await analyzeLive(prepareReviewTask(task()), accessCode().trim(), controller.signal);
+      const output = await analyzeLive(prepareReviewTask(task()), accessCode().trim(), controller.signal, requestId);
       if (requestController === controller) {
         setResult(fromLive(output));
+        logClient('info','review_finished',{requestId,durationMs:Date.now()-started});
         trackAnalyticsEvent('review_completed');
         revealResults();
       }
@@ -161,11 +187,18 @@ function App() {
       const message = cause instanceof ApiError ? cause.message :
         controller.signal.aborted ? 'Analysis timed out. Please retry.' : 'Network error. Check your connection and retry.';
       setError(message);
+      const category = cause instanceof ApiError
+        ? cause.status === 401 ? 'auth' : cause.status ? 'http' : cause.code === 'TIMEOUT' ? 'timeout' : 'network'
+        : controller.signal.aborted ? 'timeout' : 'unknown';
+      reportClientFailure('review_failed',category,accessCode().trim(),
+        cause instanceof ApiError ? cause.requestId : requestId,
+        cause instanceof ApiError ? cause.status : 0,Date.now()-started);
       trackAnalyticsEvent('review_failed');
       revealResults();
     } finally {
       if (requestController === controller) {
         requestController = undefined;
+        activeRequestId = undefined;
         if (requestTimeout) clearTimeout(requestTimeout);
         requestTimeout = undefined;
         setLoading(false);
@@ -176,7 +209,10 @@ function App() {
     const output = result();
     if (!output) return;
     try { await navigator.clipboard.writeText(output.draft); setCopied(true); setError(''); }
-    catch { setError('Clipboard access failed. Select the text in the draft panel to copy manually.'); }
+    catch {
+      setError('Clipboard access failed. Select the text in the draft panel to copy manually.');
+      reportClientFailure('copy_failed','client',accessCode().trim(),newRequestId());
+    }
   }
   const totalLength = () => reviewTextLength(task());
   const inputValid = () => reviewInputValid(task());
