@@ -91,8 +91,8 @@ export default {
       return json({
         status: "ok",
         service: "issuelint",
-        iteration: 2,
-        reviewEngineVersion: "2.4",
+        iteration: 3,
+        reviewEngineVersion: "2.5",
         aiBindingConfigured: env.AI != null,
         aiEnabled: env.ANALYZE_ENABLED === "true",
         feedbackVerifierMode: verifierMode(env.FEEDBACK_VERIFIER_MODE),
