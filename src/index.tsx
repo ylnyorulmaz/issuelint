@@ -333,10 +333,10 @@ function App() {
   const inputValid = () => reviewInputValid(task());
 
   return <div class="app" data-theme={dark() ? 'dark' : 'light'} data-design="minimalist">
-    <header class="header"><div class="header-inner">
-      <a class="brand" href="#top" aria-label="IssueLint home"><img class="brand-logo" src={dark() ? "/brand/logo-dark.webp" : "/brand/logo-light.webp"} alt="" width="480" height="92" decoding="async"/></a>
-      <nav aria-label="Primary"><a href="#analyze" class="nav-current">01 / Analyze</a><a href="#examples">02 / Examples</a><a href="#guide">03 / Process</a><a href="/about/">04 / About</a></nav>
-      <div class="header-right">
+    <header class="header site-header"><div class="header-inner site-header-inner">
+      <a class="brand site-header-brand" href="/" aria-label="IssueLint home"><img class="brand-logo" src={dark() ? "/brand/logo-dark.webp" : "/brand/logo-light.webp"} alt="" width="480" height="92" decoding="async"/></a>
+      <nav class="site-header-nav" aria-label="Primary"><a href="/#analyze" class="nav-current" aria-current="page">01 / Analyze</a><a href="/#examples">02 / Examples</a><a href="/#guide">03 / Process</a><a href="/about/">04 / About</a></nav>
+      <div class="header-right site-header-right">
         <div class="appearance-switcher" role="group" aria-label="Choose light or dark appearance">
           <span class="appearance-switcher-caption" aria-hidden="true">MODE</span>
           <button class="appearance-option" type="button" aria-pressed={!dark()} onClick={() => chooseAppearance('light')}>Light</button>

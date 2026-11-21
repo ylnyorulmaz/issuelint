@@ -586,3 +586,50 @@ test('static SEO guide and public page metadata are crawlable, unique and linked
   assert.match(home,/<noscript>[\s\S]*task-writing guide/);
   assert.match(home,/<meta name="twitter:description"/);
 });
+
+
+test('public pages share the exact homepage navigation, header layout and appearance controls', async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const [app,home,about,guide,css,appearance]=await Promise.all([
+    readFile(new URL('../src/index.tsx',import.meta.url),'utf8'),
+    readFile(new URL('../index.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/about/index.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/guides/how-to-write-a-clear-task/index.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/site-header.css',import.meta.url),'utf8'),
+    readFile(new URL('../public/about/appearance.js',import.meta.url),'utf8')
+  ]);
+  const nav=src=>src.match(/<nav class="site-header-nav" aria-label="Primary">([\s\S]*?)<\/nav>/)?.[1];
+  const items=src=>(nav(src)?.match(/>(0[1-4] \/ [^<]+)<\/a>/g)||[]).map(item=>item.replace(/^>/,'').replace(/<\/a>$/,''));
+  const expected=['01 / Analyze','02 / Examples','03 / Process','04 / About'];
+  assert.deepEqual(items(app),expected);
+  assert.deepEqual(items(about),expected);
+  assert.deepEqual(items(guide),expected);
+  for(const src of [app,about,guide]) {
+    assert.match(src,/class="(?:header )?site-header"/);
+    assert.match(src,/class="(?:header-inner )?site-header-inner"/);
+    assert.match(src,/class="(?:brand )?site-header-brand"/);
+    assert.match(src,/class="(?:header-right )?site-header-right"/);
+    assert.match(src,/class="appearance-switcher"/);
+    assert.match(src,/class="appearance-switcher-caption"/);
+    assert.match(src,/class="appearance-option"/);
+    assert.match(src,/href="\/#analyze"/);
+    assert.match(src,/href="\/#examples"/);
+    assert.match(src,/href="\/#guide"/);
+    assert.match(src,/href="\/about\/"/);
+  }
+  assert.match(app,/class="header site-header"/);
+  assert.match(app,/class="header-inner site-header-inner"/);
+  assert.match(app,/class="brand-logo"/);
+  assert.match(app,/onClick=\{\(\) => chooseAppearance\('dark'\)\}/);
+  assert.match(about,/aria-current="page">04 \/ About/);
+  assert.match(about,/data-appearance="dark"/);
+  assert.match(guide,/data-appearance="dark"/);
+  assert.match(appearance,/localStorage\.setItem\(KEY, next\)/);
+  assert.match(css,/max-width: 1220px/);
+  assert.match(css,/min-height: 72px/);
+  assert.match(css,/@media \(max-width: 650px\)/);
+  assert.match(css,/html\[data-theme="dark"\]/);
+  for(const page of [home,about,guide]) {
+    assert.match(page,/href="\/site-header\.css"/);
+  }
+});
