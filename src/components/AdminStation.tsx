@@ -3,7 +3,7 @@ import type { ApiAnalysis, ApiDecisionResult } from '../api';
 import { analyzeLive, analyzeDecisionLive, ApiError, getHealth } from '../api';
 import { loadAdminFixture, type AdminCase, type AdminSource, type AdminFixture } from '../admin-data';
 import { readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from '../preview-access';
-import { readDesignTheme } from '../design-theme';
+import { readAppearance, saveAppearance, type Appearance } from '../appearance';
 import { DecisionScorecard } from './DecisionScorecard';
 
 type Result<T> = { state:'done'; data:T; elapsedMs:number } |
@@ -60,7 +60,11 @@ export function AdminStation() {
   const [runs,setRuns]=createSignal<Record<string,CaseRuns>>({});
   const [busy,setBusy]=createSignal<string|null>(null);
   const [filter,setFilter]=createSignal<'All'|'Software'|'Marketing'|'Sales'>('All');
-  const [dark,setDark]=createSignal(window.matchMedia?.('(prefers-color-scheme: dark)').matches??false);
+  const [dark,setDark]=createSignal(readAppearance()==='dark');
+  function chooseAppearance(next:Appearance){
+    if(dark()===(next==='dark'))return;
+    setDark(next==='dark');saveAppearance(next);
+  }
   const [availability,setAvailability]=createSignal<'checking'|'ready'|'disabled'>('checking');
   let loadController:AbortController|undefined;
   let runController:AbortController|undefined;
@@ -124,11 +128,17 @@ export function AdminStation() {
     }
   }
 
-  return <div class="app admin-app" data-theme={dark()?'dark':'light'} data-design={readDesignTheme()}>
+  return <div class="app admin-app" data-theme={dark()?'dark':'light'} data-design="minimalist">
     <header class="admin-header">
       <div class="admin-header-inner">
         <div class="admin-identity"><a href="/" class="admin-brand">ISSUE<span>/</span>LINT</a><span class="admin-label">TEST STATION / ADMIN</span></div>
-        <div class="admin-header-links"><a href="/">← Back to app</a><button type="button" class="theme" onClick={()=>setDark(!dark())} aria-label="Toggle dark mode">{dark()?'☀':'☾'}</button></div>
+        <div class="admin-header-links"><a href="/">← Back to app</a>
+          <div class="appearance-switcher" role="group" aria-label="Choose light or dark appearance">
+            <span class="appearance-switcher-caption" aria-hidden="true">MODE</span>
+            <button class="appearance-option" type="button" aria-pressed={!dark()} onClick={()=>chooseAppearance('light')}>Light</button>
+            <button class="appearance-option" type="button" aria-pressed={dark()} onClick={()=>chooseAppearance('dark')}>Dark</button>
+          </div>
+        </div>
       </div>
     </header>
     <main class="admin-main">
