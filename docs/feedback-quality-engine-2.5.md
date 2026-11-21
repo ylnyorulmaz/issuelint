@@ -76,3 +76,21 @@ The repository is not automatically linked to Cloudflare Workers Builds. Merging
 - Blocked contradictions still take priority and produce a clarification draft rather than an ungrounded rewrite.
 - No second verifier call or recursive model discussion is introduced. No forced number of findings.
 - Rollout remains `off` by default. Shadow/on activation requires provider credentials, evaluation and privacy review.
+
+## Iteration 5 — Evaluation and staged rollout
+
+### Automated regression gates
+Run `npm run check` (strict Worker typecheck, Worker unit/integration tests, client tests, frontend build) on every PR and main push through GitHub Actions. The suite now includes verifier contract, transport, patch, primary-review fallback, deterministic contradiction preservation and bounded repair cases. No live SayGM credentials are required for unit tests.
+
+### Human-reviewed golden evaluation
+Use `eval/golden.json` as the existing human-authored set. Run `npm run eval:live` against a preview environment using an authorized token and manually compare results in **off**, **shadow**, and **on**. Keep identical tasks and model parameters. Review false positives on atomic tasks, hidden contradiction recall, duplicate/root-cause findings, rewrite grounding, latency and per-call cost. Golden expected dimensions are guidance, not a forced finding quota.
+
+### Rollout procedure
+1. Keep `FEEDBACK_VERIFIER_MODE=off` until CI is green and the production Worker is deployed.
+2. Provision `SAYGM_API_KEY` as a Worker secret; confirm provider model access and third-party data-processing disclosure.
+3. Set `shadow` and sample representative reviews. Validate provider response rate, patch validity, token usage and added latency without changing visible output.
+4. Compare reviewed outputs offline; only then enable `on` for a controlled, explicitly authorized pilot. **No percentage rollout is implemented yet**: `on` affects all requests to that Worker.
+5. Roll back immediately to `off` for malformed responses, degraded quality, unexpectedly high costs or latency.
+
+### Exit criteria
+Do not claim a release is production-verified without green CI, real provider smoke test, documented golden comparison, deployment version confirmation and a successful end-to-end request. Unit tests alone do not establish semantic accuracy.

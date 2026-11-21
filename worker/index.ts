@@ -91,11 +91,11 @@ export default {
       return json({
         status: "ok",
         service: "issuelint",
-        iteration: 3,
+        iteration: 5,
         reviewEngineVersion: "2.5",
         aiBindingConfigured: env.AI != null,
         aiEnabled: env.ANALYZE_ENABLED === "true",
-        feedbackVerifierMode: verifierMode(env.FEEDBACK_VERIFIER_MODE),
+        feedbackVerifierMode: env.SAYGM_API_KEY ? verifierMode(env.FEEDBACK_VERIFIER_MODE) : "off",
         feedbackVerifierConfigured: !!env.SAYGM_API_KEY,
       });
     }
@@ -128,7 +128,7 @@ export default {
       }
 
       try {
-        const mode = verifierMode(env.FEEDBACK_VERIFIER_MODE);
+        const mode = env.SAYGM_API_KEY ? verifierMode(env.FEEDBACK_VERIFIER_MODE) : "off";
         const observer = mode === "off" ? undefined : async (checks: readonly import("./review-v2.ts").ReviewCheck[]) => {
           try {
             const result = await callSaygmVerifier({ apiKey: env.SAYGM_API_KEY, task, checks });
