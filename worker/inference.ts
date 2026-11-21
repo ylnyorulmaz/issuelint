@@ -32,7 +32,7 @@ export interface AiRunner {
     response_format: { type: "json_schema"; json_schema: unknown };
     temperature: number;
     max_tokens: number;
-    reasoning_effort: "low" | "medium";
+    reasoning_effort: "low" | "medium" | "high";
     stream: false;
   }): Promise<unknown>;
 }
