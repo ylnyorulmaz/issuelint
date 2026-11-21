@@ -111,7 +111,7 @@ The resulting task status is `ready`, `needs_clarification` or `blocked`, comput
 
 ## 3. Private benchmark station — `/admin`
 
-Visit https://issuelint.com/admin using the same private preview code. This is a **testing interface, not an admin-role authorization system**.
+Visit https://issuelint.com/admin and sign in with **a separate username and password**. The Worker protects the HTML before static assets are served; passwords are PBKDF2-HMAC-SHA256 verified and sessions use signed, HttpOnly, Secure, SameSite=Strict cookies (eight-hour validity). The login is rate-limited. A preview code no longer grants access to /admin or its private fixture datasets. Login and admin HTML/API responses carry noindex/nofollow headers.
 
 Protected `GET /api/admin/test-cases?source=...` supports:
 
@@ -125,7 +125,7 @@ The paste-only controls contain three deliberately obvious problems and one clea
 
 For every case, testers can inspect the exact task, optionally reveal **author expectations**, and independently send **only the task object** to **Original AI** or **Decision Model**. The oracle, quality label and dataset source must **never** be passed to the model. Results appear side by side; requests are initiated manually. Labels are *evaluation hypotheses*, not automatically graded ground truth, and no server-side run history is stored.
 
-**Access warning:** the shared `PREVIEW_TOKEN` also protects the fixture endpoint. It does **not** separate test visitors from admin access. Introduce a separate admin identity/access policy before distributing widely.
+**Admin security:** `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH` and `ADMIN_SESSION_SECRET` are separate Cloudflare secrets. `ADMIN_LOGIN_RATE_LIMIT` uses a five-attempts-per-minute Cloudflare binding per location (global and IP keys, approximate). Missing credentials or rate-limit binding fail closed. Authenticated admin sessions may invoke the unchanged Original AI and Decision endpoints; public and extension/MCP callers still use `PREVIEW_TOKEN`. Requests with admin cookies require a same-origin POST, preventing cross-origin form calls. No credentials are committed to source.
 
 ## 4. HTTP API and safety contract
 
@@ -137,7 +137,9 @@ The Worker serves the SPA and the following routes:
 | `POST /api/quick-scan` | Gemini-only eleven-gate screening | Preview Bearer |
 | `POST /api/analyze-v2` | Gemini screening + selected independent GPT-OSS audit | Preview Bearer |
 | `POST /api/analyze` | Original GPT-OSS + optional SayGM verifier + rewrite pipeline | Preview Bearer |
-| `GET /api/admin/test-cases?source=chatgpt|gemini|paste` | Benchmark datasets and author expectations | Preview Bearer |
+| `GET /api/admin/test-cases?source=chatgpt|gemini|paste` | Benchmark datasets and author expectations | Admin session cookie only |
+| `POST /api/admin/login` | Separate admin login | Username/password + same-origin + rate limit |
+| `GET /api/admin/session` / `POST /api/admin/logout` | Session check/logout | Session cookie / same-origin logout |
 | `POST /api/client-events` | Strictly bounded, privacy-safe client failure events | Preview Bearer |
 
 All POST analysis routes expect `Content-Type: application/json` and `Authorization: Bearer <PREVIEW_TOKEN>`. The Worker enforces the preview token (24–256 characters, nonwhitespace), a **32,768-byte** body cap, and typed task validation. Server failures are sanitized; credentials, provider bodies and task content must not be logged.
@@ -279,3 +281,11 @@ Server-side fixed event names include `issuelint.decision_started`, `issuelint.d
 IssueLint currently does **not** include user accounts, workspace/team management, native ticket integrations or write-back, server-side task/report history, job resumption after refresh, per-user credits, billing, or public rate/abuse protection. The Clipper extension and MCP server are unpublished developer installs that reuse the shared preview code; they are not a public distribution channel. Provider processing and retention must be assessed before opening external access. Accuracy, false-positive rates, latency distributions, cost per review, and user demand require representative evaluation; no performance guarantee is made by this README.
 
 Product decisions, intended audiences, differentiators and explicitly undecided commercial sections live in [PRODUCT.md](PRODUCT.md). Implementation rules are in [AGENTS.md](AGENTS.md); Claude-specific working instructions are in [CLAUDE.md](CLAUDE.md).
+
+
+### Admin credentials and search exclusions
+
+- Admin credentials must be provisioned as **Cloudflare Worker secrets**, never committed. The Worker expects `ADMIN_USERNAME` (3–80 characters), `ADMIN_PASSWORD_HASH` formatted `pbkdf2-sha256$600000$BASE64URL_SALT$BASE64URL_DERIVED_32_BYTES`, and `ADMIN_SESSION_SECRET` (base64url-encoded 32+ random bytes). The stored hash is not the password.
+- Generate password hash from an operator-owned password locally. Use Python's `hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 600000)` and a cryptographically random 16-byte salt, then configure secrets through the Cloudflare dashboard. Do not put passwords in URLs, scripts or git.
+- Worker-first routing on `/admin` and `/admin/*` is mandatory. Otherwise Cloudflare can serve the SPA fallback before the authentication code runs.
+- `/admin` emits `X-Robots-Tag: noindex, nofollow, noarchive` and a matching meta tag on login or authenticated HTML; `robots.txt` disallows `/admin` and `/api/admin/`; the sitemap excludes both. This limits indexing but cannot instantly remove a URL already indexed; use Search Console removal if applicable.
