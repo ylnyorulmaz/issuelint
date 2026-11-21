@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="robots" content="index,follow,max-image-preview:large"/>
+  <meta name="theme-color" content="#f6f6f1"/>
+  <title>About IssueLint | AI Task &amp; Ticket Quality Checker</title>
+  <meta name="description" content="What is IssueLint? Learn how our AI task and ticket checker spots unclear requirements, contradictions, missing references and handoff risks with a fast Quick Scan."/>
+  <link rel="canonical" href="https://issuelint.com/about/"/>
+  <link rel="icon" type="image/png" href="/brand/favicon.png"/>
+  <link rel="stylesheet" href="/about/about.css"/>
+  <link rel="stylesheet" href="/site-footer.css"/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="IssueLint"/>
+  <meta property="og:url" content="https://issuelint.com/about/"/>
+  <meta property="og:title" content="About IssueLint — Clearer Tasks, Better Handoffs"/>
+  <meta property="og:description" content="IssueLint helps product teams, engineers and anyone assigning work spot gaps before a task begins. One quick checklist, with deeper AI review when needed."/>
+  <meta property="og:image" content="https://issuelint.com/brand/logo-light.webp"/>
+  <meta name="twitter:card" content="summary"/>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"AboutPage","name":"About IssueLint","url":"https://issuelint.com/about/","description":"Learn what IssueLint does and how its AI task and ticket checks work.","mainEntity":{"@type":"WebApplication","name":"IssueLint","url":"https://issuelint.com/","applicationCategory":"BusinessApplication","operatingSystem":"Web","description":"An AI task and ticket checker for clarifying work requests before execution."}}</script>
+  <script src="/about/appearance.js"></script>
+</head>
+<body class="about-app">
+  <a class="skip-link" href="#about-main">Skip to content</a>
+  <header class="about-header">
+    <div class="about-header-inner">
+      <a class="about-brand" href="/" aria-label="IssueLint home">
+        <img class="brand-light" src="/brand/logo-light.webp" alt="IssueLint" width="480" height="92"/>
+        <img class="brand-dark" src="/brand/logo-dark.webp" alt="" width="480" height="92"/>
+      </a>
+      <nav class="about-top-nav" aria-label="Primary navigation">
+        <a href="/#analyze">Quick Scan</a>
+        <a href="/#guide">How it works</a>
+        <a class="current" href="/about/" aria-current="page">About</a>
+      </nav>
+      <div class="about-appearance" role="group" aria-label="Choose light or dark appearance">
+        <button type="button" data-appearance="light" aria-pressed="true">Light</button>
+        <button type="button" data-appearance="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="about-main">
+    <section class="about-hero" aria-labelledby="about-heading">
+      <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> ABOUT ISSUE/LINT <span class="eyebrow-separator">/</span> BETTER WORK STARTS HERE</p>
+      <div class="about-hero-grid">
+        <div>
+          <h1 id="about-heading">Clearer tasks.<br/><em>Better starts.</em></h1>
+        </div>
+        <div class="about-hero-lead">
+          <p>IssueLint is an <strong>AI task and ticket checker</strong> built to catch unclear requirements before they become wasted work.</p>
+          <p>Paste a ticket, to-do, user story or brief. Get a quick second opinion. Investigate what matters, then move forward with clearer expectations.</p>
+          <a class="about-primary-link" href="/#analyze">Try Quick Scan <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+      <div class="about-traits" aria-label="Product highlights">
+        <span><b>01</b> Plain text in</span>
+        <span><b>02</b> 11 quality checks</span>
+        <span><b>03</b> Deeper review on demand</span>
+      </div>
+    </section>
+
+    <section class="about-section about-why" aria-labelledby="why-title">
+      <div class="about-section-label"><span>01 / THE PROBLEM</span></div>
+      <div class="about-section-content">
+        <h2 id="why-title">A ticket can look finished<br/>and still be <em>unclear.</em></h2>
+        <p>“Build dark mode.” “Improve checkout.” “Follow the Figma.” These requests sound straightforward until the team asks which screens, what behavior, whose approval or which design file.</p>
+        <p>Sometimes the instructions actively conflict. Other times one missing decision stalls a handoff. IssueLint was made for that moment between writing work down and actually starting it.</p>
+        <div class="about-quote"><span class="quote-mark" aria-hidden="true">“</span><p>The goal isn't a perfect document. It's a task that someone can act on without guessing.</p></div>
+      </div>
+    </section>
+
+    <section class="about-section" aria-labelledby="how-title">
+      <div class="about-section-label"><span>02 / THE APPROACH</span></div>
+      <div class="about-section-content">
+        <h2 id="how-title">Two levels of review.<br/><em>One clear next step.</em></h2>
+        <div class="about-method-grid">
+          <article class="about-method">
+            <div class="method-topline"><span>01</span><span>FAST FIRST PASS</span></div>
+            <h3>Quick Scan</h3>
+            <p>One lightweight Gemini Decision model request checks eleven dimensions and returns an easy-to-read green tick or red cross for each.</p>
+            <p class="method-note">No long explanations. No forced template. A green tick means the model did not flag an issue in that dimension—not that the task is guaranteed correct.</p>
+          </article>
+          <article class="about-method">
+            <div class="method-topline"><span>02</span><span>WHEN YOU NEED MORE</span></div>
+            <h3>Analyze v2</h3>
+            <p>Go deeper with a selective, independent GPT-OSS review of dimensions identified by the initial screen. Read specific reasons, source excerpts and questions to clarify.</p>
+            <p class="method-note">The deeper review takes longer. Model judgments are suggestions to evaluate, not a substitute for the team's decisions.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="about-section" aria-labelledby="checks-title">
+      <div class="about-section-label"><span>03 / THE CHECKLIST</span></div>
+      <div class="about-section-content">
+        <h2 id="checks-title">What does IssueLint check?</h2>
+        <p>Every request is screened against the same eleven task-quality dimensions. Not every dimension needs to apply to every task.</p>
+        <div class="about-check-grid">
+          <div><span>01</span><strong>Contradictions</strong><p>Incompatible instructions</p></div>
+          <div><span>02</span><strong>Actionability</strong><p>Decisions blocking progress</p></div>
+          <div><span>03</span><strong>Scope</strong><p>Unclear boundaries</p></div>
+          <div><span>04</span><strong>Granularity</strong><p>Work that needs splitting</p></div>
+          <div><span>05</span><strong>Behavior</strong><p>Undefined expected behavior</p></div>
+          <div><span>06</span><strong>Completion</strong><p>Ambiguous definition of done</p></div>
+          <div><span>07</span><strong>Outcome</strong><p>Unclear desired result</p></div>
+          <div><span>08</span><strong>References</strong><p>Missing required assets or docs</p></div>
+          <div><span>09</span><strong>Dependencies</strong><p>Blocked prerequisites</p></div>
+          <div><span>10</span><strong>Clarity</strong><p>Material ambiguity</p></div>
+          <div><span>11</span><strong>Feasibility</strong><p>Independent execution obstacles</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="about-section" aria-labelledby="who-title">
+      <div class="about-section-label"><span>04 / WHO IT'S FOR</span></div>
+      <div class="about-section-content">
+        <h2 id="who-title">For people who turn<br/>requests into <em>real work.</em></h2>
+        <p>IssueLint is designed for product managers, engineering leads, developers, QA teams, agency teams and independent builders—as well as anyone who needs to hand off work with fewer assumptions.</p>
+        <p>You can paste text from Jira, GitHub Issues, Linear, a document or a chat. IssueLint is <strong>tool-agnostic</strong>; it doesn't need access to your project-management account, and it doesn't write changes back to those tools.</p>
+      </div>
+    </section>
+
+    <section class="about-section about-faq" aria-labelledby="faq-title">
+      <div class="about-section-label"><span>05 / COMMON QUESTIONS</span></div>
+      <div class="about-section-content">
+        <h2 id="faq-title">A few things worth knowing.</h2>
+        <div class="about-faq-items">
+          <details><summary>Can I use IssueLint with just one paragraph?</summary><p>Yes. The title and additional fields are optional in the browser. A plain-text task description is enough to run a review during the private AI preview.</p></details>
+          <details><summary>Does a green Quick Scan result mean my task is perfect?</summary><p>No. Quick Scan is a preliminary model classification. It can miss problems or mark dimensions as not applicable. The full review adds independent scrutiny, but neither mode guarantees correctness.</p></details>
+          <details><summary>Does IssueLint connect to Jira, GitHub or Linear?</summary><p>Not currently. Copy and paste a task from any of those tools; IssueLint reviews the text without connecting to or editing the underlying ticket.</p></details>
+          <details><summary>Is IssueLint open for everyone?</summary><p>The site is public, but live AI analysis currently requires a private preview access code. Public accounts and unrestricted AI access have not launched.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <section class="about-cta" aria-labelledby="cta-title">
+      <span class="eyebrow">LESS GUESSWORK · BETTER HANDOFFS</span>
+      <h2 id="cta-title">The next task deserves<br/><em>a clearer start.</em></h2>
+      <p>Paste it. Scan it. Ask the question that matters.</p>
+      <a class="about-primary-link" href="/#analyze">Review a task <span aria-hidden="true">↗</span></a>
+    </section>
+  </main>
+
+  <footer class="site-footer" aria-label="IssueLint site footer">
+    <div class="site-footer-inner">
+      <div class="site-footer-intro">
+        <a class="site-footer-logo" href="/" aria-label="IssueLint home">
+          <img class="site-footer-logo-light" src="/brand/logo-light.webp" alt="IssueLint" width="480" height="92" loading="lazy"/>
+          <img class="site-footer-logo-dark" src="/brand/logo-dark.webp" alt="" width="480" height="92" loading="lazy"/>
+        </a>
+        <p>A second opinion for every task. Make the work clear before it starts.</p>
+        <span class="site-footer-tag">PLAIN TEXT IN · CLEARER WORK OUT</span>
+      </div>
+      <nav class="site-footer-nav" aria-label="Footer navigation">
+        <div class="site-footer-col">
+          <span class="site-footer-heading">Explore</span>
+          <a href="/#analyze">Quick Scan</a>
+          <a href="/#guide">How it works</a>
+          <a href="/about/" aria-current="page">About IssueLint</a>
+        </div>
+        <div class="site-footer-col">
+          <span class="site-footer-heading">Get in touch</span>
+          <a href="mailto:yorulmazyln@gmail.com">yorulmazyln@gmail.com</a>
+          <a href="https://ylnyorulmaz.com" target="_blank" rel="noopener noreferrer">ylnyorulmaz.com <span aria-hidden="true">↗</span></a>
+        </div>
+      </nav>
+    </div>
+    <div class="site-footer-bottom">
+      <span>© 2026 IssueLint. Built for clearer handoffs.</span>
+      <span>Private AI preview · Human judgment still matters.</span>
+    </div>
+  </footer>
+</body>
+</html>
