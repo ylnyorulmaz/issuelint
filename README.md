@@ -24,6 +24,18 @@
 
 The app currently has no user accounts, database, third-party task-platform synchronization or persistent storage of submitted task text in its own application code.
 
+## Iteration 1 — Gemini Decision 1 (experimental)
+
+**Two independent analysis buttons:** the existing **Analyze with AI** is unchanged (GPT-OSS 120B → optional DeepSeek verifier). The adjacent **Analyze v2 · Decision** calls the separate protected `POST /api/analyze-v2` endpoint. Both accept the same validated task including optional title, scope, outcome, references, criteria and context. V2 never calls GPT-OSS or SayGM in this iteration.
+
+- `worker/decision.ts` sends **one** Google Gemini Decisions API `POST https://generativelanguage.googleapis.com/v1beta/decisions` request using `gemini-decision-1`, shared `input`, and **eleven independent `choice` questions** keyed by the existing dimensions: `contradictions`, `actionability`, `scope`, `granularity`, `behavior`, `completion`, `outcome`, `references`, `dependencies`, `clarity`, `feasibility`. Choices: `clear`, `gap`, `not_applicable`.
+- The response is **strictly validated**: exactly 11 known dimensions, one per gate; expected option IDs, bounded probabilities and confidence, complete 3-option distribution. Invalid or incomplete provider output returns a clean error; **no invented scores**.
+- The new **11 Gate Scorecard** displays per-gate outcome, probability distribution, model confidence and provider latency. It is a **classification-only experiment**, not human-verified evidence, a justification, or a Suggested Draft. Explanations, citations and rewrite generation are explicitly **Iteration 2**, not part of this release.
+- **Privacy/security:** V2 uses the same `PREVIEW_TOKEN` Bearer gate, JSON input validator, 8,000-character task limit and request ID. It never returns or logs `GEMINI_API_KEY`, task content, Google response bodies or raw exceptions. Cloudflare logs `issuelint.decision_started`, 11 `issuelint.decision_gate` entries (fixed gate/outcome/confidence only), and `issuelint.decision_result` with counts, latency and known failure category.
+- **Secret:** add your own **`GEMINI_API_KEY`** to Cloudflare **Workers & Pages → `issuelint-dev` → Settings → Variables and Secrets** as a secret, from Google AI Studio. The Worker configuration declares it but **never ships it to the frontend**. `GET /api/health` returns `decisionConfigured: false` and disables the experimental button until it is configured. The existing V1 remains usable. Google AI Studio no-cost tier has usage limits; this release does not hardcode keys or substitute a paid provider.
+- **API response:** `{mode:"decision",analyzed:true,decision:{model:"gemini-decision-1",gates:[{dimension,assessment,confidence,probabilities:{clear,gap,not_applicable}}],checked:11,durationMs}}`.
+- **Future:** No binary acceptance threshold or automatically blocking tickets. We will benchmark/calibrate on labeled examples before using decision scores to control the user verdict. V2 presently makes no grounding claims; original V1 validation remains unchanged.
+
 ## Review Engine 2.5
 
 ### Inference pipeline
