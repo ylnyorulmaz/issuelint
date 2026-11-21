@@ -3,6 +3,7 @@
 **The second opinion for every task.** IssueLint is a lightweight, platform-independent AI review tool for tasks, tickets, to-dos, user stories, and work briefs. Paste a request, identify potential execution problems in a fast checklist, and run a deeper evidence-oriented review when clarification is needed.
 
 **Live site:** https://issuelint.com  
+**Blog:** https://issuelint.com/blog/ — static, crawlable articles on task writing and the IssueLint eleven-dimension rubric.  
 **About page:** https://issuelint.com/about/ — static, crawlable product introduction.  
 **Task-writing guide:** https://issuelint.com/guides/how-to-write-a-clear-task/ — static, crawlable checklist and examples.  
 **Contact:** yorulmazyln@gmail.com · https://ylnyorulmaz.com  
