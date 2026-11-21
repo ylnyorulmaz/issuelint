@@ -1,7 +1,11 @@
+import type { BackendMode } from "./settings.ts";
+
 /**
- * Sample response for Mock mode. It describes a fictional checkout ticket and is
- * deliberately NOT derived from the clipped page, so it can never be mistaken for a real review.
+ * Sample responses for Mock mode, one per backend shape. They describe a fictional checkout ticket and are
+ * deliberately NOT derived from the clipped page, so they can never be mistaken for a real review.
  */
+
+/** Generic custom-backend contract (see README). */
 export const MOCK_RESPONSE = {
   status: "needs_clarification",
   summary:
@@ -46,7 +50,77 @@ export const MOCK_RESPONSE = {
   ],
 };
 
-export async function mockAnalyze(signal: AbortSignal): Promise<unknown> {
+const gate = (dimension: string, assessment: string, clear: number, gap: number) => ({
+  dimension,
+  assessment,
+  confidence: Math.max(clear, gap, 1 - clear - gap),
+  probabilities: { clear, gap, not_applicable: Math.round((1 - clear - gap) * 1000) / 1000 },
+});
+
+const GEMINI_GATES = [
+  gate("contradictions", "gap", 0.12, 0.85),
+  gate("actionability", "clear", 0.94, 0.05),
+  gate("scope", "clear", 0.9, 0.08),
+  gate("granularity", "clear", 0.91, 0.07),
+  gate("behavior", "clear", 0.88, 0.1),
+  gate("completion", "gap", 0.2, 0.78),
+  gate("outcome", "clear", 0.87, 0.1),
+  gate("references", "gap", 0.35, 0.6),
+  gate("dependencies", "clear", 0.7, 0.25),
+  gate("clarity", "clear", 0.93, 0.06),
+  gate("feasibility", "not_applicable", 0.1, 0.05),
+];
+
+/** Shape of IssueLint POST /api/quick-scan. */
+export const MOCK_QUICK_SCAN = {
+  mode: "quick_scan",
+  analyzed: true,
+  scan: {
+    model: "gemini-decision-1",
+    checked: 11,
+    durationMs: 1200,
+    gates: GEMINI_GATES.map(({ dimension, assessment }) => ({ dimension, assessment })),
+  },
+};
+
+/** Shape of IssueLint POST /api/analyze-v2 (partial audit, so the "unverified" state is visible too). */
+export const MOCK_DECISION = {
+  mode: "decision",
+  analyzed: true,
+  decision: {
+    model: "gemini-decision-1",
+    checked: 11,
+    durationMs: 1300,
+    gates: GEMINI_GATES,
+    audit: {
+      status: "partial",
+      unverified: ["dependencies"],
+      model: "@cf/openai/gpt-oss-120b",
+      threshold: 0.85,
+      selected: ["contradictions", "completion", "references", "dependencies"],
+      durationMs: 9400,
+      findings: [],
+      checks: MOCK_RESPONSE.checks
+        .filter((c) => c.assessment === "gap")
+        .map((c) => ({
+          dimension: c.dimension,
+          assessment: "gap",
+          reason: c.detail,
+          severity: c.severity,
+          kind: c.dimension === "contradictions" ? "contradiction" : "missing",
+          title: c.title,
+          evidence: c.evidence,
+          question: c.question,
+        })),
+    },
+  },
+};
+
+export function mockResponseFor(mode: BackendMode): unknown {
+  return structuredClone(mode === "quick_scan" ? MOCK_QUICK_SCAN : mode === "analyze_v2" ? MOCK_DECISION : MOCK_RESPONSE);
+}
+
+export async function mockAnalyze(mode: BackendMode, signal: AbortSignal): Promise<unknown> {
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(resolve, 900);
     signal.addEventListener("abort", () => {
@@ -54,5 +128,5 @@ export async function mockAnalyze(signal: AbortSignal): Promise<unknown> {
       reject(new DOMException("Aborted", "AbortError"));
     }, { once: true });
   });
-  return structuredClone(MOCK_RESPONSE);
+  return mockResponseFor(mode);
 }

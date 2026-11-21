@@ -218,3 +218,37 @@ blockquote {
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* Backend selection */
+select {
+  font: 12px var(--sans); color: var(--text);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px;
+}
+select:focus { border-color: var(--accent); outline: none; }
+.pill-backend { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); white-space: nowrap; }
+.pill-backend:empty { display: none; }
+.privacy { margin: -2px 0 10px; }
+.limit-hint { margin-top: 6px; font-size: 12px; color: var(--danger); }
+
+/* IssueLint result views */
+.status-quiet { color: var(--ok); }
+.note { font-size: 12px; }
+.counts-4 { grid-template-columns: repeat(4, 1fr); }
+.count-unverified .count-value { color: var(--violet); }
+.audit-note { font-size: 12px; color: var(--muted); border-left: 3px solid var(--border-strong); padding-left: 8px; }
+.audit-partial, .audit-unavailable { color: var(--warn); border-left-color: var(--warn); }
+.checklist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.check { display: flex; align-items: center; gap: 8px; padding: 7px 10px; }
+.check + .check { border-top: 1px solid var(--border); }
+.check-icon {
+  flex: none; width: 18px; height: 18px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 700 11px/1 var(--sans); border: 1px solid currentColor;
+}
+.check-label { flex: 1; }
+.check-meta { font: 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.check-pass .check-icon { color: var(--ok); }
+.check-issue .check-icon { color: var(--danger); }
+.check-issue .check-label { font-weight: 600; }
+.check-not_applicable .check-icon { color: var(--muted); }
+.check-unverified .check-icon { color: var(--violet); }
