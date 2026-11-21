@@ -28,11 +28,32 @@ export type DecisionGate = {
   confidence: number;
   probabilities: Record<DecisionAssessment, number>;
 };
+export type DecisionAuditCheck = {
+  dimension: DecisionDimension;
+  assessment: DecisionAssessment;
+  reason: string;
+  severity: ApiFinding['severity'];
+  kind: ApiFinding['kind'];
+  title: string;
+  evidence: string[];
+  question: string;
+};
+export type ApiDecisionAudit = {
+  status: 'complete' | 'unavailable';
+  model: '@cf/openai/gpt-oss-120b';
+  threshold: 0.85;
+  selected: DecisionDimension[];
+  checks: DecisionAuditCheck[];
+  findings: ApiFinding[];
+  durationMs: number;
+  errorCategory?: 'upstream' | 'truncated' | 'invalid_response' | 'not_configured';
+};
 export type ApiDecisionResult = {
   model: 'gemini-decision-1';
   gates: DecisionGate[];
   checked: number;
   durationMs: number;
+  audit: ApiDecisionAudit;
 };
 export type Health = { status: string; aiEnabled: boolean; aiBindingConfigured: boolean; decisionConfigured: boolean };
 
@@ -214,5 +235,51 @@ export async function analyzeDecisionLive(
       },
     });
   }
-  return {model:'gemini-decision-1',gates,checked:11,durationMs:d.durationMs as number};
+  if (!object(d.audit)) throw new ApiError('INVALID_RESPONSE','Missing independent audit state.',response.status,requestId);
+  const auditRaw=d.audit;
+  const expectedSelected=gates.filter(g=>g.probabilities.clear<0.85).map(g=>g.dimension);
+  const fail=()=>{throw new ApiError('INVALID_RESPONSE','Malformed independent audit.',response.status,requestId);};
+  if (!['complete','unavailable'].includes(String(auditRaw.status)) ||
+      auditRaw.model!=='@cf/openai/gpt-oss-120b' || auditRaw.threshold!==0.85 ||
+      !Array.isArray(auditRaw.selected) || auditRaw.selected.length!==expectedSelected.length ||
+      auditRaw.selected.some((v,i)=>v!==expectedSelected[i]) ||
+      !Array.isArray(auditRaw.checks) || !Array.isArray(auditRaw.findings) ||
+      auditRaw.findings.length>5 || typeof auditRaw.durationMs!=='number' ||
+      !Number.isFinite(auditRaw.durationMs) || auditRaw.durationMs<0) fail();
+  const status=auditRaw.status as ApiDecisionAudit['status'];
+  if ((status==='complete' && auditRaw.checks.length!==expectedSelected.length) ||
+      (status==='unavailable' && (auditRaw.checks.length!==0 || auditRaw.findings.length!==0 ||
+        !['upstream','truncated','invalid_response','not_configured'].includes(String(auditRaw.errorCategory)))))
+    fail();
+  const knownKinds=['missing','ambiguity','contradiction','suggestion'];
+  const knownSeverities=['critical','important','suggestion'];
+  const quoteValid=(value:unknown)=>Array.isArray(value) && value.length<=2 &&
+    value.every(v=>typeof v==='string' && v.length<=260);
+  const checkedAudits: DecisionAuditCheck[]=[];
+  for (const [i,v] of auditRaw.checks.entries()) {
+    if (!object(v) || v.dimension!==expectedSelected[i] ||
+        !DECISION_ASSESSMENTS.includes(v.assessment as DecisionAssessment) ||
+        typeof v.reason!=='string' || v.reason.trim().length<8 || v.reason.length>800 ||
+        !knownKinds.includes(String(v.kind)) || !knownSeverities.includes(String(v.severity)) ||
+        typeof v.title!=='string' || v.title.length>160 ||
+        typeof v.question!=='string' || v.question.length>300 || !quoteValid(v.evidence)) fail();
+    if (v.assessment==='gap' && (v.title.trim().length<3 || v.question.trim().length<8 ||
+        (v.evidence as string[]).length===0 || (v.kind==='contradiction' && (v.evidence as string[]).length!==2))) fail();
+    if (v.assessment!=='gap' && (v.title!=='' || v.question!=='' ||
+        (v.evidence as string[]).length!==0)) fail();
+    checkedAudits.push(v as DecisionAuditCheck);
+  }
+  const findings:ApiFinding[]=[];
+  for (const v of auditRaw.findings) {
+    if (!object(v) || !knownKinds.includes(String(v.kind)) ||
+        !knownSeverities.includes(String(v.severity)) || typeof v.title!=='string' ||
+        typeof v.detail!=='string' || typeof v.question!=='string' || !quoteValid(v.evidence)) fail();
+    findings.push(v as ApiFinding);
+  }
+  const audit:ApiDecisionAudit={
+    status,model:'@cf/openai/gpt-oss-120b',threshold:0.85,
+    selected:expectedSelected,checks:checkedAudits,findings,durationMs:auditRaw.durationMs as number,
+    ...(status==='unavailable'?{errorCategory:auditRaw.errorCategory as ApiDecisionAudit['errorCategory']}:{})
+  };
+  return {model:'gemini-decision-1',gates,checked:11,durationMs:d.durationMs as number,audit};
 }
