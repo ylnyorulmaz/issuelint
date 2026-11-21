@@ -1,0 +1,17 @@
+:root{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color-scheme:light;background:#f6f6f1;color:#343b35}
+*{box-sizing:border-box}body{margin:0;min-height:100vh}.login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
+.login-card{width:min(100%,440px);border:1px solid #e2e6dc;border-radius:12px;background:#fdfdfa;padding:clamp(27px,5vw,43px)}
+.login-brand{display:inline-block;margin-bottom:33px}.login-brand img{max-width:100%;height:auto;display:block}
+.login-kicker{font-size:11px;font-weight:800;letter-spacing:.1em;color:#526e57;margin:0 0 11px}
+h1{font-size:clamp(29px,5vw,43px);font-weight:600;letter-spacing:-.05em;margin:0 0 10px}
+.login-description{color:#526052;font-size:14px;line-height:1.6;margin:0 0 25px}
+label{display:block;font-size:13px;font-weight:700;margin:16px 0 8px}
+input{display:block;width:100%;font:inherit;font-size:16px;padding:12px 13px;border:1px solid #b8c4b6;background:#fff;color:#343b35;border-radius:6px;min-height:45px}
+input:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid #526e57;outline-offset:3px}
+button{width:100%;border:0;border-radius:7px;background:#526e57;color:#fff;padding:13px;font:inherit;font-weight:700;min-height:48px;margin-top:12px;cursor:pointer}
+button:hover:not(:disabled){background:#344338}button:disabled{opacity:.65;cursor:wait}
+.login-message{font-size:13px;color:#a33b32;line-height:1.5;min-height:18px;margin:16px 0 0}
+.login-back{display:inline-block;margin-top:24px;color:#526052;text-decoration:none;font-size:13px}.login-back:hover{text-decoration:underline}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;background:#1d2420;color:#eef0e7}.login-card{background:#253029;border-color:#465347}
+.login-description,.login-back{color:#ccd5c7}.login-kicker{color:#b3d1ae}
+input{background:#303c33;color:#eef0e7;border-color:#647565}button{background:#b3d1ae;color:#1d2420}button:hover:not(:disabled){background:#dde9da}}
