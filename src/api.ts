@@ -237,18 +237,20 @@ export async function analyzeDecisionLive(
   }
   if (!object(d.audit)) throw new ApiError('INVALID_RESPONSE','Missing independent audit state.',response.status,requestId);
   const auditRaw=d.audit;
+  const auditChecks:unknown=auditRaw.checks;
+  const auditFindings:unknown=auditRaw.findings;
   const expectedSelected=gates.filter(g=>g.probabilities.clear<0.85).map(g=>g.dimension);
   const fail=(): never => {throw new ApiError('INVALID_RESPONSE','Malformed independent audit.',response.status,requestId);};
   if (!['complete','unavailable'].includes(String(auditRaw.status)) ||
       auditRaw.model!=='@cf/openai/gpt-oss-120b' || auditRaw.threshold!==0.85 ||
       !Array.isArray(auditRaw.selected) || auditRaw.selected.length!==expectedSelected.length ||
       auditRaw.selected.some((v,i)=>v!==expectedSelected[i]) ||
-      !Array.isArray(auditRaw.checks) || !Array.isArray(auditRaw.findings) ||
+      !Array.isArray(auditChecks) || !Array.isArray(auditFindings) ||
       auditRaw.findings.length>5 || typeof auditRaw.durationMs!=='number' ||
       !Number.isFinite(auditRaw.durationMs) || auditRaw.durationMs<0) fail();
   const status=auditRaw.status as ApiDecisionAudit['status'];
-  if ((status==='complete' && auditRaw.checks.length!==expectedSelected.length) ||
-      (status==='unavailable' && (auditRaw.checks.length!==0 || auditRaw.findings.length!==0 ||
+  if ((status==='complete' && auditChecks.length!==expectedSelected.length) ||
+      (status==='unavailable' && (auditChecks.length!==0 || auditFindings.length!==0 ||
         !['upstream','truncated','invalid_response','not_configured'].includes(String(auditRaw.errorCategory)))))
     fail();
   const knownKinds=['missing','ambiguity','contradiction','suggestion'];
@@ -256,7 +258,7 @@ export async function analyzeDecisionLive(
   const quoteValid=(value:unknown)=>Array.isArray(value) && value.length<=2 &&
     value.every(v=>typeof v==='string' && v.length<=260);
   const checkedAudits: DecisionAuditCheck[]=[];
-  for (const [i,v] of auditRaw.checks.entries()) {
+  for (const [i,v] of auditChecks.entries()) {
     if (!object(v) || v.dimension!==expectedSelected[i] ||
         !DECISION_ASSESSMENTS.includes(v.assessment as DecisionAssessment) ||
         typeof v.reason!=='string' || v.reason.trim().length<8 || v.reason.length>800 ||
@@ -270,7 +272,7 @@ export async function analyzeDecisionLive(
     checkedAudits.push(v as DecisionAuditCheck);
   }
   const findings:ApiFinding[]=[];
-  for (const v of auditRaw.findings) {
+  for (const v of auditFindings) {
     if (!object(v) || !knownKinds.includes(String(v.kind)) ||
         !knownSeverities.includes(String(v.severity)) || typeof v.title!=='string' ||
         typeof v.detail!=='string' || typeof v.question!=='string' || !quoteValid(v.evidence)) fail();
