@@ -1,9 +1,10 @@
 import { ApiError, postAnalysis } from "./lib/api.ts";
+import { backendLabel, charsLabel, gapLabel, gatesLabel } from "./lib/format.ts";
 import { buildRequestBody, checkPreviewCode, ISSUELINT_LIMITS, resolveTarget } from "./lib/issuelint.ts";
 import { mockAnalyze } from "./lib/mock.ts";
 import {
   dimensionLabel, groupByDimension, normalizeScorecard, ScorecardError, STATUS_LABELS,
-  type DimensionResult, type Mark, type Scorecard, type ScorecardFinding,
+  type Mark, type Scorecard, type ScorecardFinding,
 } from "./lib/scorecard.ts";
 import {
   DEFAULT_SETTINGS, isIssueLintMode, loadSettings, MODE_LABELS, saveSettings, type BackendMode, type Settings,
@@ -25,6 +26,7 @@ const ui = {
   apiKeyLabel: $<HTMLElement>("api-key-label"),
   privacyHint: $<HTMLElement>("privacy-hint"),
   backendBadge: $<HTMLElement>("backend-badge"),
+  backendBadgeText: $<HTMLElement>("backend-badge-text"),
   limitHint: $<HTMLElement>("limit-hint"),
   apiKey: $<HTMLInputElement>("api-key"),
   apiKeyReveal: $<HTMLButtonElement>("api-key-reveal"),
@@ -35,7 +37,7 @@ const ui = {
   notice: $<HTMLElement>("notice"),
   noticeText: $<HTMLElement>("notice-text"),
   noticeAction: $<HTMLButtonElement>("notice-action"),
-  modePill: $<HTMLElement>("mode-pill"),
+  segments: Array.from(document.querySelectorAll<HTMLElement>(".segmented .seg")),
   charCount: $<HTMLElement>("char-count"),
   pageTitle: $<HTMLElement>("page-title"),
   markdown: $<HTMLTextAreaElement>("markdown"),
@@ -167,14 +169,22 @@ function setExtraction(result: ExtractionResult, tabId: number) {
   extraction = result;
   extractedTabId = tabId;
   ui.markdown.value = result.markdown;
-  ui.modePill.hidden = false;
-  ui.modePill.textContent = SOURCE_LABELS[result.sourceMode];
-  ui.modePill.dataset.mode = result.sourceMode;
+  setSegment(result.sourceMode);
   ui.pageTitle.textContent = result.title;
   setUrlBadge(result.url);
   ui.results.hidden = true;
   ui.results.replaceChildren();
   updateCount();
+}
+
+function setSegment(mode: SourceMode | null) {
+  for (const seg of ui.segments) {
+    const active = seg.dataset.mode === mode;
+    seg.classList.toggle("is-active", active);
+    if (active) seg.setAttribute("aria-current", "true");
+    else seg.removeAttribute("aria-current");
+    seg.title = active ? `Extracted from: ${SOURCE_LABELS[mode as SourceMode]}` : "";
+  }
 }
 
 function setUrlBadge(url: string) {
@@ -192,7 +202,7 @@ function updateCount() {
   const n = ui.markdown.value.trim().length;
   const hard = isIssueLintMode(settings.mode);
   const limit = hard ? ISSUELINT_LIMITS.description : SOFT_LIMIT_CHARS;
-  ui.charCount.textContent = `${n.toLocaleString()} / ${limit.toLocaleString()}`;
+  ui.charCount.textContent = charsLabel(n, limit);
   ui.charCount.dataset.level = n === 0 ? "empty" : n > limit ? "over" : n > limit * 0.85 ? "near" : "ok";
   ui.charCount.title = hard
     ? `IssueLint accepts up to ${limit.toLocaleString()} characters of task text.`
@@ -221,7 +231,7 @@ async function copyMarkdown() {
     flash(ui.copyStatus, "Copied");
   } catch {
     ui.markdown.select();
-    flash(ui.copyStatus, "Press Ctrl/Cmd+C to copy");
+    flash(ui.copyStatus, "Press Ctrl/Cmd+C");
   }
 }
 
@@ -317,9 +327,10 @@ function setLoading(loading: boolean) {
   if (loading) {
     ui.results.hidden = false;
     ui.results.replaceChildren(
+      resultsHead(),
       h("div", { class: "loading" },
         h("span", { class: "spinner", attrs: { "aria-hidden": "true" } }),
-        h("span", { text: settings.mockMode ? "Generating mock scorecard…" : loadingText(settings.mode) })),
+        h("span", { text: settings.mockMode ? "Generating sample review…" : loadingText(settings.mode) })),
       h("div", { class: "skeleton" }), h("div", { class: "skeleton short" }), h("div", { class: "skeleton" }),
     );
   }
@@ -331,64 +342,59 @@ function loadingText(mode: BackendMode): string {
   return "Waiting for the API…";
 }
 
+function resultsHead() {
+  return h("div", { class: "card-head" },
+    h("span", { class: "step", text: "02", attrs: { "aria-hidden": "true" } }),
+    h("h2", { class: "kicker" }, h("span", { class: "sr-only", text: "02 " }), document.createTextNode("Review & findings")));
+}
+
 function renderError(message: string, requestId?: string) {
   ui.results.hidden = false;
   ui.results.replaceChildren(
+    resultsHead(),
     h("div", { class: "result-error" },
-      h("strong", { text: "Analysis failed" }),
+      h("span", { class: "kicker kicker-gap", text: "Analysis failed" }),
       h("p", { text: message }),
-      requestId ? h("small", { class: "muted mono", text: `Request ID: ${requestId}` }) : null),
+      requestId ? h("small", { class: "meta mono", text: `Request ID ${requestId}` }) : null),
   );
 }
 
+const ENGINE_KICKER: Record<Scorecard["kind"], string> = {
+  quick_scan: "Gemini screen",
+  decision: "Decision engine",
+  generic: "Custom backend",
+};
+
 function renderScorecard(card: Scorecard, raw: unknown) {
-  const sample = settings.mockMode ? h("span", { class: "pill pill-mock", text: "Sample data" }) : null;
-  const parts: (Node | null)[] = [];
+  const modePill = h("span", { class: "pill" }, h("i", { class: "dot" }),
+    document.createTextNode(card.kind === "quick_scan" ? "Quick Scan" : card.kind === "decision" ? "Decision v2" : "Custom"));
+  const sample = settings.mockMode ? h("span", { class: "pill pill-mock" }, h("i", { class: "dot" }), document.createTextNode("Sample data")) : null;
+
+  const headline = card.kind === "generic" && card.status !== "unknown"
+    ? h("p", { class: `headline status-${card.status}`, text: STATUS_LABELS[card.status] })
+    : h("p", { class: `headline ${card.counts.gaps ? "status-needs_clarification" : "status-quiet"}`,
+        text: card.counts.gaps
+          ? `${card.counts.gaps} ${gapLabel(card.counts.gaps).toLowerCase()} flagged`
+          : card.kind === "quick_scan" ? "Nothing flagged" : "No gaps found" });
+
+  const parts: (Node | null)[] = [
+    resultsHead(),
+    h("div", { class: "engine-row" }, h("span", { class: "kicker kicker-khaki", text: ENGINE_KICKER[card.kind] }), modePill, sample),
+    headline,
+    stats(card),
+    card.counts.unverified
+      ? h("p", { class: "unverified-note" }, h("span", { class: "mark-dot mark-unverified", attrs: { "aria-hidden": "true" } }),
+          document.createTextNode(`${gatesLabel(card.counts.unverified)} not verified — not counted as clear.`))
+      : null,
+    auditNote(card),
+    card.summary ? h("p", { class: "summary", text: card.summary }) : null,
+    gateList(card),
+  ];
 
   if (card.kind === "quick_scan") {
-    parts.push(
-      h("div", { class: "result-head" },
-        h("span", { class: `status ${card.counts.gaps ? "status-needs_clarification" : "status-quiet"}`,
-          text: `Quick Scan · ${card.counts.gaps} flagged` }),
-        sample),
-      h("p", { class: "muted note", text: "✓ means nothing was flagged for that gate, not that the task is correct. ✕ means Gemini flagged a gap. Quick Scan gives no evidence; use Analyze v2 for reasons and quotes." }),
-      checklist(card.dimensions, false),
-    );
+    parts.push(h("p", { class: "note", text: "✓ means nothing was flagged for that gate, not that the task is correct. Quick Scan gives no evidence; switch to Analyze v2 in Settings for reasons and quotes." }));
   } else if (card.kind === "decision") {
-    parts.push(
-      h("div", { class: "result-head" },
-        h("span", { class: `status ${card.counts.gaps ? "status-needs_clarification" : "status-quiet"}`,
-          text: `Decision review · ${card.counts.gaps} gap${card.counts.gaps === 1 ? "" : "s"}` }),
-        sample),
-      counts(card),
-      auditNote(card),
-      card.findings.length
-        ? h("div", { class: "findings" }, ...groupByDimension(card.findings).map(([dim, items], i) => findingGroup(dim, items, i === 0)))
-        : null,
-      h("h3", { text: "All gates" }),
-      checklist(card.dimensions, true),
-      h("p", { class: "muted note", text: "P(Clear) is Gemini's screening probability, not a verified accuracy. Gates marked ? were not verified and are not a pass." }),
-    );
-  } else {
-    parts.push(
-      h("div", { class: "result-head" },
-        h("span", { class: `status status-${card.status}`, text: STATUS_LABELS[card.status] }),
-        sample),
-      counts(card),
-      card.summary ? h("p", { class: "summary", text: card.summary }) : null,
-      card.findings.length
-        ? h("div", { class: "findings" }, ...groupByDimension(card.findings).map(([dim, items], i) => findingGroup(dim, items, i === 0)))
-        : h("p", { class: "muted", text: "No findings reported." }),
-    );
-    const passed = card.dimensions.filter((d) => d.mark !== "issue");
-    if (passed.length) {
-      parts.push(h("div", { class: "passed" },
-        h("h3", { text: "Other dimensions" }),
-        h("ul", { class: "chips" }, ...passed.map((d) =>
-          h("li", { class: `chip chip-${d.mark === "pass" ? "clear" : "na"}`,
-            text: `${d.mark === "pass" ? "✓" : "–"} ${dimensionLabel(d.dimension)}`,
-            attrs: { title: d.mark === "pass" ? "Clear" : "Not applicable" } })))));
-    }
+    parts.push(h("p", { class: "note", text: "P(Clear) is Gemini's screening probability, not a verified accuracy." }));
   }
 
   parts.push(h("details", { class: "raw" },
@@ -399,64 +405,84 @@ function renderScorecard(card: Scorecard, raw: unknown) {
   ui.results.replaceChildren(...parts.filter((p): p is Node => !!p));
 }
 
-function counts(card: Scorecard) {
-  return h("div", { class: `counts${card.counts.unverified ? " counts-4" : ""}` },
-    countTile("Gaps", card.counts.gaps, "gap"),
-    countTile("Clear", card.counts.clear, "clear"),
-    countTile("N/A", card.counts.notApplicable, "na"),
-    card.counts.unverified ? countTile("Unverified", card.counts.unverified, "unverified") : null);
+function stats(card: Scorecard) {
+  const tile = (value: number, label: string, kind: string) =>
+    h("div", { class: `stat stat-${kind}` },
+      h("span", { class: "stat-value", text: String(value) }),
+      h("span", { class: "stat-label", text: label }));
+  return h("div", { class: "stats" },
+    tile(card.counts.gaps, gapLabel(card.counts.gaps), "gap"),
+    tile(card.counts.clear, "Clear", "clear"),
+    tile(card.counts.notApplicable, "Not applicable", "na"));
 }
 
 function auditNote(card: Scorecard) {
   const audit = card.audit;
   if (!audit) return null;
   if (audit.status === "unavailable") {
-    return h("p", { class: "audit-note audit-unavailable",
+    return h("p", { class: "audit-note audit-warn",
       text: audit.selected.length
-        ? "The second-pass GPT-OSS audit was unavailable, so gates that needed review are shown as unverified."
+        ? "The second-pass GPT-OSS audit was unavailable, so gates that needed review are shown as not verified."
         : "Gemini was confident on every gate, so no second-pass audit ran." });
   }
   if (audit.status === "partial") {
-    return h("p", { class: "audit-note audit-partial",
+    return h("p", { class: "audit-note audit-warn",
       text: `Audit partially completed: ${audit.unverified.map(dimensionLabel).join(", ") || "some gates"} could not be verified.` });
   }
   return audit.selected.length
-    ? h("p", { class: "audit-note", text: `GPT-OSS independently reviewed ${audit.selected.length} gate${audit.selected.length === 1 ? "" : "s"} with P(Clear) < ${audit.threshold}.` })
+    ? h("p", { class: "audit-note", text: `GPT-OSS independently reviewed ${gatesLabel(audit.selected.length)} with P(Clear) < ${audit.threshold}.` })
     : null;
 }
 
-const MARK_ICON: Record<Mark, string> = { pass: "✓", issue: "✕", not_applicable: "–", unverified: "?" };
-const MARK_TEXT: Record<Mark, string> = { pass: "Nothing flagged", issue: "Gap", not_applicable: "Not applicable", unverified: "Not verified" };
+type PillMark = Mark | "flag_free";
+const PILL: Record<PillMark, { icon: string; text: string }> = {
+  issue: { icon: "✕", text: "Gap" },
+  pass: { icon: "✓", text: "Clear" },
+  not_applicable: { icon: "–", text: "N/A" },
+  unverified: { icon: "?", text: "Not verified" },
+  flag_free: { icon: "✓", text: "Nothing flagged" },
+};
 
-/** Static per-gate list. Quick Scan folds N/A into ✓ ("nothing flagged"), as the web app does. */
-function checklist(dimensions: DimensionResult[], detailed: boolean) {
-  return h("ul", { class: "checklist" }, ...dimensions.map((d) => {
-    const mark: Mark = !detailed && d.mark === "not_applicable" ? "pass" : d.mark;
-    const meta = detailed
+function statusPill(mark: PillMark) {
+  const p = PILL[mark];
+  return h("span", { class: `gate-pill gate-${mark}` },
+    h("span", { attrs: { "aria-hidden": "true" }, text: p.icon }),
+    document.createTextNode(p.text));
+}
+
+/** One hairline-divided list of gates. Gap gates with findings expand to reasons, quotes and questions. */
+function gateList(card: Scorecard) {
+  const byDim = new Map(groupByDimension(card.findings));
+  const rows: { dimension: string; mark: Mark; meta: string }[] = card.dimensions.map((d) => ({
+    dimension: d.dimension,
+    mark: d.mark,
+    meta: card.kind === "decision"
       ? [d.source === "gpt-oss" ? "GPT-OSS" : d.source === "gemini" ? "Gemini" : "",
          d.pClear !== undefined ? `P(Clear) ${Math.round(d.pClear * 100)}%` : ""].filter(Boolean).join(" · ")
-      : "";
-    return h("li", { class: `check check-${mark}`, attrs: { title: MARK_TEXT[d.mark] } },
-      h("span", { class: "check-icon", text: MARK_ICON[mark], attrs: { "aria-label": MARK_TEXT[d.mark] } }),
-      h("span", { class: "check-label", text: dimensionLabel(d.dimension) }),
-      meta ? h("span", { class: "check-meta", text: meta }) : null);
+      : "",
   }));
-}
+  // Findings whose dimension has no gate row (generic backends) still get a row.
+  for (const dim of byDim.keys()) {
+    if (!rows.some((r) => r.dimension === dim)) rows.push({ dimension: dim, mark: "issue", meta: "" });
+  }
+  if (!rows.length) return h("p", { class: "note", text: "No findings reported." });
 
-function countTile(label: string, value: number, kind: string) {
-  return h("div", { class: `count count-${kind}` },
-    h("span", { class: "count-value", text: String(value) }),
-    h("span", { class: "count-label", text: label }));
-}
-
-function findingGroup(dimension: string, items: ScorecardFinding[], open: boolean) {
-  const details = h("details", { class: "group" },
-    h("summary", {},
-      h("span", { class: "group-title", text: dimensionLabel(dimension) }),
-      h("span", { class: "group-count", text: String(items.length) })),
-    ...items.map(findingItem));
-  details.open = open;
-  return details;
+  let opened = false;
+  return h("ul", { class: "gates" }, ...rows.map((r) => {
+    // Quick Scan folds N/A into "nothing flagged", as the web app does.
+    const pill: PillMark = card.kind === "quick_scan" && r.mark !== "issue" ? "flag_free" : r.mark;
+    const label = h("span", { class: "gate-label", text: dimensionLabel(r.dimension) });
+    const meta = r.meta ? h("span", { class: "gate-meta", text: r.meta }) : null;
+    const findings = byDim.get(r.dimension);
+    if (findings?.length) {
+      const details = h("details", { class: "gate-details" },
+        h("summary", { class: "gate-row" }, h("span", { class: "chev", attrs: { "aria-hidden": "true" }, text: "›" }), label, meta, statusPill(pill)),
+        h("div", { class: "gate-body" }, ...findings.map(findingItem)));
+      if (!opened) details.open = opened = true;
+      return h("li", { class: `gate gate-has-findings mark-${r.mark}` }, details);
+    }
+    return h("li", { class: `gate mark-${r.mark}` }, h("div", { class: "gate-row" }, h("span", { class: "chev chev-blank", attrs: { "aria-hidden": "true" } }), label, meta, statusPill(pill)));
+  }));
 }
 
 function findingItem(f: ScorecardFinding) {
@@ -464,9 +490,9 @@ function findingItem(f: ScorecardFinding) {
     h("div", { class: "finding-head" },
       f.severity ? h("span", { class: `sev sev-${f.severity.replace(/[^a-z]/g, "")}`, text: f.severity }) : null,
       h("h4", { text: f.issue })),
-    f.detail ? h("p", { text: f.detail }) : null,
+    f.detail ? h("p", { class: "finding-detail", text: f.detail }) : null,
     ...f.evidence.map((q) => h("blockquote", { text: q })),
-    f.question ? h("p", { class: "question" }, h("span", { class: "question-label", text: "Ask: " }), document.createTextNode(f.question)) : null);
+    f.question ? h("p", { class: "question" }, h("span", { class: "question-label", text: "Ask" }), document.createTextNode(f.question)) : null);
 }
 
 // ---------- Settings ----------
@@ -482,8 +508,8 @@ function applySettingsToForm() {
 
 function applyBadges() {
   ui.mockBadge.hidden = !settings.mockMode;
-  ui.backendBadge.textContent = settings.mode === "quick_scan" ? "Quick Scan" : settings.mode === "analyze_v2" ? "Analyze v2" : "Custom";
-  ui.backendBadge.title = MODE_LABELS[settings.mode];
+  ui.backendBadgeText.textContent = backendLabel(settings.mode);
+  ui.backendBadge.title = `Backend: ${MODE_LABELS[settings.mode]}`;
   updateCount();
 }
 
