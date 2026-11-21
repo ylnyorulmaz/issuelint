@@ -446,22 +446,26 @@ function App() {
         <div class="result-section-head"><ScreenLabel index="03">REVIEW / FINDINGS</ScreenLabel><span class="result-section-line" aria-hidden="true"/></div>
         <Show when={!loading()} fallback={activePipeline()==='decision'
           ? <div class="decision-loading" role="status"><ReviewBrandAnimation/><h2>Checking 11 quality dimensions…</h2><p>Gemini screens the task; GPT-OSS independently audits selected dimensions in one request.</p><ReviewWaitGuidance/><button type="button" onClick={cancelRequest}>Cancel review</button></div>
+          : activePipeline()==='quick'
+          ? <div class="decision-loading" role="status"><ReviewBrandAnimation/><h2>Quick Scan in progress…</h2><p>Gemini is screening 11 dimensions. Usually a few seconds, depending on provider load. Keep this page open.</p><button type="button" onClick={cancelRequest}>Cancel scan</button></div>
           : <ReviewLoading onCancel={cancelRequest}/>}>
+          <Show when={quickResult()}>{q => <QuickScanScorecard data={q()}/>}</Show>
+          <Show when={!quickResult()}>
           <Show when={decisionResult()}>{d => <DecisionScorecard data={d()}/>}</Show>
           <Show when={!decisionResult()}>
           <Show when={result()} fallback={
             <Show when={error()} fallback={<div class="empty">
               <div class="empty-icon">↗</div><h2>AWAITING INPUT.</h2>
-              <p>{available() === 'private' ? 'Enter your access code, then click “Analyze with AI” to see findings here. The code alone does not start a review.' : 'Fill in the task and press “Review task”. Your findings will appear here.'}</p>
-              <button class="result-start" type="button" disabled={!inputValid() || loading() || available() === 'checking'} onClick={() => void runAI()}>
-                {available() === 'private' ? 'Analyze with AI →' : 'Review task →'}
+              <p>{available() === 'private' ? 'Enter your access code and run Quick Scan to see 11 checks. Select Analyze v2 for the full independent review.' : 'The AI preview is unavailable. You can still run a demo review.'}</p>
+              <button class="result-start" type="button" disabled={!inputValid() || loading() || available()!=='private' || !decisionConfigured()} onClick={() => void runQuickScan()}>
+                Quick Scan →
               </button>
               <div class="empty-features"><div><i class="red"/> Missing details</div><div><i class="amber"/> Unclear requirements</div><div><i class="purple"/> Contradictions & next steps</div></div>
               <span class="note">Not analyzed · {available() === 'private' ? 'Private AI enabled' : 'Demo mode'}</span>
             </div>}>
               <div class="result-failure" role="alert">
                 <span class="failure-icon">!</span><h2>Review not completed</h2><p>{error()}</p>
-                <button class="result-start" type="button" disabled={!inputValid() || loading()} onClick={() => void (activePipeline()==='decision'?runDecision():runAI())}>Try again →</button>
+                <button class="result-start" type="button" disabled={!inputValid() || loading()} onClick={() => void (activePipeline()==='decision'?runDecision():activePipeline()==='quick'?runQuickScan():runAI())}>Try again →</button>
                 <span>Nothing was analyzed successfully. Check the code and retry, or use demo review.</span>
               </div>
             </Show>
@@ -517,6 +521,7 @@ function App() {
                 a().mode === 'demo' ? 'Example findings are prewritten and illustrative, not from a model.' :
                 'Basic checks cannot detect semantic ambiguity or contradictions.'}</p>
             </>}
+          </Show>
           </Show>
           </Show>
         </Show>
