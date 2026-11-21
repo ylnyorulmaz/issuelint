@@ -131,7 +131,7 @@ export function AdminStation() {
   return <div class="app admin-app" data-theme={dark()?'dark':'light'} data-design="minimalist">
     <header class="admin-header">
       <div class="admin-header-inner">
-        <div class="admin-identity"><a href="/" class="admin-brand">ISSUE<span>/</span>LINT</a><span class="admin-label">TEST STATION / ADMIN</span></div>
+        <div class="admin-identity"><a href="/" class="admin-brand" aria-label="IssueLint home"><img class="brand-logo" src={dark()?"/brand/logo-dark.webp":"/brand/logo-light.webp"} alt="" width="480" height="92" decoding="async"/></a><span class="admin-label">TEST STATION / ADMIN</span></div>
         <div class="admin-header-links"><a href="/">← Back to app</a>
           <div class="appearance-switcher" role="group" aria-label="Choose light or dark appearance">
             <span class="appearance-switcher-caption" aria-hidden="true">MODE</span>

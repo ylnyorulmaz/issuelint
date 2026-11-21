@@ -388,3 +388,21 @@ test('Decision client rejects partial audit with secretly omitted dimensions',as
       e=>e instanceof ApiError&&e.code==='INVALID_RESPONSE');
   }finally{globalThis.fetch=saved;}
 });
+
+
+test("supplied IssueLint artwork is present in both appearance modes", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const home = await readFile(new URL("../src/index.tsx", import.meta.url), "utf8");
+  const admin = await readFile(new URL("../src/components/AdminStation.tsx", import.meta.url), "utf8");
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  for (const component of [home, admin]) {
+    assert.match(component, /\/brand\/logo-light\.webp/);
+    assert.match(component, /\/brand\/logo-dark\.webp/);
+    assert.match(component, /class="brand-logo"/);
+  }
+  assert.match(html, /\/brand\/favicon\.png/);
+  for (const asset of ["logo-light.webp", "logo-dark.webp", "icon-light.webp", "icon-dark.webp", "favicon.png"]) {
+    const bytes = await readFile(new URL("../public/brand/" + asset, import.meta.url));
+    assert.ok(bytes.byteLength > 500, asset + " must not be empty");
+  }
+});

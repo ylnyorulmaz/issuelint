@@ -7,7 +7,7 @@ import './style.css';
 import './styles.minimalist.css';
 // Legacy visual theme choices are retained in src/design-theme.ts; no longer shown or applied.
 import { readAppearance, saveAppearance, type Appearance } from './appearance';
-import { BrandEmblem, SectionIndex, FindingMark, ScreenLabel } from './components/Constructivist';
+import { SectionIndex, FindingMark, ScreenLabel } from './components/Constructivist';
 import { prepareReviewTask, reviewTextLength, reviewInputValid } from './review-task';
 import { analyticsConfigured, readAnalyticsConsent, saveAnalyticsConsent, enableAnalytics, trackAnalyticsEvent, type AnalyticsConsent } from './analytics';
 import './styles.entry.css';
@@ -278,7 +278,7 @@ function App() {
 
   return <div class="app" data-theme={dark() ? 'dark' : 'light'} data-design="minimalist">
     <header class="header"><div class="header-inner">
-      <a class="brand" href="#top" aria-label="IssueLint home"><BrandEmblem/><span class="brand-word">ISSUE<strong>LINT</strong></span></a>
+      <a class="brand" href="#top" aria-label="IssueLint home"><img class="brand-logo" src={dark() ? "/brand/logo-dark.webp" : "/brand/logo-light.webp"} alt="" width="480" height="92" decoding="async"/></a>
       <nav aria-label="Primary"><a href="#analyze" class="nav-current">01 / Analyze</a><a href="#examples">02 / Examples</a><a href="#guide">03 / Process</a></nav>
       <div class="header-right">
         <div class="appearance-switcher" role="group" aria-label="Choose light or dark appearance">
