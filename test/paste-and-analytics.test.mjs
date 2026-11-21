@@ -80,3 +80,12 @@ test('four control cases reproduce description-only task input',async()=>{
     for(const issue of oracle.must_detect)assert.ok(issue.source_quotes.every(q=>task.description.includes(q)));
   }
 });
+
+test('visible optional title overrides first pasted line; description alone remains valid',()=>{
+  const withTitle={...task,title:'Fix dark mode user experience'};
+  assert.equal(prepareReviewTask(withTitle).title,'Fix dark mode user experience');
+  assert.ok(reviewInputValid(withTitle));
+  assert.equal(reviewTextLength(withTitle)-reviewTextLength(task),withTitle.title.length-prepareReviewTask(task).title.length);
+  assert.equal(prepareReviewTask(task).title,'Add dark mode to web and mobile.');
+  assert.ok(reviewInputValid(task));
+});

@@ -59,3 +59,28 @@
  .app[data-design="minimalist"] .decision-compact-detail{padding:3px 10px 12px 12px}
 }
 @media(prefers-reduced-motion:reduce){.app[data-design="minimalist"] .decision-compact-chevron{transition:none}}
+
+/* Click/tap/keyboard tooltip: score is Gemini P(Clear); icon is final display status. */
+.app[data-design="minimalist"] .decision-score-heading{display:flex;align-items:center;gap:9px;min-width:0}
+.app[data-design="minimalist"] .decision-score-heading h2{margin:0}
+.app[data-design="minimalist"] .decision-score-help{position:relative;flex:none;z-index:3}
+.app[data-design="minimalist"] .decision-score-help[open]{z-index:15}
+.app[data-design="minimalist"] .decision-score-help > summary{
+  display:grid;place-items:center;width:24px;height:24px;
+  list-style:none;cursor:pointer;border-radius:50%;border:1px solid var(--line);
+  background:var(--soft);color:var(--muted);font-size:13px;font-weight:750;line-height:1
+}
+.app[data-design="minimalist"] .decision-score-help > summary::-webkit-details-marker{display:none}
+.app[data-design="minimalist"] .decision-score-help > summary::marker{content:""}
+.app[data-design="minimalist"] .decision-score-help > summary:hover,
+.app[data-design="minimalist"] .decision-score-help[open] > summary{color:var(--ink);border-color:var(--red-text)}
+.app[data-design="minimalist"] .decision-score-help > summary:focus-visible{outline:2px solid var(--red-text);outline-offset:3px}
+.app[data-design="minimalist"] .decision-score-tooltip{
+  position:absolute;left:-8px;top:calc(100% + 9px);
+  width:min(320px,calc(100vw - 72px));padding:12px 14px;
+  border:1px solid var(--line);border-radius:9px;
+  background:var(--paper);color:var(--ink);box-shadow:0 10px 28px #00000028;text-align:left
+}
+.app[data-design="minimalist"] .decision-score-tooltip p{font-size:12px;line-height:1.5;margin:0 0 8px}
+.app[data-design="minimalist"] .decision-score-tooltip p:last-child{margin-bottom:0}
+.app[data-design="minimalist"] .decision-score-tooltip strong{color:var(--red-text)}

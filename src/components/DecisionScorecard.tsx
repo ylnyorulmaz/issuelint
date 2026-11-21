@@ -30,7 +30,17 @@ export function DecisionScorecard(props: { data: ApiDecisionResult }) {
     <div class="result-top">
       <div>
         <span class="kicker">DECISION ENGINE · EXPERIMENTAL</span>
-        <h2>11 quality checks</h2>
+        <div class="decision-score-heading">
+          <h2>11 quality checks</h2>
+          <details class="decision-score-help">
+            <summary aria-label="Explain percentages and status icons" title="How to read the score">?</summary>
+            <div class="decision-score-tooltip" role="note">
+              <p><strong>%</strong> Gemini's P(Clear), not a task grade.</p>
+              <p><strong>✓ / ✕</strong> No issue / issue found. Below 85%, GPT-OSS reviews independently and may disagree with Gemini (e.g. 63% ✓). At 85% or above, ✓ reflects Gemini screening only.</p>
+              <p><strong>? / —</strong> Not verified / not applicable.</p>
+            </div>
+          </details>
+        </div>
         <p>Gemini screens each dimension. GPT-OSS independently audits those below 85% Clear probability. Expand any row for its explanation.</p>
       </div>
       <span class="pill">Decision v2</span>
