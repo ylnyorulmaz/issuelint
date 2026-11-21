@@ -213,3 +213,7 @@
   .app[data-design="minimalist"].admin-app .admin-field p { font-size: 15px; }
   .app[data-design="minimalist"].admin-app .admin-result-column { padding: 16px; }
 }
+
+/* Consistent visible title field in Paste and Build modes. */
+.app[data-design="minimalist"] .input-card label[for="title"]{display:block;margin-bottom:7px}
+.app[data-design="minimalist"] .input-card #title{display:block;width:100%;font-size:16px;line-height:1.5;min-height:44px;margin-bottom:17px}

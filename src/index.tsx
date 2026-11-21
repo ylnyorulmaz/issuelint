@@ -317,7 +317,7 @@ function App() {
             <button type="button" aria-pressed={entryMode() === 'build'} class={entryMode() === 'build' ? 'active' : ''} disabled={loading()} onClick={() => chooseEntryMode('build')}>Build a task</button>
           </div>
           <Show when={entryMode() === 'paste'} fallback={<div class="build-input">
-            <label for="title">Task title <span class="optional-field">(optional)</span></label>
+            <label for="title">Task, ticket, to-do or brief title <span class="optional-field">(optional)</span></label>
             <input id="title" value={task().title} maxLength={180} disabled={loading()} placeholder="e.g. Add dark mode to web and mobile" onInput={e => edit('title', e.currentTarget.value)}/>
             <div class="form-grid"><div><label for="type">Task type</label><select id="type" value={task().type} disabled={loading()} onChange={e => edit('type', e.currentTarget.value as TaskType)}><For each={types}>{t => <option>{t}</option>}</For></select></div>
               <div><label for="domain">Area</label><select id="domain" value={task().domain} disabled={loading()} onChange={e => edit('domain', e.currentTarget.value as Domain)}><For each={domains}>{d => <option>{d}</option>}</For></select></div></div>
@@ -331,6 +331,8 @@ function App() {
             <input id="references" maxLength={1000} disabled={loading()} placeholder="Figma, docs, ticket links or names" value={task().references ?? ''} onInput={e => edit('references', e.currentTarget.value)}/>
             <p class="build-hint">Only describe what you know. IssueLint will ask about missing decisions instead of inventing them.</p>
           </div>}>
+            <label for="title">Task, ticket, to-do or brief title <span class="optional-field">(optional)</span></label>
+            <input id="title" value={task().title} maxLength={180} disabled={loading()} autocomplete="off" placeholder="Optional — first line used if left blank" onInput={e => edit('title', e.currentTarget.value)}/>
             <label for="description">Paste your task, ticket or brief <span class="req">*</span></label>
             <textarea id="description" required rows={5} maxLength={6500} disabled={loading()} placeholder="Paste a Jira or GitHub ticket, meeting note, sales request, marketing brief… or describe the work in your own words." value={task().description} onInput={e => edit('description', e.currentTarget.value)}/>
             <div class="paste-helper"><span>Any team. Any tool. Plain text is enough.</span><span>Ctrl / ⌘ + V</span></div>
@@ -364,12 +366,10 @@ function App() {
             <button class="secondary-action" type="button" disabled={!inputValid() || loading()} onClick={reviewDemo}>Run a demo review instead</button>
           </Show>
           <button type="button" class="disclosure details-disclosure" aria-expanded={details()} onClick={() => setDetails(!details())}>
-            <span><b>{details() ? 'Hide additional fields' : entryMode() === 'paste' ? 'Add title, type or context (optional)' : 'Add acceptance criteria or constraints (optional)'}</b><small>Add known details only. Missing fields are not automatically failures.</small></span><span class="plus">{details() ? '−' : '+'}</span>
+            <span><b>{details() ? 'Hide additional fields' : entryMode() === 'paste' ? 'Add type, area or context (optional)' : 'Add acceptance criteria or constraints (optional)'}</b><small>Add known details only. Missing fields are not automatically failures.</small></span><span class="plus">{details() ? '−' : '+'}</span>
           </button>
           <Show when={details()}><div class="extra">
             <Show when={entryMode() === 'paste'}>
-              <label for="title">Task title <span class="optional-field">(optional)</span></label>
-              <input id="title" value={task().title} maxLength={180} disabled={loading()} placeholder="Derived from pasted task if left blank" onInput={e => edit('title', e.currentTarget.value)}/>
               <div class="form-grid"><div><label for="type">Task type</label><select id="type" value={task().type} disabled={loading()} onChange={e => edit('type', e.currentTarget.value as TaskType)}><For each={types}>{t => <option>{t}</option>}</For></select></div>
               <div><label for="domain">Area</label><select id="domain" value={task().domain} disabled={loading()} onChange={e => edit('domain', e.currentTarget.value as Domain)}><For each={domains}>{d => <option>{d}</option>}</For></select></div></div>
               <label for="scope">Scope / target audience <span class="optional-field">(optional)</span></label>

@@ -419,3 +419,26 @@ test('compact status uses audited GPT-OSS verdict over Gemini score',()=>{
   assert.deepEqual(presentDecisionGate(g(.9),{...a,selected:[]}),{mark:'pass',source:'gemini'});
   assert.deepEqual(presentDecisionGate(g(.2,'not_applicable'),{...a,checks:[check('not_applicable')]}),{mark:'not_applicable',source:'gpt-oss'});
 });
+
+test('paste-first form exposes title outside extra details, keeps both modes optional',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const source=await readFile(new URL('../src/index.tsx',import.meta.url),'utf8');
+  const paste=source.slice(source.indexOf('<Show when={entryMode() === \'paste\'} fallback='),source.indexOf('<div class="counter"'));
+  assert.match(paste,/Task, ticket, to-do or brief title/);
+  assert.match(paste,/placeholder="Optional — first line used if left blank"/);
+  assert.equal((paste.match(/<input id="title"/g)||[]).length,2,'one visible title per mode');
+  const expanded=source.slice(source.indexOf('<Show when={details()}>'),source.indexOf('class="privacy-note"'));
+  assert.doesNotMatch(expanded,/<input id="title"/);
+  assert.match(source,/Add type, area or context \(optional\)/);
+});
+
+test('Decision scorecard provides a keyboard-accessible explanatory tooltip',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const component=await readFile(new URL('../src/components/DecisionScorecard.tsx',import.meta.url),'utf8');
+  const css=await readFile(new URL('../src/styles.decision-compact.css',import.meta.url),'utf8');
+  assert.match(component,/class="decision-score-help"/);
+  assert.match(component,/<summary aria-label="Explain percentages and status icons"/);
+  assert.match(component,/Gemini's P\(Clear\), not a task grade/);
+  assert.match(component,/GPT-OSS reviews independently/);
+  assert.match(css,/\.decision-score-help > summary:focus-visible/);
+});
