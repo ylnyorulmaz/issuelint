@@ -36,3 +36,21 @@
     min-width: 43px; padding: 6px 7px; font-size:10px;
   }
 }
+
+/* Supplied IssueLint artwork, extracted without changing the minimalist UI. */
+.app[data-design="minimalist"] .brand-logo {
+  display: block;
+  width: 188px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 480 / 92;
+  object-fit: contain;
+}
+.app[data-design="minimalist"] .admin-brand .brand-logo { width: 172px; }
+@media(max-width:650px) {
+  .app[data-design="minimalist"] .brand-logo { width: 157px; }
+  .app[data-design="minimalist"] .admin-brand .brand-logo { width: 140px; }
+}
+@media(max-width:400px) {
+  .app[data-design="minimalist"] .admin-label { display: none; }
+}
