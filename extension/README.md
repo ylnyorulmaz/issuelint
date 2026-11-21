@@ -31,7 +31,7 @@ Other scripts:
 | --- | --- |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Unit tests: Markdown cleanup, URL validation, IssueLint request mapping and limits, Quick Scan / Decision / generic normalization, API client (mocked `fetch`) |
-| `npm run test:e2e` | Runs the built `dist/content.js` in headless Chromium (Playwright) against fixture pages |
+| `npm run test:e2e` | Runs the built `dist/content.js` in headless Chromium (Playwright) against fixture pages: extraction modes and the Pick card picker |
 | `npm run check` | build + unit + e2e |
 | `npm run zip` | Zips `dist/` for upload to the Chrome Web Store |
 | `node scripts/make-icons.mjs` | Regenerates `public/icons/*.png` |
@@ -43,15 +43,49 @@ toolbar click / Alt+Shift+L
   └─ background.ts: opens the side panel (grants activeTab for that page) and asks it to extract
 sidepanel.ts
   ├─ chrome.scripting.executeScript(content.js) → __issuelintClipperExtract()
-  ├─ editable Markdown + character count (8,000 soft limit) + Copy
+  ├─ Pick card: executeScript(content.js) → tabs.sendMessage START_ELEMENT_PICKER
+  │     content.js opens a runtime port "clipper-picker" → ELEMENT_PICKED / ELEMENT_PICKER_CANCELLED
+  ├─ editable Markdown + character count (6,500 IssueLint limit / 8,000 custom) + Copy
   └─ Analyze Task → Mock sample OR POST to IssueLint /api/quick-scan | /api/analyze-v2 | custom URL → result view
-content.ts (injected only on demand, never modifies the page, makes no network requests)
+content.ts (injected only on demand, never changes page content, makes no network requests)
+  Re-extract / toolbar click, in priority order:
   1. selection  – the selected HTML fragment
   2. modal      – the largest visible [role=dialog] / [aria-modal=true] / dialog[open] with ≥200 chars
   3. page       – Defuddle on a cloned document (hidden subtrees pruned first)
+  Pick card (explicit, sourceMode "card"):
+  4. card       – the card / drawer / container the user clicks (picker.ts)
   → Turndown + GFM (tables, task lists, fenced code), URLs absolutized, data: images dropped
   → { title, url, markdown, sourceMode, truncated }   (hard cap 100,000 chars)
 ```
+
+### Pick card / area
+
+Use it when a board (Trello, Jira, Asana, Monday, Notion…) has no selection or dialog to latch onto and a
+full-page clip would pull in neighbouring cards.
+
+1. Click **Pick card** in the Extract card header (it turns into **Picking… Esc to cancel**).
+2. Move the mouse over the page. A sage highlight box with a small label (`Card`, `Drawer`, `Dialog`, `List item`,
+   `Article`, `Section`, `Container`) shows what will be captured. Hovering a word climbs to the nearest card-like
+   container; **hold Shift** to capture the exact element under the pointer instead.
+3. Click to capture. The page never receives that click (or the pointer/mouse down/up before it), so cards don't open,
+   drag or navigate. The panel fills with the Markdown and the mode shows **Card**.
+
+**Esc** (on the page or in the panel), clicking **Pick card** again, switching tabs, reloading the page or closing the
+panel all cancel picking and remove the overlay.
+
+How the container is chosen (`resolveCardContainer` in `src/picker.ts`): the nearest ancestor that looks like one card
+wins: `article`, dialogs, or a class / `data-testid` token containing card, drawer, modal, issue, task or ticket, but not
+part tokens (`card-title`, `modal-body`, …) or collections (`list-cards`, `card-list`, …). A `li`/`section`/region is used only
+if no such card encloses it, so a checklist item inside a Jira drawer resolves to the drawer. Otherwise the nearest block
+with real text is used. `body`, `html` and the page shell are never chosen.
+
+Title: the first heading inside the card (`h1`–`h4`, `[role=heading]`, `[data-testid*=title]`), else `document.title`.
+On boards `document.title` is usually the board name, which is why the card heading wins.
+
+While picking, the only change to the page is one overlay host element (`[data-issuelint-picker]`, closed shadow root,
+`pointer-events: none`) plus capture-phase listeners on `window`; both are removed when picking ends.
+Limitations: cards inside iframes can't be picked (the script runs in the top frame only); a page listener registered
+on `window` in the capture phase before the picker starts can still see events.
 
 ### Permissions
 
@@ -155,10 +189,11 @@ extension/
   scripts/make-icons.mjs
   src/
     background.ts        toolbar click → open panel → ask it to extract
-    content.ts           selection → modal → Defuddle page pipeline, Turndown + GFM
+    content.ts           selection → modal → Defuddle page pipeline, Turndown + GFM; picker messaging
+    picker.ts            Pick card overlay, container resolution, event blocking
     sidepanel.html
     sidepanel.ts         UI, settings, analyze flow, scorecard rendering (textContent only)
     styles.css           dark theme
     lib/                 IssueLint request mapping, api client, URL checks, settings, scorecard normalizer, mock data, Markdown cleanup
-  test/                  node:test unit tests + Playwright extraction test
+  test/                  node:test unit tests + Playwright extraction and picker tests
 ```
