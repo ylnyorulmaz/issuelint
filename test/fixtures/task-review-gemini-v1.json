@@ -1,0 +1,415 @@
+{
+  "dataset_id": "issuelint-gemini-independent-reviewed-v1",
+  "schema_version": "1.1.0",
+  "status": "human_review_required",
+  "source": "Gemini independent task scenarios, reviewed and normalized by ChatGPT on 2026-11-21",
+  "provenance_note": "Task input fields faithfully transcribed from the reviewed Gemini attachment; oracle summaries are intentionally condensed for the admin tester. These labels are not verified ground truth.",
+  "cases": [
+    {
+      "id": "G-SW-01",
+      "domain": "Software",
+      "quality": "deliberately_flawed",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Enforce per-tenant ordering and isolation in outbound webhook dispatcher",
+        "description": "Refactor the outbound webhook worker pool in `services/webhook-dispatcher` so that slow or failing customer endpoints cannot starve other tenants. Events for a given `tenant_id` must be delivered strictly in FIFO order based on `event_sequence_id` and no event may be dropped during transient downstream outages. Use exponential backoff starting at 5 seconds up to 5 minutes per failing delivery attempt.",
+        "type": "Improvement",
+        "domain": "Software",
+        "criteria": "1. Load test with 50 tenants where 3 tenants return HTTP 503 shows p95 delivery latency for healthy tenants remains under 800ms.\n2. If a tenant endpoint returns 5xx errors continuously for more than 2 minutes, the worker skips the failing event to prevent head-of-line blocking and continues delivering newer events for that tenant.\n3. Unit and integration tests cover partition assignment and backoff timing.",
+        "context": "Last week a single enterprise customer's webhook receiver went down for 40 minutes, backing up the shared RabbitMQ queue and delaying webhooks for 120 other tenants.",
+        "scope": "In scope: `services/webhook-dispatcher` consumer logic, per-tenant partitioning, and retry scheduling. Out of scope: customer-facing webhook management UI and payload schema changes.",
+        "outcome": "Isolate failing tenant endpoints so healthy tenants experience sub-second webhook delivery.",
+        "references": "Incident postmortem INC-4412; `services/webhook-dispatcher/README.md`."
+      },
+      "oracle": {
+        "expected_status": "blocked",
+        "must_detect": [
+          {
+            "dimension": "contradictions",
+            "issue": "Strict FIFO for each tenant conflicts with skipping a failed event to deliver newer events for the same tenant."
+          },
+          {
+            "dimension": "behavior",
+            "issue": "Skipped-event handling and its relation to the retry schedule are not defined."
+          }
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "G-SW-02",
+      "domain": "Software",
+      "quality": "deliberately_flawed",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Perform zero-downtime PostgreSQL 13 to 17 major upgrade on prod-core-db",
+        "description": "Upgrade the production `prod-core-db` Amazon RDS PostgreSQL instance from version 13.14 to 17.2 during normal business hours with zero milliseconds of write interruption. The upgrade must be executed in-place on the existing single-node instance without provisioning a parallel instance, blue/green deployment, or logical replication.",
+        "type": "Request",
+        "domain": "Software",
+        "criteria": "1. `SELECT version();` returns PostgreSQL 17.2.\n2. Application write error rate stays at 0.00% throughout the upgrade window.\n3. All extensions and pg_stat_statements data are preserved.",
+        "context": "The application currently runs on Amazon RDS PostgreSQL 13. The infrastructure team has not yet approved or provisioned elevated production RDS admin IAM roles for the assignee.",
+        "scope": "Production database `prod-core-db` in `us-east-1`.",
+        "outcome": "Run production on PostgreSQL 17 without customer-facing write downtime.",
+        "references": "AWS RDS PostgreSQL 13 EOL notice."
+      },
+      "oracle": {
+        "expected_status": "blocked",
+        "must_detect": [
+          {
+            "dimension": "feasibility",
+            "issue": "In-place major version upgrade on single node cannot guarantee zero write interruption without another migration strategy."
+          },
+          {
+            "dimension": "dependencies",
+            "issue": "Production RDS administrative access is not provisioned."
+          }
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "G-SW-03",
+      "domain": "Software",
+      "quality": "deliberately_flawed",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Modernize legacy reporting engine",
+        "description": "Replace our legacy Crystal Reports server with a modern cloud BI platform. Migrate all 47 existing financial and operational reports, rewrite the underlying MSSQL stored procedures into dbt models on Snowflake, build new real-time executive streaming dashboards, train internal finance analysts, and decommission the old Windows reporting portal.",
+        "type": "Feature",
+        "domain": "Software",
+        "criteria": "Reports load fast, data matches legacy outputs, and stakeholders are happy with the new portal.",
+        "context": "Finance and Operations complain that month-end reports take too long to generate and the legacy server requires frequent restarts.",
+        "scope": "All company reporting workflows.",
+        "outcome": "Modern, scalable reporting infrastructure.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "granularity",
+            "issue": "This bundles several independently deliverable programs into one task."
+          },
+          {
+            "dimension": "completion",
+            "issue": "Subjective acceptance terms do not establish measurable completion boundaries."
+          }
+        ],
+        "bonus_detect": [
+          {
+            "dimension": "clarity",
+            "issue": "The target BI platform is not named."
+          }
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "G-SW-04",
+      "domain": "Software",
+      "quality": "well_specified_control",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Prepend UTF-8 BOM to Export Transactions CSV response",
+        "description": "When users download the CSV from `GET /api/v2/transactions/export` and open it directly in Microsoft Excel on Windows, non-ASCII characters (such as `€`, `ü`, and `ş`) render as mojibake because the response lacks a UTF-8 Byte Order Mark. Prepend the Unicode U+FEFF BOM (UTF-8 bytes EF BB BF) to the CSV stream while keeping `Content-Type: text/csv; charset=utf-8`.",
+        "type": "Bug",
+        "domain": "Software",
+        "criteria": "1. Downloaded CSV starts with bytes `EF BB BF`.\n2. Opening an exported file containing `€`, `ü`, and `ş` in Excel on Windows displays the characters intact.\n3. Existing API integration tests in `tests/api/test_transactions_export.py` pass and include a regression assertion for the BOM.",
+        "context": "Reported by three EU accounting customers in Zendesk tickets #8821, #8845, and #8890.",
+        "scope": "Only `GET /api/v2/transactions/export`.",
+        "outcome": "Windows Excel users can open exported transaction CSVs without garbled characters.",
+        "references": "`src/api/v2/transactions/export.py`"
+      },
+      "oracle": {
+        "expected_status": "ready",
+        "must_detect": [],
+        "expected_material_findings": "zero",
+        "expected_non_gap_gates": [
+          "contradictions",
+          "actionability",
+          "scope",
+          "granularity",
+          "behavior",
+          "completion",
+          "outcome",
+          "references",
+          "dependencies",
+          "clarity",
+          "feasibility"
+        ]
+      }
+    },
+    {
+      "id": "G-MK-01",
+      "domain": "Marketing",
+      "quality": "deliberately_flawed",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Produce localized EMEA enterprise case-study PDFs",
+        "description": "Design and lay out localized versions of our flagship enterprise manufacturing case study for EMEA field sales. Pull all ROI figures from the approved Q3 customer metrics deck and include two executive testimonials from the legal-cleared quote bank. Export print-ready and web-optimized PDFs for each target market.",
+        "type": "Request",
+        "domain": "Marketing",
+        "criteria": "All localized PDFs match brand guidelines, use only approved Q3 metrics and legal-cleared quotes, and are uploaded to Highspot.",
+        "context": "Field marketing is preparing collateral for Q4 enterprise trade shows across EMEA.",
+        "scope": "EMEA enterprise manufacturing vertical.",
+        "outcome": "Equip EMEA reps with localized customer proof points.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "references",
+            "issue": "Required approved metrics, quotes and source case study are not linked or supplied."
+          },
+          {
+            "dimension": "scope",
+            "issue": "Target countries and languages are unspecified."
+          }
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "G-MK-02",
+      "domain": "Marketing",
+      "quality": "deliberately_flawed",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Build registration page and promotion plan for FinOps partner webinar",
+        "description": "Create the Marketo registration page and promotional email sequence for our joint FinOps roundtable with CloudScale. Because this is an invite-only executive roundtable capped strictly at 25 CFOs and VPs of Finance with manual host approval for every seat, keep the registration flow gated by unique invite codes.",
+        "type": "Feature",
+        "domain": "Marketing",
+        "criteria": "1. Open self-serve registration form is live on the website and synced to Salesforce Campaign ID `7015e000001XkP9`.\n2. Promotional emails and paid LinkedIn ads drive at least 500 confirmed attendee registrations for this same capped roundtable before the event.\n3. Automated confirmation emails include the Zoom webinar link immediately upon form submission.",
+        "context": "CloudScale is co-funding 50% of the event budget and expects shared lead attribution.",
+        "scope": "Marketo landing page, 3-email invite sequence, and LinkedIn ad creative brief.",
+        "outcome": "Generate high-value enterprise finance pipeline with CloudScale.",
+        "references": "Salesforce Campaign `7015e000001XkP9`; CloudScale co-branding logo pack in Brandfolder."
+      },
+      "oracle": {
+        "expected_status": "blocked",
+        "must_detect": [
+          {
+            "dimension": "contradictions",
+            "issue": "The 25-person invite-only/manual-approval rules contradict open registration, 500 confirmed attendees, and instant link delivery."
+          }
+        ],
+        "bonus_detect": [
+          {
+            "dimension": "outcome",
+            "issue": "The event's curated executive meeting objective differs from mass lead registration."
+          }
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "G-MK-03",
+      "domain": "Marketing",
+      "quality": "deliberately_flawed",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Publish 6-part SEO pillar content hub for AI Compliance module by Friday",
+        "description": "Write, review, and publish a 6-article SEO pillar hub (one 2,500-word pillar guide plus five 1,200-word supporting articles) explaining our new AI Compliance module's capabilities, tier pricing comparison, and regulatory mapping. Publish all six pages live on `/resources/ai-compliance` by Friday at 5:00 PM ET in the launch week.",
+        "type": "Request",
+        "domain": "Marketing",
+        "criteria": "All 6 articles are live on the CMS with final product names, accurate tier pricing tables, and internal cross-links by Friday 5:00 PM ET in the launch week.",
+        "context": "Product Marketing will not finalize the official module name, pricing tiers and GA feature list until the following Tuesday, after the Friday publication deadline. Legal approval is required before publishing regulatory claims, and review takes at least three business days after the final feature list is received.",
+        "scope": "6 long-form SEO articles in Webflow CMS.",
+        "outcome": "Capture organic search traffic ahead of the Q4 product launch.",
+        "references": "Keyword cluster spreadsheet: `SEO_Q4_Compliance_Keywords.xlsx`."
+      },
+      "oracle": {
+        "expected_status": "blocked",
+        "must_detect": [
+          {
+            "dimension": "dependencies",
+            "issue": "Final feature, naming, pricing and legal approvals occur after the requested publication date."
+          }
+        ],
+        "bonus_detect": [
+          {
+            "dimension": "actionability",
+            "issue": "Generic educational drafting could begin, although product-specific publishing cannot."
+          }
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "G-MK-04",
+      "domain": "Marketing",
+      "quality": "well_specified_control",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Update Q4 event booth banner copy",
+        "description": "Replace the headline and subheadline on our 10ft x 8ft trade show backdrop banner using the approved Q4 messaging below, then export a print-ready file for the vendor.",
+        "type": "Request",
+        "domain": "Marketing",
+        "criteria": "1. Headline reads exactly: \"Automate Cloud Audits in Minutes\".\n2. Subheadline reads exactly: \"Continuous SOC 2 and ISO 27001 evidence collection for engineering teams.\"\n3. Exported as PDF/X-1a, CMYK, 150 DPI at full scale (120\" x 96\") with 2\" bleed and outlined fonts.\n4. Uploaded to the vendor portal folder `Events/Q4_KubeCon/Print_Final` by October 14, 2027.",
+        "context": "The existing Q3 backdrop layout, color palette, and logo placement stay unchanged. Only the two text layers (`Headline_Main` and `Subhead_Main`) in the InDesign template need updating.",
+        "scope": "10ft x 8ft main backdrop banner only; podium wrap and handouts are unchanged.",
+        "outcome": "Deliver print-ready updated backdrop artwork by the vendor handoff deadline for a planned Q4 2027 exhibition.",
+        "references": "InDesign package: `Drive/Brand/Events/Q3_Backdrop_10x8.indd`; Vendor spec sheet: `Drive/Brand/Events/ExpoPrint_Backdrop_Specs.pdf`."
+      },
+      "oracle": {
+        "expected_status": "ready",
+        "must_detect": [],
+        "expected_material_findings": "zero",
+        "expected_non_gap_gates": [
+          "contradictions",
+          "actionability",
+          "scope",
+          "granularity",
+          "behavior",
+          "completion",
+          "outcome",
+          "references",
+          "dependencies",
+          "clarity",
+          "feasibility"
+        ]
+      }
+    },
+    {
+      "id": "G-SA-01",
+      "domain": "Sales",
+      "quality": "deliberately_flawed",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Configure automated Salesforce routing for inbound enterprise leads",
+        "description": "Set up a new LeanData/Salesforce routing flow for inbound website leads from companies with 500+ employees. Route high-intent leads directly to Senior AEs immediately, and send warm leads to the SDR round-robin queue, unless the lead belongs to an existing customer or falls inside a protected territory.",
+        "type": "Feature",
+        "domain": "Sales",
+        "criteria": "Inbound enterprise leads are routed automatically within 5 minutes of form submission according to the new rules.",
+        "context": "Enterprise AEs reported missing high-priority demo requests while SDRs were overloaded with low-fit content downloads.",
+        "scope": "Salesforce Lead object and LeanData inbound router.",
+        "outcome": "Faster speed-to-lead for qualified enterprise buyers.",
+        "references": "LeanData router sandbox."
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "clarity",
+            "issue": "High-intent, warm, and protected territory are not operationally defined."
+          },
+          {
+            "dimension": "behavior",
+            "issue": "There is no fallback route for existing customers or protected territories."
+          }
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "G-SA-02",
+      "domain": "Sales",
+      "quality": "deliberately_flawed",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Overhaul global sales onboarding and FY27 territory plan",
+        "description": "Prepare the global sales org for FY27 by cleaning up all duplicate accounts in Salesforce, designing a new 12-week AE ramp certification curriculum, modeling FY27 quotas across AMER, EMEA, and APAC, and rolling out the revised commission plan and clawback policy to all 85 reps.",
+        "type": "General",
+        "domain": "Sales",
+        "criteria": "Global sales org is ready for FY27 kickoff with clean CRM data, new territories, and trained reps.",
+        "context": "CRO wants Sales Ops, Enablement, and Finance aligned before January SKO.",
+        "scope": "Global sales organization (AMER, EMEA, APAC).",
+        "outcome": "Higher AE ramp speed and accurate FY27 territory coverage.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "granularity",
+            "issue": "Separate large Sales Ops, Enablement, Finance and compensation initiatives are collapsed into one ticket."
+          },
+          {
+            "dimension": "completion",
+            "issue": "The aggregate 'org is ready' criterion is not actionable as a single task acceptance condition."
+          }
+        ],
+        "bonus_detect": [
+          {
+            "dimension": "scope",
+            "issue": "Detailed workstream boundaries remain unresolved."
+          }
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "G-SA-03",
+      "domain": "Sales",
+      "quality": "deliberately_flawed",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Close 15 net-new Fortune 500 healthcare logos in 10 business days",
+        "description": "Launch a cold outbound email sequence targeting Fortune 500 healthcare networks and secure 15 net-new signed annual enterprise contracts within 10 business days. Our planned service will handle customer protected health information (PHI). Under company policy, every contract for this offering must include the approved healthcare data-processing/BAA addendum and Legal must authorize execution before Sales can countersign. No contract may be signed before that approval.",
+        "type": "Request",
+        "domain": "Sales",
+        "criteria": "Fifteen signed annual enterprise contracts are recorded in DocuSign by the end of business day 10; every contract has the required approved addendum and authorization.",
+        "context": "We are entering healthcare for the first time. Legal has not yet approved the healthcare contract addendum and its earliest approval meeting is on business day 15 of this campaign. We have no existing healthcare customer references.",
+        "scope": "US Fortune 500 healthcare accounts.",
+        "outcome": "Secure 15 new annual healthcare contracts under company contracting policy.",
+        "references": "ZoomInfo healthcare contact list."
+      },
+      "oracle": {
+        "expected_status": "blocked",
+        "must_detect": [
+          {
+            "dimension": "contradictions",
+            "issue": "Signing 15 contracts by day 10 conflicts with a policy barring signatures until Legal approval on day 15."
+          },
+          {
+            "dimension": "dependencies",
+            "issue": "The required contract addendum and Legal approval cannot be obtained before the deadline."
+          }
+        ],
+        "bonus_detect": [
+          {
+            "dimension": "feasibility",
+            "issue": "Given the policy and approval schedule, the day-10 signing goal is impossible as written."
+          }
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "G-SA-04",
+      "domain": "Sales",
+      "quality": "well_specified_control",
+      "evaluation_role": "independent_candidate",
+      "task": {
+        "title": "Create Q3 2026 Closed-Won ARR report by lead source and AE region",
+        "description": "Build a Salesforce Opportunities report for Q3 2026 (July 1–September 30, 2026) showing Closed-Won New Business ARR in USD. Include opportunities where `StageName = Closed Won` and `CloseDate` is in that period. Sum the existing `New_Business_ARR_USD__c` field, grouped by `Lead_Source__c` and `AE_Region__c`. Exclude opportunities where `Account.Is_Internal_Test__c = TRUE` or `Type = Renewal`. Add the report as a stacked bar chart widget to the `Executive Revenue Dashboard` and schedule a weekly email subscription to the VP of Sales (`vp-sales@example.com`) every Monday at 8:00 AM America/New_York.",
+        "type": "Request",
+        "domain": "Sales",
+        "criteria": "1. Report totals match the approved Finance Q3 2026 New Business ARR ledger (`$4.12M`) within `$1` using the ledger's USD basis.\n2. Test accounts and Renewal opportunities are excluded.\n3. The stacked bar chart widget is visible on `Executive Revenue Dashboard`.\n4. Monday 8:00 AM America/New_York subscription is active for `vp-sales@example.com`.",
+        "context": "The named Opportunity fields, account test flag, Finance ledger, Executive dashboard and recipient are already configured and accessible to the assigned Salesforce report owner.",
+        "scope": "Salesforce production org; `Executive Revenue Dashboard` only.",
+        "outcome": "Give sales leadership a reconciled weekly view of Q3 2026 New Business ARR by source and region.",
+        "references": "Finance Q3 New Business ARR ledger (`Sheets/Finance_Q3_ARR_Final`); Salesforce folder `Executive Reports`."
+      },
+      "oracle": {
+        "expected_status": "ready",
+        "must_detect": [],
+        "expected_material_findings": "zero",
+        "expected_non_gap_gates": [
+          "contradictions",
+          "actionability",
+          "scope",
+          "granularity",
+          "behavior",
+          "completion",
+          "outcome",
+          "references",
+          "dependencies",
+          "clarity",
+          "feasibility"
+        ]
+      }
+    }
+  ]
+}
