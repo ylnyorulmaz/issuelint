@@ -55,7 +55,7 @@ test('admin API returns exactly 12 authentic ChatGPT tasks plus private author o
   const res=await worker.fetch(request('chatgpt'),env());
   assert.equal(res.status,200);
   assert.match(res.headers.get('content-type'),/application\/json/);
-  assert.equal(res.headers.get('cache-control'),'no-store');
+  assert.equal(res.headers.get('cache-control'),'no-store, private');
   assert.equal(res.headers.get('x-content-type-options'),'nosniff');
   const raw=await res.json();
   assert.equal(raw.source,'chatgpt');
