@@ -1,7 +1,7 @@
 import { createSignal, For, Show, onCleanup } from 'solid-js';
 import type { ApiAnalysis, ApiDecisionResult } from '../api';
 import { analyzeLive, analyzeDecisionLive, ApiError, getHealth } from '../api';
-import { loadAdminFixture, type AdminCase, type AdminSource, type AdminFixture } from '../admin-data';
+import { loadAdminFixture, taskForAdminReview, type AdminCase, type AdminSource, type AdminFixture } from '../admin-data';
 import { readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from '../preview-access';
 import { readAppearance, saveAppearance, type Appearance } from '../appearance';
 import { DecisionScorecard } from './DecisionScorecard';
@@ -59,7 +59,7 @@ export function AdminStation() {
   const [oracleShown,setOracleShown]=createSignal<Record<string,boolean>>({});
   const [runs,setRuns]=createSignal<Record<string,CaseRuns>>({});
   const [busy,setBusy]=createSignal<string|null>(null);
-  const [filter,setFilter]=createSignal<'All'|'Software'|'Marketing'|'Sales'>('All');
+  const [filter,setFilter]=createSignal<'All'|'Software'|'Marketing'|'Sales'|'Other'>('All');
   const [dark,setDark]=createSignal(readAppearance()==='dark');
   function chooseAppearance(next:Appearance){
     if(dark()===(next==='dark'))return;
@@ -106,14 +106,15 @@ export function AdminStation() {
     setBusy(item.id+':'+engine);
     const started=Date.now();
     try {
-      // Task object ONLY. Never serialize the oracle, case ID, labels or other evaluation metadata.
+      // Mirror paste-first title derivation; never send oracle or benchmark metadata.
+      const payload=taskForAdminReview(item);
       if(engine==='original') {
-        const output=await analyzeLive(item.task,code().trim(),controller.signal);
+        const output=await analyzeLive(payload,code().trim(),controller.signal);
         if(runController!==controller)return;
         const record:Result<ApiAnalysis>={state:'done',data:output,elapsedMs:Date.now()-started};
         setRuns(old=>({...old,[item.id]:{...old[item.id],original:record}}));
       } else {
-        const output=await analyzeDecisionLive(item.task,code().trim(),controller.signal);
+        const output=await analyzeDecisionLive(payload,code().trim(),controller.signal);
         if(runController!==controller)return;
         const record:Result<ApiDecisionResult>={state:'done',data:output,elapsedMs:Date.now()-started};
         setRuns(old=>({...old,[item.id]:{...old[item.id],decision:record}}));
@@ -169,6 +170,12 @@ export function AdminStation() {
             <strong>{loadingSource()==='gemini'?'Loading…':'Load test cases from Gemini'}</strong>
             <small>12 reviewed Gemini-origin tasks</small>
           </button>
+          <button class="admin-load-button" type="button" disabled={!!loadingSource()||!!busy()||!code().trim()}
+            onClick={()=>void load('paste')}>
+            <span>03 / PASTE ONLY</span>
+            <strong>{loadingSource()==='paste'?'Loading…':'Load short paste-only cases'}</strong>
+            <small>4 cases · description only · no extra details</small>
+          </button>
         </div>
         <div class="admin-control-footer">
           <span class={'admin-service '+availability()}>{availability()==='ready'?'● Models enabled':availability()==='checking'?'○ Checking service…':'○ Model execution unavailable'}</span>
@@ -178,13 +185,13 @@ export function AdminStation() {
       </section>
 
       <Show when={fixture()} fallback={
-        <section class="admin-empty card"><strong>No dataset loaded</strong><p>Choose ChatGPT or Gemini above to inspect its 12 test cases. Existing reviews are never run automatically.</p></section>
+        <section class="admin-empty card"><strong>No dataset loaded</strong><p>Choose a test set above. Paste-only cases reproduce the single-field input. Reviews never run automatically. Existing reviews are never run automatically.</p></section>
       }>
         {dataset=><section class="admin-dataset" aria-label="Loaded test cases">
           <div class="admin-dataset-heading">
-            <div><span class="admin-kicker">{dataset().source==='gemini'?'GEMINI · INDEPENDENT ORIGIN':'CHATGPT · CONTROL GROUP'}</span><h2>{dataset().dataset_id}</h2><p>Expected labels are author hypotheses, not ground truth. Only each task is sent to the models.</p></div>
+            <div><span class="admin-kicker">{dataset().source==='gemini'?'GEMINI · INDEPENDENT ORIGIN':dataset().source==='paste'?'PASTE ONLY · SHORT TASKS':'CHATGPT · CONTROL GROUP'}</span><h2>{dataset().dataset_id}</h2><p>Expected labels are author hypotheses, not ground truth. Only each task is sent to the models.</p></div>
             <div class="admin-filters" role="group" aria-label="Filter test cases by domain">
-              <For each={(['All','Software','Marketing','Sales'] as const)}>{value=>
+              <For each={(['All','Software','Marketing','Sales','Other'] as const)}>{value=>
                 <button type="button" class={filter()===value?'selected':''} aria-pressed={filter()===value} onClick={()=>setFilter(value)}>{value}</button>
               }</For>
             </div>
@@ -195,7 +202,7 @@ export function AdminStation() {
                 <div class="admin-case-head">
                   <div class="admin-case-identity">
                     <span class="admin-case-id">{item.id} / {item.domain}</span>
-                    <h3>{item.task.title}</h3>
+                    <h3>{item.task.title || item.task.description.slice(0,85)}</h3>
                     <div class="admin-case-tags"><span>{item.task.type}</span><span class={item.quality==='well_specified_control'?'admin-clean':'admin-flawed'}>{item.quality==='well_specified_control'?'Well-defined control':'Deliberately flawed'}</span></div>
                   </div>
                   <div class="admin-case-actions">
@@ -211,7 +218,8 @@ export function AdminStation() {
                 <Show when={expanded()===item.id}>
                   <div class="admin-case-body">
                     <div class="admin-task-details">
-                      <div class="admin-section-label">INPUT TASK · EXACT PAYLOAD</div>
+                      <div class="admin-section-label">{dataset().source==='paste'?'PASTE INPUT · ONLY DESCRIPTION ENTERED':'INPUT TASK · EXACT PAYLOAD'}</div>
+                      <Show when={dataset().source==='paste'}><p class="admin-meta">The title and all additional fields are blank. The first description line becomes the API title at submission; expected labels stay private.</p></Show>
                       <div class="admin-fields">
                         <For each={TASK_FIELDS}>{([field,label])=><div class="admin-field">
                           <span>{label}</span><p class={!item.task[field]?'admin-unset':''}>{item.task[field]||'(not specified)'}</p>

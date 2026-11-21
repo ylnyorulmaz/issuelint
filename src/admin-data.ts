@@ -1,8 +1,9 @@
 import type { Task } from './analyzer';
+import { prepareReviewTask, reviewInputValid } from './review-task';
 import { ApiError } from './api.ts';
 import { newRequestId } from './diagnostics.ts';
 
-export type AdminSource = 'chatgpt' | 'gemini';
+export type AdminSource = 'chatgpt' | 'gemini' | 'paste';
 export type AdminExpectedIssue = { dimension: string; issue: string; importance?: string; question?: string };
 export type AdminOracle = {
   expected_status: 'ready' | 'needs_clarification' | 'blocked';
@@ -41,13 +42,13 @@ export function parseAdminFixture(input:unknown, source:AdminSource):AdminFixtur
   const invalid=()=>new ApiError('INVALID_FIXTURE','The test set has an invalid shape.',0);
   if(!record(input)||input.source!==source||typeof input.dataset_id!=='string'||
     typeof input.schema_version!=='string'||typeof input.status!=='string'||
-    !Array.isArray(input.cases)||input.cases.length!==12) throw invalid();
+    !Array.isArray(input.cases)||input.cases.length!==(source==='paste'?4:12)) throw invalid();
   const seen=new Set<string>();
   const cases:AdminCase[]=[];
   for(const raw of input.cases) {
-    if(!record(raw)||typeof raw.id!=='string'||!(/^(SW|MK|SA|G-SW|G-MK|G-SA)-0[1-4]$/.test(raw.id))||
+    if(!record(raw)||typeof raw.id!=='string'||!(source==='paste'?/^P-0[1-4]$/.test(raw.id):/^(SW|MK|SA|G-SW|G-MK|G-SA)-0[1-4]$/.test(raw.id))||
       seen.has(raw.id)||!record(raw.task)||!record(raw.oracle)||
-      !DOMAINS.has(String(raw.domain))||
+      !(source==='paste'?raw.domain==='Other':DOMAINS.has(String(raw.domain)))||
       !['deliberately_flawed','well_specified_control'].includes(String(raw.quality)) ||
       !['ready','needs_clarification','blocked'].includes(String(raw.oracle.expected_status))||
       !Array.isArray(raw.oracle.must_detect)) throw invalid();
@@ -55,13 +56,16 @@ export function parseAdminFixture(input:unknown, source:AdminSource):AdminFixtur
     const t=raw.task;
     const keys=['title','description','type','domain','criteria','context','scope','outcome','references'];
     if(!keys.every(k=>typeof t[k]==='string')||
-      !TYPES.has(String(t.type))||!DOMAINS.has(String(t.domain))||
-      t.domain!==raw.domain||(t.title as string).length<1||(t.title as string).length>180||
+      !TYPES.has(String(t.type))||(source==='paste'?t.domain!=='Other':!DOMAINS.has(String(t.domain)))||
+      t.domain!==raw.domain||(source!=='paste'&&(t.title as string).length<1)||(t.title as string).length>180||
       (t.description as string).length<1||(t.description as string).length>6500||
       String(t.criteria).length>1200||String(t.context).length>1200||
       ['scope','outcome','references'].some(k=>String(t[k]).length>1000)||
       keys.filter(k=>k!=='type'&&k!=='domain').reduce((n,k)=>n+String(t[k]).length,0)>8000)
       throw invalid();
+    if(source==='paste' && (t.title!=='' || t.type!=='General' ||
+      ['criteria','context','scope','outcome','references'].some(k=>t[k]!=='') ||
+      !reviewInputValid(t as Task))) throw invalid();
     const issues=(entries:unknown):AdminExpectedIssue[]=>{
       if(!Array.isArray(entries)||entries.length>11)throw invalid();
       return entries.map(v=>{
@@ -90,7 +94,9 @@ export function parseAdminFixture(input:unknown, source:AdminSource):AdminFixtur
       task:t as Task,oracle,
     });
   }
-  for(const domain of ['Software','Marketing','Sales']) {
+  if(source==='paste') {
+    if(cases.filter(c=>c.quality==='well_specified_control').length!==1)throw invalid();
+  } else for(const domain of ['Software','Marketing','Sales']) {
     const entries=cases.filter(c=>c.domain===domain);
     if(entries.length!==4||entries.filter(c=>c.quality==='well_specified_control').length!==1)
       throw invalid();
@@ -120,4 +126,9 @@ export async function loadAdminFixture(source:AdminSource, code:string, signal:A
   let body:unknown;
   try{body=await response.json()}catch{throw new ApiError('INVALID_FIXTURE','Unreadable test fixture response.',response.status)}
   return parseAdminFixture(body,source);
+}
+
+/** Mirror the public paste-only form without changing the API schema. */
+export function taskForAdminReview(item:AdminCase):Task {
+  return item.task.title.trim() ? item.task : prepareReviewTask(item.task);
 }
