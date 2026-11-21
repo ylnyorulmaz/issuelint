@@ -51,14 +51,14 @@ export async function checkPassword(username: string, password: string, env: Adm
   // Always derive the password even if the username is wrong to avoid an easy username oracle.
   const key = await crypto.subtle.importKey("raw", UTF8.encode(password), "PBKDF2", false, ["deriveBits"]);
   const derived = new Uint8Array(await crypto.subtle.deriveBits({
-    name: "PBKDF2", hash: "SHA-256", salt: parsed.salt, iterations: parsed.iterations
+    name: "PBKDF2", hash: "SHA-256", salt: new Uint8Array(parsed.salt), iterations: parsed.iterations
   }, key, 256));
   const a = new Uint8Array(await crypto.subtle.digest("SHA-256", UTF8.encode(username)));
   const b = new Uint8Array(await crypto.subtle.digest("SHA-256", UTF8.encode(env.ADMIN_USERNAME)));
   return equalBytes(a, b) && equalBytes(derived, parsed.expected);
 }
 async function hmacKey(env: AdminEnv): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", decode64(env.ADMIN_SESSION_SECRET!), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+  return crypto.subtle.importKey("raw", new Uint8Array(decode64(env.ADMIN_SESSION_SECRET!)), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 function cookieValue(request: Request): string {
   const pairs = (request.headers.get("Cookie") ?? "").split(";").map(x => x.trim());
@@ -74,7 +74,7 @@ export async function adminSession(request: Request, env: AdminEnv): Promise<boo
   const now = Math.floor(Date.now() / 1000);
   if (!Number.isSafeInteger(expiry) || expiry < now || expiry > now + MAX_AGE_SECONDS) return false;
   try {
-    return await crypto.subtle.verify("HMAC", await hmacKey(env), decode64(match[2]), UTF8.encode(match[1]));
+    return await crypto.subtle.verify("HMAC", await hmacKey(env), new Uint8Array(decode64(match[2])), UTF8.encode(match[1]));
   } catch { return false; }
 }
 export async function issueAdminSession(env: AdminEnv): Promise<string> {
