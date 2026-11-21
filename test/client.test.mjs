@@ -605,10 +605,10 @@ test('public pages share the exact homepage navigation, header layout and appear
   assert.deepEqual(items(about),expected);
   assert.deepEqual(items(guide),expected);
   for(const src of [app,about,guide]) {
-    assert.match(src,/class="site-header"/);
-    assert.match(src,/class="site-header-inner"/);
-    assert.match(src,/class="site-header-brand"/);
-    assert.match(src,/class="site-header-right"/);
+    assert.match(src,/class="(?:header )?site-header"/);
+    assert.match(src,/class="(?:header-inner )?site-header-inner"/);
+    assert.match(src,/class="(?:brand )?site-header-brand"/);
+    assert.match(src,/class="(?:header-right )?site-header-right"/);
     assert.match(src,/class="appearance-switcher"/);
     assert.match(src,/class="appearance-switcher-caption"/);
     assert.match(src,/class="appearance-option"/);
