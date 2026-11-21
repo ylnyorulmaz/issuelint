@@ -479,7 +479,7 @@ function App() {
     <section id="guide" class="guide"><SectionIndex number="05" label="The method"/><h2>FROM NOISE TO ACTION.</h2><div class="steps"><div><span>01</span><h3>Describe</h3><p>Enter a title, description, and type. Add context if it matters.</p></div><div><span>02</span><h3>Inspect</h3><p>Review questions, missing details, and possible conflicts.</p></div><div><span>03</span><h3>Refine</h3><p>Copy your improved task into whatever tool your team uses.</p></div></div><p class="disclaimer">AI preview access is restricted. Demo reviews use examples or simple checks; they are not semantic AI analysis.</p></section>
     </main>
     <footer><div><b>ISSUE/LINT ↗</b><span>Clear work starts here.</span></div>
-      <div class="footer-meta"><span>NO ACCOUNT · NO STORED TASKS · LIVE REVIEWS PROCESSED BY CLOUDFLARE AI</span>
+      <div class="footer-meta"><span>NO ACCOUNT · NO STORED TASKS · AI REVIEWS: CLOUDFLARE · DECISION V2: GOOGLE GEMINI</span>
         <Show when={analyticsConfigured}><button type="button" class="privacy-settings" onClick={() => setShowPrivacyChoices(true)}>Analytics preferences</button></Show>
       </div>
     </footer>
