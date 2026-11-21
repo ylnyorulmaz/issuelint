@@ -11,6 +11,7 @@
   <link rel="icon" type="image/png" href="/brand/favicon.png"/>
   <link rel="stylesheet" href="/about/about.css"/>
   <link rel="stylesheet" href="/site-footer.css"/>
+  <link rel="stylesheet" href="/site-header.css"/>
   <meta property="og:type" content="article"/>
   <meta property="og:site_name" content="IssueLint"/>
   <meta property="og:url" content="https://issuelint.com/guides/how-to-write-a-clear-task/"/>
@@ -40,23 +41,20 @@
 </head>
 <body class="about-app">
   <a class="skip-link" href="#guide-content">Skip to content</a>
-  <header class="about-header">
-    <div class="about-header-inner">
-      <a class="about-brand" href="/" aria-label="IssueLint home">
-        <img class="brand-light" src="/brand/logo-light.webp" alt="IssueLint" width="480" height="92"/>
-        <img class="brand-dark" src="/brand/logo-dark.webp" alt="" width="480" height="92"/>
-      </a>
-      <nav class="about-top-nav" aria-label="Primary navigation">
-        <a href="/#analyze">Quick Scan</a>
-        <a href="/#guide">How it works</a>
-        <a href="/about/">About</a>
-      </nav>
-      <div class="about-appearance" role="group" aria-label="Choose light or dark appearance">
-        <button type="button" data-appearance="light" aria-pressed="true">Light</button>
-        <button type="button" data-appearance="dark" aria-pressed="false">Dark</button>
+  <header class="site-header"><div class="site-header-inner">
+    <a class="site-header-brand" href="/" aria-label="IssueLint home">
+      <img class="site-header-logo-light" src="/brand/logo-light.webp" alt="" width="480" height="92" decoding="async"/>
+      <img class="site-header-logo-dark" src="/brand/logo-dark.webp" alt="" width="480" height="92" decoding="async"/>
+    </a>
+    <nav class="site-header-nav" aria-label="Primary"><a href="/#analyze">01 / Analyze</a><a href="/#examples">02 / Examples</a><a href="/#guide">03 / Process</a><a href="/about/">04 / About</a></nav>
+    <div class="site-header-right">
+      <div class="appearance-switcher" role="group" aria-label="Choose light or dark appearance">
+        <span class="appearance-switcher-caption" aria-hidden="true">MODE</span>
+        <button class="appearance-option" type="button" data-appearance="light" aria-pressed="true">Light</button>
+        <button class="appearance-option" type="button" data-appearance="dark" aria-pressed="false">Dark</button>
       </div>
     </div>
-  </header>
+  </div></header>
   <main id="guide-content">
     <nav class="guide-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> / Task writing guide</nav>
     <article class="guide-article">
