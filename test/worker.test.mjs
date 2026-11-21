@@ -90,13 +90,13 @@ function post(body = originalTask, headers = {}) {
   });
 }
 
-test("GET /api/health reports Iteration 2 without running AI", async () => {
+test("GET /api/health reports Iteration 5 without running AI", async () => {
   const { env, calls } = makeEnv({ ANALYZE_ENABLED: "false" });
   const res = await worker.fetch(new Request(url + "/api/health"), env);
   assert.equal(res.status, 200);
   const data = await res.json();
-  assert.equal(data.iteration, 2);
-  assert.equal(data.reviewEngineVersion,"2.4");
+  assert.equal(data.iteration, 5);
+  assert.equal(data.reviewEngineVersion,"2.5");
   assert.equal(data.aiEnabled, false);
   assert.equal(data.aiBindingConfigured, true);
   assert.equal(calls.length, 0);
