@@ -36,11 +36,19 @@ The review contract lives in:
 - User text, preview token and access code must not be sent to GA4/Clarity. Tracking remains optional and consent-gated. Theme preference is persisted; during private testing, a manually entered preview access code can also persist in that browser's `localStorage` through `src/preview-access.ts`. Never hardcode a token into shipped JavaScript or send it to analytics; users can use **Forget code** to clear the local copy.
 - Avoid adding unbounded external calls, token leaks, unlimited logging, false auth guarantees or unnecessary dependencies.
 
+## Observability invariants
+
+- Preserve `X-Request-ID` correlation on `/api/analyze` and response headers. Never use client-supplied IDs that fail the bounded allowlist.
+- Use fixed event names and allowlisted primitive fields only. Worker events: `issuelint.request_started`, `issuelint.request_finished`, `issuelint.inference_stage`, `issuelint.verifier_result`, `issuelint.analysis_result`, `issuelint.inference_failed`, `issuelint.client_event` and `issuelint.unhandled_request_error`.
+- The authenticated `POST /api/client-events` endpoint takes a 1 KiB payload and a strict event/category/status/duration allowlist. Keep the shared preview Bearer gate, never broaden to untrusted arbitrary JSON logs, and cap browser reports. Browser helper: `src/diagnostics.ts`.
+- SayGM failures must remain distinguishable (`output_truncated`, `empty_content`, `invalid_json`, `invalid_patch`, `invalid_shape`, `response_too_large`, `timeout`, `network`, `http`, `config`) without logging upstream bodies or secrets.
+- **Never log task descriptions, titles, generated drafts, evidence, full URLs, tokens, arbitrary exception `message`/`stack`, request headers or raw model data.** Test this invariant. Logs are operational metadata, not analytics consent.
+
 ## Workflow for every change
 
 1. Inspect `main` and the relevant files before drafting; distinguish **implemented**, **unit-tested**, **live-deployed**, and **production-verified** claims.
 2. Keep changes scoped and preserve historical task requirements. Code should be easy to review; add tests alongside behavioral changes.
-3. Run `npm install` with Node **>=22.23.0` (no package-lock committed), then `npm run check`. Useful narrower commands are `npm run check:worker`, `npm run test:worker`, `npm run test:client` and `npm run build`.
+3. Run `npm install` with Node **>=22.23.0** (no package-lock committed), then `npm run check`. Useful narrower commands are `npm run check:worker`, `npm run test:worker`, `npm run test:client` and `npm run build`.
 4. For verifier changes, cover `off/shadow/on`, source-evidence guards, atomic patch failure, critical contradictions, fallback, duplicate findings and one-repair limit. Existing suites are under `test/`.
 5. Human/real-model quality claims require explicit paid `npm run eval:live` against `eval/golden.json` plus reviewed outputs; it is **not** a CI test.
 6. Submit a PR targeting `main`. Report actual test results; if no test was executed, say so explicitly. Do not claim success based solely on authored test files.
@@ -49,7 +57,7 @@ The review contract lives in:
 ## Cloudflare release checklist
 
 - Worker: `issuelint-dev`; custom domain: `issuelint.com`; fallback URL: `issuelint-dev.yorulmazyln.workers.dev`.
-- Cloudflare Workers Builds is connected to GitHub `ylnyorulmaz/issuelint`, production branch `main`, with dashboard build `npx cf build` and deploy `npx cf deploy --prebuilt`. Verify **actual build logs and Worker version** after a push.
+- Cloudflare Workers Builds is connected to GitHub `ylnyorulmaz/issuelint`, production branch `main`, with build `npx cf build` and deploy `npx cf deploy --prebuilt --force`. Verify **actual build logs and Worker version** after a push.
 - Local deployment command is `npm run deploy`, invoking `cf deploy`; the production Workers Builds deploy command uses `cf deploy --prebuilt --force` to resolve legacy Dashboard/API metadata conflicts. `--force` applies repository configuration, including production `true`/`on`; verify secrets, bindings, query-string redaction and flags after deployment. Do not replace this `cf` setup with Wrangler.
 - Confirm `PREVIEW_TOKEN` and `SAYGM_API_KEY` remain Worker **secrets**, not text or repo files; check effective flags after deployment.
 - Health should report `iteration: 5`, `reviewEngineVersion: "2.5"`, appropriate `aiEnabled`, `feedbackVerifierMode` and `feedbackVerifierConfigured`. These fields demonstrate configuration, **not** successful DeepSeek usage.

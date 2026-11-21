@@ -19,6 +19,10 @@ This file supplements [AGENTS.md](AGENTS.md). **Read AGENTS.md first**; it is th
 - No hardcoded secrets, API keys, preview PINs, new browser persistence of task content, or sensitive logging. The existing test-only `src/preview-access.ts` can remember a code **entered locally by that browser user**, not provision or reveal a server secret; retain the Forget code option. Do not weaken `PREVIEW_TOKEN` verification: current code requires at least **24 characters**.
 - Do not promote UI loading phase labels as real progress telemetry.
 
+## Diagnostic development
+
+Maintain bounded, privacy-safe logs in `worker/index.ts` and `src/diagnostics.ts`, correlated through `X-Request-ID`. Keep phase events low-cardinality and never log raw exceptions, user tasks, secret values or model output. `/api/client-events` is an authenticated, bounded error-event collector; retain its allowlist. An `invalid_patch` SayGM failure must not break validated primary output. Cover success/failure/timeout/invalid JSON and no-secret assertions in tests.
+
 ## Validation and delivery
 
 ```bash

@@ -1,4 +1,4 @@
-import { callSaygmVerifier, verifierMode } from "./saygm.ts";
+import { callSaygmVerifier, verifierMode, SaygmError } from "./saygm.ts";
 import { runAnalysis, InferenceError, type AiRunner } from "./inference.ts";
 import { parseTask, ValidationError } from "./schema.ts";
 
@@ -35,9 +35,9 @@ function methodNotAllowed(allowed: string): Response {
 
 const MAX_REQUEST_BYTES = 32_768;
 
-async function readBody(request: Request): Promise<unknown> {
+async function readBody(request: Request, maxBytes = MAX_REQUEST_BYTES): Promise<unknown> {
   const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
     throw new ValidationError("size", "Request body exceeds the limit.");
   }
   if (!request.body) throw new ValidationError("json", "A JSON request body is required.");
@@ -50,7 +50,7 @@ async function readBody(request: Request): Promise<unknown> {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > MAX_REQUEST_BYTES) {
+      if (size > maxBytes) {
         await reader.cancel();
         throw new ValidationError("size", "Request body exceeds the limit.");
       }
@@ -88,8 +88,19 @@ async function verifiedToken(request: Request, secret: string): Promise<boolean>
   return diff === 0;
 }
 
-export default {
-  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+const SAFE_ID = /^[a-zA-Z0-9_-]{8,64}$/;
+function requestIdFrom(request: Request): string {
+  const incoming = request.headers.get("X-Request-ID") ?? "";
+  return SAFE_ID.test(incoming) ? incoming : crypto.randomUUID();
+}
+function logApi(level: "info" | "warn" | "error", event: string, fields: Record<string, string | number | boolean>): void {
+  // All call sites use fixed labels and primitive allowlisted values.
+  console[level](event, fields);
+}
+const CLIENT_EVENTS = new Set(["health_failed","review_failed","ui_error","unhandled_rejection","copy_failed"]);
+const CLIENT_CATEGORIES = new Set(["http","network","timeout","invalid_response","auth","client","unknown"]);
+
+async function handleApi(request: Request, env: WorkerEnv, requestId: string): Promise<Response> {
     const { pathname } = new URL(request.url);
 
     if (pathname === "/api/health") {
@@ -105,6 +116,33 @@ export default {
         feedbackVerifierMode: env.SAYGM_API_KEY ? verifierMode(env.FEEDBACK_VERIFIER_MODE) : "off",
         feedbackVerifierConfigured: !!env.SAYGM_API_KEY,
       });
+    }
+
+    if (pathname === "/api/client-events") {
+      if (request.method !== "POST") return methodNotAllowed("POST");
+      if (!/^application\/json(?:\s*;|\s*$)/i.test(request.headers.get("content-type") ?? ""))
+        return error("UNSUPPORTED_MEDIA_TYPE", "Send application/json.", 415);
+      if (!previewTokenConfigured(env.PREVIEW_TOKEN))
+        return error("PREVIEW_AUTH_MISCONFIGURED", "Private preview authentication is not configured correctly.", 503);
+      if (!(await verifiedToken(request, env.PREVIEW_TOKEN!)))
+        return error("PREVIEW_AUTH_REQUIRED", "A valid preview token is required.", 401);
+      let payload: unknown;
+      try { payload = await readBody(request, 1024); }
+      catch { return error("INVALID_CLIENT_EVENT", "Invalid diagnostic event.", 422); }
+      if (!payload || typeof payload !== "object" || Array.isArray(payload))
+        return error("INVALID_CLIENT_EVENT", "Invalid diagnostic event.", 422);
+      const entry = payload as Record<string, unknown>;
+      if (Object.keys(entry).some(k => !["event","category","durationMs","status"].includes(k)) ||
+          typeof entry.event !== "string" || !CLIENT_EVENTS.has(entry.event) ||
+          typeof entry.category !== "string" || !CLIENT_CATEGORIES.has(entry.category) ||
+          !Number.isInteger(entry.status) || (entry.status as number) < 0 || (entry.status as number) > 599 ||
+          !Number.isInteger(entry.durationMs) || (entry.durationMs as number) < 0 || (entry.durationMs as number) > 300000)
+        return error("INVALID_CLIENT_EVENT", "Invalid diagnostic event.", 422);
+      logApi("warn", "issuelint.client_event", {
+        requestId, event: entry.event, category: entry.category,
+        status: entry.status as number, durationMs: entry.durationMs as number,
+      });
+      return json({ ok: true });
     }
 
     if (pathname === "/api/analyze") {
@@ -142,11 +180,13 @@ export default {
       try {
         const mode = env.SAYGM_API_KEY ? verifierMode(env.FEEDBACK_VERIFIER_MODE) : "off";
         const observer = mode === "off" ? undefined : async (checks: readonly import("./review-v2.ts").ReviewCheck[]) => {
+          const verifierStarted = Date.now();
+          logApi("info", "issuelint.verifier_started", {requestId, mode, checked: checks.length});
           try {
             const result = await callSaygmVerifier({ apiKey: env.SAYGM_API_KEY, task, checks });
             // Never log task text, findings, questions, patch details or raw response.
             console.info("issuelint.verifier_result", {
-              ok: true, verdictCount: result.verdict.verdicts.length,
+              requestId, ok: true, verdictCount: result.verdict.verdicts.length,
               latencyMs: result.latencyMs,
               promptTokens: result.usage.promptTokens,
               completionTokens: result.usage.completionTokens,
@@ -154,18 +194,26 @@ export default {
             return mode === "on" ? result.verdict : undefined;
           } catch (cause) {
             console.warn("issuelint.verifier_result", {
-              ok: false, category: cause instanceof Error && "category" in cause
-                ? String(cause.category) : "unknown",
+              requestId, ok: false,
+              category: cause instanceof SaygmError ? cause.category : "unknown",
+              httpStatus: cause instanceof SaygmError ? (cause.httpStatus ?? 0) : 0,
+              latencyMs: Date.now() - verifierStarted,
             });
           }
         };
-        const analysis = await runAnalysis(task, env.AI, env.AI_MODEL, observer, mode === "on");
+        const analysis = await runAnalysis(task, env.AI, env.AI_MODEL, observer, mode === "on",
+          stage => logApi("info", "issuelint.inference_stage", {requestId, stage}));
+        logApi("info", "issuelint.analysis_result", {
+          requestId, status: analysis.status, findings: analysis.findings.length,
+          modelCalls: analysis.modelUsage.calls, durationMs: analysis.modelUsage.latencyMs,
+          rewriteStatus: analysis.rewriteStatus,
+        });
         return json({ mode: "ai", analyzed: true, analysis });
       } catch (cause) {
         const kind = cause instanceof InferenceError ? cause.kind : "upstream";
         // Never log prompts, task content, authorization or raw provider errors.
         console.warn("issuelint.inference_failed", {
-          category: kind,
+          requestId, category: kind,
           model: env.AI_MODEL === "@cf/openai/gpt-oss-120b" ? "gpt-oss-120b" : "configured-model",
         });
         if (kind === "truncated") {
@@ -182,6 +230,31 @@ export default {
       return error("NOT_FOUND", "Unknown API endpoint.", 404);
     }
 
-    return env.ASSETS.fetch(request);
-  },
+    return error("NOT_FOUND", "Unknown API endpoint.", 404);
+}
+
+export default {
+  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+    const { pathname } = new URL(request.url);
+    if (!pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
+    const requestId = requestIdFrom(request);
+    const started = Date.now();
+    if (pathname === "/api/analyze")
+      logApi("info", "issuelint.request_started", {requestId, endpoint:"analyze"});
+    try {
+      const response = await handleApi(request, env, requestId);
+      response.headers.set("X-Request-ID", requestId);
+      if (pathname === "/api/analyze" || (pathname !== "/api/health" && response.status >= 400))
+        logApi(response.status >= 500 ? "error" : response.status >= 400 ? "warn" : "info",
+          "issuelint.request_finished", {
+            requestId, endpoint: pathname === "/api/analyze" ? "analyze" : "client_or_other",
+            status: response.status, durationMs: Date.now()-started
+          });
+      return response;
+    } catch {
+      // Last-resort boundary: do not leak exception messages, stacks or source data.
+      logApi("error", "issuelint.unhandled_request_error", {requestId, endpoint:"api", durationMs:Date.now()-started});
+      return json({error:"INTERNAL_ERROR",message:"The service encountered an error."},500,{"X-Request-ID":requestId});
+    }
+  }
 };

@@ -234,13 +234,17 @@ export async function runAnalysis(
   task: Task, ai: AiRunner, model = DEFAULT_MODEL,
   onPrimaryReview?: (checks: readonly import("./review-v2.ts").ReviewCheck[]) => Promise<import("./feedback-verifier.ts").VerifierVerdict | undefined>,
   independentMode = false,
+  onStage?: (stage: string) => void,
 ): Promise<ReviewedAnalysis> {
+  // Stage callbacks are optional diagnostics. Never let logging affect inference.
+  const stage = (name: string) => { try { onStage?.(name); } catch { /* diagnostics are best effort */ } };
   const selected = selectModel(model);
   const usage=emptyUsage();
   const started=Date.now();
   const onUsage=(response:unknown)=>collectUsage(response,usage);
   let raw: unknown;
   try {
+    stage("primary_started");
     usage.calls++;
     raw = await ai.run(selected, {
       messages: [
@@ -251,30 +255,36 @@ export async function runAnalysis(
       reasoning_effort: "medium", max_tokens: 4700, temperature: 0.1, stream: false,
     });
   } catch {
+    stage("primary_failed");
     throw new InferenceError("upstream");
   }
-
+  stage("primary_completed");
   onUsage(raw);
   let reviewed: ReturnType<typeof parseReviewV2>;
   let verifierRepairRequested = false;
   try {
     const parsed=extractJsonResponse(raw);
     reviewed = parseReviewV2(parsed, task);
+    stage("primary_validated");
     if (onPrimaryReview) {
       try {
+        stage("verifier_requested");
         const verdict = await onPrimaryReview(reviewed.checks);
         if (independentMode && verdict && record(parsed)) {
           // Fail atomically: invalid patch falls back to validated primary output.
           reviewed = verifyPatchedReview(parsed, task, reviewed.checks, verdict);
+          stage("verifier_applied");
           verifierRepairRequested = verdict.repair_needed && verdict.verdicts.length > 0;
         }
       } catch {
+        stage("verifier_patch_rejected");
         // No verifier failure can break primary review or leak task content.
       }
     }
     const uncertain = independentMode ? [] : suspiciousClearDimensions(task, reviewed.checks);
     if(uncertain.length && record(parsed)) {
       try {
+        stage("quality_gate_started");
         // One optional second opinion only on context-critical potentially missed gaps.
         usage.calls++;
         const gateRaw=await ai.run(selected,{
@@ -292,12 +302,15 @@ export async function runAnalysis(
         onUsage(gateRaw);
         const revisedChecks=applyQualityGate(task,reviewed.checks,uncertain,extractJsonResponse(gateRaw));
         reviewed=parseReviewV2({...parsed,checks:revisedChecks},task);
+        stage("quality_gate_applied");
       }catch{
+        stage("quality_gate_failed");
         // Failure of the optional quality gate must not suppress useful findings.
         // No prompts, task data or raw provider errors are written to logs.
       }
     }
   } catch (cause) {
+    stage("primary_validation_failed");
     if (cause instanceof InferenceError && cause.kind === "truncated") throw cause;
     throw new InferenceError("invalid_response");
   }
@@ -325,13 +338,16 @@ export async function runAnalysis(
     return { ...base, suggestedRewrite:assembleRewrite(candidate,analysis.findings,task), rewriteStatus:"rewritten" };
   }
 
+  stage("rewrite_repair_started");
   usage.calls++;
   const repaired=await repairRewrite(task,analysis.findings,ai,selected,onUsage);
   if(repaired) {
+    stage("rewrite_repair_applied");
     finish();
     return {...base,suggestedRewrite:assembleRewrite(repaired,analysis.findings,task),rewriteStatus:"rewritten"};
   }
 
+  stage("rewrite_repair_fallback");
   // If a targeted editorial repair failed, preserve an already-grounded primary
   // rewrite rather than degrading the response into a clarification checklist.
   if (candidateValid) {

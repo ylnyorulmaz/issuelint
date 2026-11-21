@@ -45,10 +45,42 @@ test("HTTP errors never include upstream content", async () => {
 test("invalid JSON and invalid patches fail closed", async () => {
   await assert.rejects(callSaygmVerifier({ apiKey: "key", task, checks,
     fetcher: async () => response(completion({ verdicts: [{ action: "DELETE" }], repair_needed: false })) }),
-    e => e instanceof SaygmError && e.category === "invalid_response");
+    e => e instanceof SaygmError && e.category === "invalid_patch");
 });
 test("timeout abort is classified safely", async () => {
   await assert.rejects(callSaygmVerifier({ apiKey: "key", task, checks,
     fetcher: async () => { const e = new Error("abort"); e.name = "TimeoutError"; throw e; } }),
     e => e instanceof SaygmError && e.category === "timeout");
+});
+
+test("separates truncated, blank, malformed JSON, invalid envelope and invalid patch", async () => {
+  const samples = [
+    [{choices:[{finish_reason:"length",message:{content:"{}"}}]}, "output_truncated"],
+    [{choices:[{finish_reason:"stop",message:{content:" "}}]}, "empty_content"],
+    [{choices:[{finish_reason:"stop",message:{content:"{broken"}}]}, "invalid_json"],
+    [{unexpected:true}, "invalid_shape"],
+    [completion({verdicts:[{action:"REVISE",dimension:"scope",reason:"No source support for changing this check."}],repair_needed:false}), "invalid_patch"],
+  ];
+  for (const [payload,category] of samples) {
+    await assert.rejects(
+      callSaygmVerifier({apiKey:"test-secret-should-never-log",task,checks,fetcher:async()=>response(payload)}),
+      err => err instanceof SaygmError && err.category === category && !err.message.includes("secret")
+    );
+  }
+});
+test("oversized provider response is bounded and never logged", async () => {
+  await assert.rejects(
+    callSaygmVerifier({apiKey:"test-key",task,checks,fetcher:async()=>new Response("x".repeat(30_001),{status:200})}),
+    e => e instanceof SaygmError && e.category === "response_too_large"
+  );
+});
+test("HTTP status and network failures have distinct safe diagnostics", async () => {
+  await assert.rejects(
+    callSaygmVerifier({apiKey:"test-key",task,checks,fetcher:async()=>response({sensitive:"private text"},429)}),
+    e => e instanceof SaygmError && e.category === "http" && e.httpStatus===429 && !e.message.includes("private")
+  );
+  await assert.rejects(
+    callSaygmVerifier({apiKey:"test-key",task,checks,fetcher:async()=>{throw Error("Authorization: Bearer secret-raw-data")}}),
+    e => e instanceof SaygmError && e.category === "network" && !e.message.includes("Bearer")
+  );
 });
