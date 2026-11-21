@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "IssueLint Clipper",
+  "version": "0.1.0",
+  "description": "Clip clean Markdown from the current page and check whether the task is ready to work on.",
+  "minimum_chrome_version": "116",
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Open IssueLint Clipper",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+L" },
+      "description": "Open IssueLint Clipper and extract the current page"
+    }
+  }
+}
