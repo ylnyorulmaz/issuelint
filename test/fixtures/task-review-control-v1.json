@@ -1,0 +1,628 @@
+{
+  "dataset_id": "issuelint-cross-domain-control-v1",
+  "schema_version": "1.0.0",
+  "created_on": "2026-11-21",
+  "purpose": "Small, author-labeled adversarial and clean controls for IssueLint task review across Software, Marketing and Sales.",
+  "status": "human_review_required",
+  "instructions": {
+    "model_input": "Send ONLY cases[i].task to /api/analyze or /api/analyze-v2. Never send the oracle, scenario, quality, case ID, or notes to the model.",
+    "human_oracle": "Oracle labels are hypotheses by the dataset author, NOT independently established ground truth. Review disagreements instead of forcing the model to match an expected answer.",
+    "scoring": "Use semantic matching for issue meaning and clarification question, not verbatim title equality. Distinguish missing material gaps, invented findings, critical contradiction misses and invalid evidence.",
+    "clean_controls": "For well_specified_control cases, zero IMPORTANT/CRITICAL material findings is the target. Small nonblocking suggestions may be acceptable.",
+    "routing_note": "Gemini P(Clear)<0.85 is an experimental routing threshold and should not be mistaken for correctness probability. Track both its routing omissions and GPT-OSS findings.",
+    "privacy": "Fictional scenarios only: no real customer contacts, email addresses, pricing records, secrets, or credentials."
+  },
+  "dimensions": [
+    "contradictions",
+    "actionability",
+    "scope",
+    "granularity",
+    "behavior",
+    "completion",
+    "outcome",
+    "references",
+    "dependencies",
+    "clarity",
+    "feasibility"
+  ],
+  "groups": {
+    "Software": {
+      "flawed": 3,
+      "well_specified_control": 1
+    },
+    "Marketing": {
+      "flawed": 3,
+      "well_specified_control": 1
+    },
+    "Sales": {
+      "flawed": 3,
+      "well_specified_control": 1
+    }
+  },
+  "cases": [
+    {
+      "id": "SW-01",
+      "domain": "Software",
+      "quality": "deliberately_flawed",
+      "scenario": "Dark mode with missing coverage, behavior and design access",
+      "task": {
+        "title": "Ship dark mode for web and mobile",
+        "description": "Users want dark mode on web and mobile. Follow the design from Figma and ship it in the next sprint.",
+        "type": "Feature",
+        "domain": "Software",
+        "criteria": "",
+        "context": "",
+        "scope": "",
+        "outcome": "",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "scope",
+            "issue": "The included screens/components and mobile platforms are unspecified.",
+            "source_quotes": [
+              "dark mode on web and mobile"
+            ],
+            "question": "Must every existing screen and component support dark mode on web and mobile, or only specific surfaces?",
+            "importance": "important"
+          },
+          {
+            "dimension": "behavior",
+            "issue": "The task does not establish system preference versus user toggle or persistence.",
+            "source_quotes": [
+              "dark mode"
+            ],
+            "question": "How is dark mode activated, and does the selection persist across sessions?",
+            "importance": "important"
+          },
+          {
+            "dimension": "references",
+            "issue": "An essential Figma design is cited but no file/location is supplied.",
+            "source_quotes": [
+              "Follow the design from Figma"
+            ],
+            "question": "Where is the Figma file or design reference?",
+            "importance": "important"
+          }
+        ],
+        "allowed_related_gates": [
+          "actionability",
+          "completion"
+        ],
+        "must_not_invent": [
+          "An invented Figma URL",
+          "An arbitrary numerical KPI",
+          "Assume a mobile framework"
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "SW-02",
+      "domain": "Software",
+      "quality": "deliberately_flawed",
+      "scenario": "Explicit release deadline versus mandatory approval",
+      "task": {
+        "title": "Release account-settings CSV export",
+        "description": "Release the account-settings CSV export to production by Wednesday 17:00 this week. Do not deploy anything until the security approval meeting on Thursday 10:00 this week. Both instructions apply to the same release.",
+        "type": "Feature",
+        "domain": "Software",
+        "criteria": "The downloadable CSV includes only the signed-in user's settings and is available from Settings > Export.",
+        "context": "The export feature is implemented and tested; security approval is a mandatory release prerequisite.",
+        "scope": "Web Settings > Export only.",
+        "outcome": "The CSV export becomes available in production.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "blocked",
+        "must_detect": [
+          {
+            "dimension": "contradictions",
+            "issue": "A Wednesday production deadline conflicts with a Thursday no-deploy-before approval prerequisite.",
+            "source_quotes": [
+              "Release the account-settings CSV export to production by Wednesday 17:00 this week",
+              "Do not deploy anything until the security approval meeting on Thursday 10:00 this week"
+            ],
+            "question": "Should the release deadline move until after Thursday's approval, or can the approval meeting be moved earlier?",
+            "importance": "critical"
+          }
+        ],
+        "allowed_related_gates": [
+          "dependencies"
+        ],
+        "must_not_invent": [
+          "Claim the feature itself is technically impossible",
+          "Demand an additional design file",
+          "Fabricate a third conflicting deadline"
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "SW-03",
+      "domain": "Software",
+      "quality": "deliberately_flawed",
+      "scenario": "Payment retry handling without material decision rules",
+      "task": {
+        "title": "Retry failed card payments",
+        "description": "Add automatic retry for failed card payments in checkout. It should recover transient failures without charging the customer twice.",
+        "type": "Improvement",
+        "domain": "Software",
+        "criteria": "Payments should eventually complete after temporary errors.",
+        "context": "We use the current payment integration; no new provider is planned.",
+        "scope": "Checkout payment submission only.",
+        "outcome": "Fewer customers abandon checkout after a transient payment error.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "behavior",
+            "issue": "The trigger/error classes, retry cap/backoff and duplicate-charge prevention behavior are undefined.",
+            "source_quotes": [
+              "automatic retry for failed card payments",
+              "without charging the customer twice"
+            ],
+            "question": "Which failures may be retried, how many attempts/backoff are allowed, and what prevents duplicate charges?",
+            "importance": "important"
+          },
+          {
+            "dimension": "completion",
+            "issue": "The word 'eventually' does not specify a terminal failure or an implementable stop condition.",
+            "source_quotes": [
+              "Payments should eventually complete after temporary errors."
+            ],
+            "question": "When must retries stop, and what should the customer see if payment still fails?",
+            "importance": "important"
+          }
+        ],
+        "allowed_related_gates": [
+          "actionability",
+          "feasibility"
+        ],
+        "must_not_invent": [
+          "Assume the payment provider is Stripe",
+          "Demand a redesign of the checkout UI",
+          "Assume an explicit impossible constraint exists"
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "SW-04",
+      "domain": "Software",
+      "quality": "well_specified_control",
+      "scenario": "Bounded web filter persistence with specified behavior",
+      "task": {
+        "title": "Persist issue-list status filter across browser refreshes",
+        "description": "On the web app's Issues list only, persist the status filter (All, Open, Closed) in localStorage. Restore it on reload in the same browser. If no saved value or an unknown saved value exists, default to All. Changing the filter immediately updates the visible list. Do not sync this preference between devices or accounts.",
+        "type": "Feature",
+        "domain": "Software",
+        "criteria": "Select Open and refresh: Open remains selected and only Open issues appear. Select Closed and refresh: Closed persists. Clear storage or insert an unknown value: All appears without errors. Other filters and issue data stay unchanged.",
+        "context": "The Issues page already has a working status filter and uses localStorage for non-sensitive UI preferences.",
+        "scope": "Web > Issues list; status-filter state only.",
+        "outcome": "Users keep their selected status filter after a browser refresh.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "ready",
+        "must_detect": [],
+        "expected_clear_gates": [
+          "contradictions",
+          "scope",
+          "behavior",
+          "completion",
+          "outcome",
+          "actionability",
+          "references"
+        ],
+        "must_not_invent": [
+          "Demand a Figma URL",
+          "Demand a server-side preference store",
+          "Demand a measurable conversion KPI"
+        ],
+        "expected_material_findings": "zero",
+        "minor_suggestions_permitted": true
+      }
+    },
+    {
+      "id": "MK-01",
+      "domain": "Marketing",
+      "quality": "deliberately_flawed",
+      "scenario": "Vague awareness brief without a target, channel or deliverable",
+      "task": {
+        "title": "Increase our brand awareness",
+        "description": "Make our marketing really take off next month. Post everywhere and reach the right people with something engaging.",
+        "type": "Request",
+        "domain": "Marketing",
+        "criteria": "",
+        "context": "No target segment, product proposition or campaign brief has been supplied.",
+        "scope": "",
+        "outcome": "",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "scope",
+            "issue": "There is no defined target audience or bounded channel/deliverable set.",
+            "source_quotes": [
+              "Post everywhere",
+              "the right people"
+            ],
+            "question": "Which audience, channels and concrete deliverables are in scope?",
+            "importance": "important"
+          },
+          {
+            "dimension": "actionability",
+            "issue": "No usable proposition or content direction is provided for producing meaningful marketing materials.",
+            "source_quotes": [
+              "something engaging"
+            ],
+            "question": "What product message or offer should the campaign communicate?",
+            "importance": "important"
+          },
+          {
+            "dimension": "completion",
+            "issue": "No recognizable deliverable or finish condition exists for 'take off'.",
+            "source_quotes": [
+              "Make our marketing really take off next month."
+            ],
+            "question": "What output or outcome marks this campaign task complete?",
+            "importance": "important"
+          }
+        ],
+        "allowed_related_gates": [
+          "outcome",
+          "clarity",
+          "granularity"
+        ],
+        "must_not_invent": [
+          "Invent a target industry",
+          "Insist on an arbitrary numerical conversion threshold",
+          "Assume every social platform is approved"
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "MK-02",
+      "domain": "Marketing",
+      "quality": "deliberately_flawed",
+      "scenario": "Email campaign includes opted-out recipients despite suppression rule",
+      "task": {
+        "title": "Send the launch newsletter on Friday",
+        "description": "At 09:00 Friday, send the launch email to every address in the CRM, including people who opted out. Never send marketing email to contacts who opted out or do not have marketing consent. Both instructions apply to this same campaign.",
+        "type": "Request",
+        "domain": "Marketing",
+        "criteria": "One launch send using the existing approved email copy and standard unsubscribe footer.",
+        "context": "The CRM stores consent and opt-out flags, which are available to the campaign owner.",
+        "scope": "One email to the CRM audience.",
+        "outcome": "Announce the newly released service package.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "blocked",
+        "must_detect": [
+          {
+            "dimension": "contradictions",
+            "issue": "One instruction explicitly includes opted-out contacts while another prohibits mailing them.",
+            "source_quotes": [
+              "including people who opted out",
+              "Never send marketing email to contacts who opted out"
+            ],
+            "question": "Should the campaign exclude all opted-out or non-consenting contacts, or is the requested audience rule being revised?",
+            "importance": "critical"
+          }
+        ],
+        "allowed_related_gates": [
+          "scope",
+          "dependencies"
+        ],
+        "must_not_invent": [
+          "Ignore the opt-out conflict",
+          "Invent missing campaign copy",
+          "Require a new design asset"
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "MK-03",
+      "domain": "Marketing",
+      "quality": "deliberately_flawed",
+      "scenario": "A/B test has no primary metric or decision rule",
+      "task": {
+        "title": "Choose the landing-page headline winner",
+        "description": "Run an A/B test of Headline A ('Get organized today') versus Headline B ('Keep projects moving') on the pricing landing page. Roll out the winner when the results look good.",
+        "type": "Improvement",
+        "domain": "Marketing",
+        "criteria": "Select the best-performing headline and publish it.",
+        "context": "Both headlines are approved and the page already has an experiment switch.",
+        "scope": "Pricing landing-page headline only.",
+        "outcome": "Select a headline based on visitor response.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "completion",
+            "issue": "'Best-performing' and 'results look good' cannot determine a winner without a metric and decision rule.",
+            "source_quotes": [
+              "Roll out the winner when the results look good",
+              "best-performing headline"
+            ],
+            "question": "What primary metric and stopping/winner-selection rule should this A/B test use?",
+            "importance": "important"
+          },
+          {
+            "dimension": "behavior",
+            "issue": "The experiment does not specify how variants are allocated or when a winner should replace the control.",
+            "source_quotes": [
+              "Run an A/B test",
+              "Roll out the winner"
+            ],
+            "question": "How will visitors be assigned to variants and what triggers the rollout?",
+            "importance": "important"
+          }
+        ],
+        "allowed_related_gates": [
+          "clarity",
+          "actionability"
+        ],
+        "must_not_invent": [
+          "Invent a statistical result",
+          "Insist on arbitrary KPIs unrelated to headline comparison",
+          "Flag missing headlines when both are supplied"
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "MK-04",
+      "domain": "Marketing",
+      "quality": "well_specified_control",
+      "scenario": "Specified day-three trial onboarding reminder campaign",
+      "task": {
+        "title": "Send one day-three setup reminder to opted-in trial users",
+        "description": "Send one reminder email to trial users who registered 72 hours ago and have not finished the in-app setup checklist. Include only contacts with marketing email consent; exclude unsubscribed, bounced, paid, and previously contacted users. Subject: 'Finish setting up your workspace'. Body: 'Your workspace is ready. Open the setup checklist to finish the remaining steps.' The CTA opens the existing checklist. Use the current approved email template and campaign tool.",
+        "type": "Feature",
+        "domain": "Marketing",
+        "criteria": "Audience filters satisfy inclusion and exclusion rules. One send at most per eligible account. Standard footer and unsubscribe are present. A test email renders on desktop and mobile. No excluded contact receives a message; sends and clicks appear in existing analytics.",
+        "context": "The campaign tool already has the approved template, unsubscribe suppression, and a working checklist deep link.",
+        "scope": "One day-three lifecycle email; no web product changes.",
+        "outcome": "Eligible trial users receive one compliant setup reminder.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "ready",
+        "must_detect": [],
+        "expected_clear_gates": [
+          "contradictions",
+          "scope",
+          "behavior",
+          "completion",
+          "outcome",
+          "references",
+          "dependencies"
+        ],
+        "must_not_invent": [
+          "Demand a new marketing consent system",
+          "Require a separate Figma file",
+          "Require an invented campaign KPI",
+          "Claim the checklist deep link is absent"
+        ],
+        "expected_material_findings": "zero",
+        "minor_suggestions_permitted": true
+      }
+    },
+    {
+      "id": "SA-01",
+      "domain": "Sales",
+      "quality": "deliberately_flawed",
+      "scenario": "Conflicting outreach eligibility and approval timing",
+      "task": {
+        "title": "Follow up every pipeline lead today",
+        "description": "Contact every lead in the pipeline by 17:00 today. Only contact leads marked Qualified; everyone, including Unqualified leads, must receive the same outreach. Use the new outreach script, which will not be approved until tomorrow.",
+        "type": "Request",
+        "domain": "Sales",
+        "criteria": "All outreach must use approved copy; do not message prospects before that approval.",
+        "context": "Qualification status is available in the CRM.",
+        "scope": "Outbound email to the existing CRM pipeline.",
+        "outcome": "Contact the permitted leads using the approved script.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "blocked",
+        "must_detect": [
+          {
+            "dimension": "contradictions",
+            "issue": "The outreach mandate includes Unqualified leads but a separate rule excludes them.",
+            "source_quotes": [
+              "Only contact leads marked Qualified",
+              "including Unqualified leads"
+            ],
+            "question": "Should Unqualified leads be excluded, or is the eligibility policy changing?",
+            "importance": "critical"
+          },
+          {
+            "dimension": "contradictions",
+            "issue": "The task requires completion today but prohibits messages before script approval tomorrow.",
+            "source_quotes": [
+              "by 17:00 today",
+              "will not be approved until tomorrow"
+            ],
+            "question": "Should the outreach deadline or the script approval date change?",
+            "importance": "critical"
+          }
+        ],
+        "allowed_related_gates": [
+          "dependencies",
+          "actionability"
+        ],
+        "must_not_invent": [
+          "Treat both conflicts as a single vague style nit",
+          "Assume the script is already approved",
+          "Invent a CRM segment"
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "SA-02",
+      "domain": "Sales",
+      "quality": "deliberately_flawed",
+      "scenario": "Prospecting request without qualified account definition or offer",
+      "task": {
+        "title": "Create a prospect list and pitch it",
+        "description": "Find companies to sell our product to and email them. Focus on the best accounts and tailor the pitch.",
+        "type": "Request",
+        "domain": "Sales",
+        "criteria": "",
+        "context": "We sell a B2B product, but no buyer profile, offer or approved sales message is specified.",
+        "scope": "",
+        "outcome": "",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "scope",
+            "issue": "The account and buyer definition is absent; 'best accounts' does not identify a target segment.",
+            "source_quotes": [
+              "the best accounts",
+              "no buyer profile"
+            ],
+            "question": "Which industries, regions, company sizes and buyer roles qualify as target accounts?",
+            "importance": "important"
+          },
+          {
+            "dimension": "actionability",
+            "issue": "The offer and approved pitch content are not given, so the sales message cannot be tailored responsibly.",
+            "source_quotes": [
+              "tailor the pitch",
+              "no buyer profile, offer or approved sales message"
+            ],
+            "question": "What value proposition and approved offer should this outreach use?",
+            "importance": "important"
+          }
+        ],
+        "allowed_related_gates": [
+          "clarity",
+          "outcome",
+          "completion"
+        ],
+        "must_not_invent": [
+          "Invent prospect names or emails",
+          "Assume a particular product category",
+          "Assume that sending cold email to any company is authorized"
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "SA-03",
+      "domain": "Sales",
+      "quality": "deliberately_flawed",
+      "scenario": "Renewal quotes depend on inaccessible pricing reference",
+      "task": {
+        "title": "Draft ten enterprise renewal quotes",
+        "description": "Prepare renewal quotes for the ten accounts in the 'FY27 renewal priority' CRM segment. Use the signed pricing schedule called 'Enterprise Renewal Pricing v4'. The pricing schedule is not attached here, and access to the pricing workspace has not been granted to the assignee.",
+        "type": "Request",
+        "domain": "Sales",
+        "criteria": "Every quote must use the approved renewal rate and the correct customer tier.",
+        "context": "The CRM segment is visible to the assignee; the pricing schedule is kept in a separate restricted workspace.",
+        "scope": "Ten accounts in FY27 renewal priority; quote drafting only. Do not send quotes yet.",
+        "outcome": "Ten accurate renewal quotes ready for manager review.",
+        "references": "Enterprise Renewal Pricing v4 is required but not linked or supplied."
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "references",
+            "issue": "The required signed pricing document is named but not supplied or linked.",
+            "source_quotes": [
+              "pricing schedule is not attached here"
+            ],
+            "question": "Where can the signed Enterprise Renewal Pricing v4 schedule be obtained?",
+            "importance": "important"
+          },
+          {
+            "dimension": "dependencies",
+            "issue": "The assignee explicitly lacks permission to read the required pricing workspace.",
+            "source_quotes": [
+              "access to the pricing workspace has not been granted"
+            ],
+            "question": "Who will grant access to the pricing workspace before quote drafting starts?",
+            "importance": "important"
+          },
+          {
+            "dimension": "actionability",
+            "issue": "Correct customer rates cannot be calculated before the pricing source is available.",
+            "source_quotes": [
+              "Every quote must use the approved renewal rate",
+              "pricing schedule is not attached here"
+            ],
+            "question": "Can the quote work begin after the approved rates are provided?",
+            "importance": "important"
+          }
+        ],
+        "allowed_related_gates": [
+          "completion"
+        ],
+        "must_not_invent": [
+          "Ask for the CRM segment ID when the view is already visible",
+          "Suggest sending unapproved quotes",
+          "Invent prices or discounts"
+        ],
+        "expected_material_findings": "one_or_more"
+      }
+    },
+    {
+      "id": "SA-04",
+      "domain": "Sales",
+      "quality": "well_specified_control",
+      "scenario": "Constrained follow-up to eligible recent demo attendees",
+      "task": {
+        "title": "Follow up with qualified demo attendees",
+        "description": "Each business day at 10:00, email contacts in CRM view 'Demo attendees — action due' if they attended a demo 2–3 business days ago, requested pricing, and have not replied since the demo. Exclude unsubscribed contacts, bounced addresses, and open opportunities owned by another rep. Use the existing approved follow-up template: 'Thanks for the demo. Would you like a 15-minute call to review the pricing options for your team?' The CTA is the calendar link already in that template. Send at most once per eligible contact.",
+        "type": "Request",
+        "domain": "Sales",
+        "criteria": "Review the eligible list before sending. Excluded contacts receive nothing. Each eligible contact receives at most one email. Log the activity in the CRM and mark Follow-up complete. Route replies requesting a quote to the account owner within one business day.",
+        "context": "The CRM view, approved template and calendar link are already available to the assigned sales rep.",
+        "scope": "Email follow-up only; no phone calls, new prospecting or discount offers.",
+        "outcome": "Eligible demo attendees receive one compliant follow-up with activity recorded in the CRM.",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "ready",
+        "must_detect": [],
+        "expected_clear_gates": [
+          "contradictions",
+          "scope",
+          "behavior",
+          "completion",
+          "outcome",
+          "references",
+          "dependencies",
+          "actionability"
+        ],
+        "must_not_invent": [
+          "Require a new outreach template",
+          "Invent discounts",
+          "Claim the approved calendar link is missing",
+          "Demand a Figma design or arbitrary sales quota"
+        ],
+        "expected_material_findings": "zero",
+        "minor_suggestions_permitted": true
+      }
+    }
+  ]
+}
