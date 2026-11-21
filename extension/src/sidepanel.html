@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IssueLint Clipper</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img src="/icons/icon-32.png" width="20" height="20" alt="" />
+        <span>IssueLint <b>Clipper</b></span>
+      </div>
+      <div class="topbar-actions">
+        <button id="reextract" class="btn btn-ghost" type="button" title="Extract the active tab again">
+          <span aria-hidden="true">↻</span> Re-extract
+        </button>
+        <button id="settings-toggle" class="btn btn-icon" type="button" aria-expanded="false" aria-controls="settings" title="Settings">
+          <span aria-hidden="true">⚙</span><span class="sr-only">Settings</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="urlbar">
+      <span id="url-badge" class="url-badge" title="">No page extracted yet</span>
+      <span id="mock-badge" class="pill pill-mock" hidden>MOCK</span>
+    </div>
+
+    <section id="settings" class="card settings" hidden aria-label="Settings">
+      <h2>Settings</h2>
+      <form id="settings-form" novalidate>
+        <label class="field">
+          <span>API URL</span>
+          <input id="api-url" type="url" placeholder="https://your-backend.example/api/clip" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span>API key <em>(optional, sent as Bearer token)</em></span>
+          <div class="input-row">
+            <input id="api-key" type="password" autocomplete="off" spellcheck="false" />
+            <button id="api-key-reveal" class="btn btn-ghost btn-small" type="button" aria-pressed="false">Show</button>
+          </div>
+          <small class="hint">Stored only on this device (not synced).</small>
+        </label>
+        <label class="switch">
+          <input id="mock-mode" type="checkbox" />
+          <span class="switch-track" aria-hidden="true"></span>
+          <span>Mock mode <em>— return sample data, never call the API</em></span>
+        </label>
+        <div class="row">
+          <button class="btn btn-primary btn-small" type="submit">Save</button>
+          <span id="settings-status" class="status-text" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <div id="notice" class="notice" role="alert" hidden>
+      <p id="notice-text"></p>
+      <div class="row">
+        <button id="notice-action" class="btn btn-small" type="button" hidden></button>
+      </div>
+    </div>
+
+    <main>
+      <section class="card" aria-labelledby="preview-heading">
+        <div class="card-head">
+          <h2 id="preview-heading">Extraction</h2>
+          <span id="mode-pill" class="pill" hidden></span>
+          <span id="char-count" class="char-count" aria-live="polite"></span>
+        </div>
+        <p id="page-title" class="page-title"></p>
+        <textarea id="markdown" spellcheck="false" placeholder="Click Re-extract (or the toolbar icon) to clip the current page. Select text first to clip only the selection." aria-label="Extracted Markdown"></textarea>
+        <div class="row">
+          <button id="copy" class="btn btn-ghost btn-small" type="button" disabled>Copy Markdown</button>
+          <span id="copy-status" class="status-text" role="status"></span>
+        </div>
+      </section>
+
+      <div class="analyze-bar">
+        <button id="analyze" class="btn btn-primary btn-block" type="button" disabled>Analyze Task</button>
+        <button id="cancel" class="btn btn-ghost" type="button" hidden>Cancel</button>
+      </div>
+
+      <section id="results" class="card results" hidden aria-live="polite" aria-busy="false"></section>
+    </main>
+
+    <script type="module" src="./sidepanel.ts"></script>
+  </body>
+</html>
