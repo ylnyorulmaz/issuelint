@@ -237,8 +237,9 @@ export async function analyzeDecisionLive(
   }
   if (!object(d.audit)) throw new ApiError('INVALID_RESPONSE','Missing independent audit state.',response.status,requestId);
   const auditRaw=d.audit;
-  const auditChecks:unknown=auditRaw.checks;
-  const auditFindings:unknown=auditRaw.findings;
+  // Runtime Array.isArray guards below validate these untrusted values before use.
+  const auditChecks=auditRaw.checks as unknown[];
+  const auditFindings=auditRaw.findings as unknown[];
   const expectedSelected=gates.filter(g=>g.probabilities.clear<0.85).map(g=>g.dimension);
   const fail=(): never => {throw new ApiError('INVALID_RESPONSE','Malformed independent audit.',response.status,requestId);};
   if (!['complete','unavailable'].includes(String(auditRaw.status)) ||
