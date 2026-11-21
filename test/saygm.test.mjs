@@ -26,6 +26,8 @@ test("sends one authenticated request and parses usage without exposing token", 
     assert.equal(body.model, SAYGM_MODEL);
     assert.equal(body.messages[1].role, "user");
     assert.equal(body.stream, false);
+    assert.equal(Object.hasOwn(body, "max_tokens"), false, "No local token cap must be sent");
+    assert.equal(Object.hasOwn(body, "max_completion_tokens"), false);
     assert.equal(Object.hasOwn(init, "signal"), false, "SayGM request must not have an application timeout/abort signal");
     return response(completion(valid));
   };
@@ -71,7 +73,7 @@ test("separates truncated, blank, malformed JSON, invalid envelope and invalid p
 });
 test("oversized provider response is bounded and never logged", async () => {
   await assert.rejects(
-    callSaygmVerifier({apiKey:"test-key",task,checks,fetcher:async()=>new Response("x".repeat(30_001),{status:200})}),
+    callSaygmVerifier({apiKey:"test-key",task,checks,fetcher:async()=>new Response("x".repeat(1024 * 1024 + 1),{status:200})}),
     e => e instanceof SaygmError && e.category === "response_too_large"
   );
 });
@@ -83,5 +85,37 @@ test("HTTP status and network failures have distinct safe diagnostics", async ()
   await assert.rejects(
     callSaygmVerifier({apiKey:"test-key",task,checks,fetcher:async()=>{throw Error("Authorization: Bearer secret-raw-data")}}),
     e => e instanceof SaygmError && e.category === "network" && !e.message.includes("Bearer")
+  );
+});
+
+test("large, valid reasoning-bearing upstream envelope no longer fails at old 30KB cap", async () => {
+  const envelope = { ...completion(valid), choices:[{
+    ...completion(valid).choices[0],
+    message: {
+      content: JSON.stringify(valid),
+      reasoning_content: "internal reasoning omitted from logs".repeat(3000)
+    }
+  }] };
+  assert.ok(JSON.stringify(envelope).length > 30_000);
+  const result = await callSaygmVerifier({
+    apiKey:"test-secret", task, checks,
+    fetcher:async()=>response(envelope)
+  });
+  assert.deepEqual(result.verdict.verdicts, []);
+  assert.equal(result.usage.totalTokens, 163);
+});
+
+test("oversized streamed responses are cut off even without Content-Length", async () => {
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array(1024 * 1024));
+      controller.enqueue(new Uint8Array(2));
+    },
+    cancel() {}
+  });
+  await assert.rejects(
+    callSaygmVerifier({ apiKey:"test-secret", task, checks,
+      fetcher:async()=>new Response(stream,{status:200}) }),
+    e=>e instanceof SaygmError && e.category==="response_too_large"
   );
 });

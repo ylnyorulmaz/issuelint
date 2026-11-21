@@ -35,7 +35,9 @@ export type SaygmOptions = {
   fetcher?: SaygmFetch;
 };
 
-const MAX_RESPONSE_BYTES = 30_000;
+// Defensive transport-size limit, NOT a model output-token limit.
+// Allows substantially larger reasoning-bearing gateway envelopes than 30 KB.
+const MAX_RESPONSE_BYTES = 1024 * 1024;
 const SYSTEM = [
   "You are an independent quality auditor for work-ticket review feedback.",
   "Audit false positives, missed execution-critical decisions, severity and editorial clarity.",
@@ -94,7 +96,7 @@ export async function callSaygmVerifier(options: SaygmOptions): Promise<SaygmRes
         model: SAYGM_MODEL,
         stream: false,
         temperature: 0.1,
-        max_tokens: 1800,
+        // Deliberately omit max_tokens: the upstream model/provider decides its output budget.
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
@@ -111,11 +113,33 @@ export async function callSaygmVerifier(options: SaygmOptions): Promise<SaygmRes
   const declaredLength = Number(response.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES)
     throw new SaygmError("response_too_large");
+  // Read incrementally so a missing/incorrect Content-Length cannot allocate
+  // unbounded memory. This is a transport safety cap, not a token budget.
+  let body = "";
+  if (response.body) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let bytes = 0;
+    try {
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        bytes += part.value.byteLength;
+        if (bytes > MAX_RESPONSE_BYTES) {
+          await reader.cancel().catch(() => {});
+          throw new SaygmError("response_too_large");
+        }
+        body += decoder.decode(part.value, { stream: true });
+      }
+      body += decoder.decode();
+    } catch (cause) {
+      if (cause instanceof SaygmError) throw cause;
+      throw new SaygmError("network");
+    } finally {
+      reader.releaseLock();
+    }
+  }
   let raw: unknown;
-  let body: string;
-  try { body = await response.text(); }
-  catch { throw new SaygmError("network"); }
-  if (body.length > MAX_RESPONSE_BYTES) throw new SaygmError("response_too_large");
   if (!body.trim()) throw new SaygmError("empty_content");
   try { raw = JSON.parse(body); }
   catch { throw new SaygmError("invalid_json"); }

@@ -42,6 +42,7 @@ The review contract lives in:
 - Use fixed event names and allowlisted primitive fields only. Worker events: `issuelint.request_started`, `issuelint.request_finished`, `issuelint.inference_stage`, `issuelint.verifier_result`, `issuelint.analysis_result`, `issuelint.inference_failed`, `issuelint.client_event` and `issuelint.unhandled_request_error`.
 - The authenticated `POST /api/client-events` endpoint takes a 1 KiB payload and a strict event/category/status/duration allowlist. Keep the shared preview Bearer gate, never broaden to untrusted arbitrary JSON logs, and cap browser reports. Browser helper: `src/diagnostics.ts`.
 - SayGM failures must remain distinguishable (`output_truncated`, `empty_content`, `invalid_json`, `invalid_patch`, `invalid_shape`, `response_too_large`, `timeout`, `network`, `http`, `config`) without logging upstream bodies or secrets.
+- Do not reintroduce a local `max_tokens` cap on SayGM verifier requests: the provider sets the completion budget. Preserve the 1 MiB bounded streaming response guard (not a token limit), exact-source evidence validation, 11-dimension patch schema and one-call/no-retry policy.
 - **Never log task descriptions, titles, generated drafts, evidence, full URLs, tokens, arbitrary exception `message`/`stack`, request headers or raw model data.** Test this invariant. Logs are operational metadata, not analytics consent.
 
 ## Workflow for every change
