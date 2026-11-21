@@ -1,3 +1,4 @@
+import { callSaygmVerifier, verifierMode } from "./saygm.ts";
 import { runAnalysis, InferenceError, type AiRunner } from "./inference.ts";
 import { parseTask, ValidationError } from "./schema.ts";
 
@@ -8,6 +9,8 @@ interface WorkerEnv {
   ANALYZE_ENABLED?: string;
   PREVIEW_TOKEN?: string;
   AI_MODEL?: string;
+  SAYGM_API_KEY?: string;
+  FEEDBACK_VERIFIER_MODE?: string;
 }
 
 function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
@@ -92,6 +95,8 @@ export default {
         reviewEngineVersion: "2.4",
         aiBindingConfigured: env.AI != null,
         aiEnabled: env.ANALYZE_ENABLED === "true",
+        feedbackVerifierMode: verifierMode(env.FEEDBACK_VERIFIER_MODE) === "off" ? "off" : "shadow",
+        feedbackVerifierConfigured: !!env.SAYGM_API_KEY,
       });
     }
 
@@ -123,7 +128,27 @@ export default {
       }
 
       try {
-        const analysis = await runAnalysis(task, env.AI, env.AI_MODEL);
+        // Iteration 2 supports observation only. Even an accidental "on" config
+        // remains shadow until Iteration 3 implements validated patch application.
+        const mode = verifierMode(env.FEEDBACK_VERIFIER_MODE);
+        const observer = mode === "off" ? undefined : async (checks: readonly import("./review-v2.ts").ReviewCheck[]) => {
+          try {
+            const result = await callSaygmVerifier({ apiKey: env.SAYGM_API_KEY, task, checks });
+            // Never log task text, findings, questions, patch details or raw response.
+            console.info("issuelint.verifier_shadow", {
+              ok: true, verdictCount: result.verdict.verdicts.length,
+              latencyMs: result.latencyMs,
+              promptTokens: result.usage.promptTokens,
+              completionTokens: result.usage.completionTokens,
+            });
+          } catch (cause) {
+            console.warn("issuelint.verifier_shadow", {
+              ok: false, category: cause instanceof Error && "category" in cause
+                ? String(cause.category) : "unknown",
+            });
+          }
+        };
+        const analysis = await runAnalysis(task, env.AI, env.AI_MODEL, observer);
         return json({ mode: "ai", analyzed: true, analysis });
       } catch (cause) {
         const kind = cause instanceof InferenceError ? cause.kind : "upstream";
