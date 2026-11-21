@@ -28,7 +28,7 @@ The app currently has no user accounts, database, third-party task-platform sync
 
 ### Inference pipeline
 
-1. `worker/inference.ts` calls `@cf/openai/gpt-oss-120b` through the native Workers AI binding (medium reasoning; 4,700 maximum output tokens) to produce the eleven checks and a grounded rewrite core.
+1. `worker/inference.ts` calls `@cf/openai/gpt-oss-120b` through the native Workers AI binding (low reasoning; 4,700 maximum output tokens) to produce the eleven checks and a grounded rewrite core.
 2. `worker/review-v2.ts` validates all dimensions, quoted source evidence, contradictions, issue selection and final summaries/status.
 3. When enabled, `worker/saygm.ts` sends the original task **and all eleven checks** to SayGM's `deepseek-v4.1-flash-1017` for an independent verdict.
 4. In `on` mode only, `worker/feedback-verifier.ts` and `worker/verifier-patch.ts` validate and apply bounded patch actions (`KEEP`, `SUPPRESS`, `DOWNGRADE`, `REVISE`, `ADD`), then rerun deterministic review validation. The verifier cannot suppress or downgrade a critical finding, or invent source quotes.
@@ -42,7 +42,7 @@ The prior conditional GPT-OSS quality gate (`worker/quality-gate.ts`) is used wh
 | `shadow` | SayGM runs and reports coarse telemetry, but its verdict does **not** change visible findings; original gate remains active. |
 | `on` | Apply valid independent patches, recompute and optionally repair; original conditional gate is skipped. |
 
-If `SAYGM_API_KEY` is absent, the effective mode is `off` regardless of the flag. An invalid mode also resolves to `off`. The SayGM request has a 12-second default timeout (bounded to 1–30 seconds), one attempt and no retry. `on` affects **all** AI requests to this Worker; no percentage or per-user rollout exists.
+If `SAYGM_API_KEY` is absent, the effective mode is `off` regardless of the flag. An invalid mode also resolves to `off`. The SayGM verifier request has **no application-level timeout** or abort timer. It still makes one attempt with no retry; provider/Cloudflare execution limits and the browser’s separate 180-second analysis timeout may end requests. `on` affects **all** AI requests to this Worker; no percentage or per-user rollout exists.
 
 **Limits of the implementation:** literal-evidence validation and deterministic guards reduce hallucinations, but do not prove all semantic judgments correct. Do not claim quality improvements without representative live model evaluation. See [the full 2.5 design and rollout record](docs/feedback-quality-engine-2.5.md).
 

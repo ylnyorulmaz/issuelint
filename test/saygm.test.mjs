@@ -26,6 +26,7 @@ test("sends one authenticated request and parses usage without exposing token", 
     assert.equal(body.model, SAYGM_MODEL);
     assert.equal(body.messages[1].role, "user");
     assert.equal(body.stream, false);
+    assert.equal(Object.hasOwn(init, "signal"), false, "SayGM request must not have an application timeout/abort signal");
     return response(completion(valid));
   };
   const result = await callSaygmVerifier({ apiKey: "secret-key", task, checks, fetcher });
@@ -47,7 +48,7 @@ test("invalid JSON and invalid patches fail closed", async () => {
     fetcher: async () => response(completion({ verdicts: [{ action: "DELETE" }], repair_needed: false })) }),
     e => e instanceof SaygmError && e.category === "invalid_patch");
 });
-test("timeout abort is classified safely", async () => {
+test("provider-side abort can still be classified without an application timeout", async () => {
   await assert.rejects(callSaygmVerifier({ apiKey: "key", task, checks,
     fetcher: async () => { const e = new Error("abort"); e.name = "TimeoutError"; throw e; } }),
     e => e instanceof SaygmError && e.category === "timeout");

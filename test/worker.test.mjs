@@ -186,7 +186,7 @@ test("valid analysis calls the native AI binding once and returns validated JSON
   assert.equal(calls[0].model, "@cf/openai/gpt-oss-120b");
   assert.equal(calls[0].options.response_format.type, "json_schema");
   assert.equal(calls[0].options.stream, false);
-  assert.equal(calls[0].options.reasoning_effort, "medium");
+  assert.equal(calls[0].options.reasoning_effort, "low");
   assert.equal(calls[0].options.max_tokens, 4700);
   assert.match(calls[0].options.messages[1].content, /Contact all leads today/);
 });
