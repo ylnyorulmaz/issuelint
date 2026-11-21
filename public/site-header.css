@@ -108,10 +108,12 @@ html[data-theme="dark"] .site-header .site-header-logo-dark { display: block !im
   outline: 2px solid var(--red-text);
   outline-offset: 3px;
 }
-@media (max-width: 950px) {
-  .site-header .site-header-nav { gap: 15px; }
+/* Five links: compact spacing before hiding the navigation on smaller screens. */
+@media (max-width: 1050px) {
+  .site-header .site-header-nav { gap: 13px; }
+  :is(.app[data-design="minimalist"], .about-app) .site-header .site-header-nav a { font-size: 12px; }
 }
-@media (max-width: 750px) {
+@media (max-width: 870px) {
   .site-header .site-header-nav { display: none; }
 }
 @media (max-width: 650px) {
