@@ -121,22 +121,77 @@ test("literal task source grounding rejects invented quotes",()=>{
   assert.throws(()=>parseAuditResponse({checks:[check("scope","gap",{evidence:["APPROVED FIGMA DESIGN"]})]},task,["scope"]),/invalid_response/);
 });
 
-test("incomplete, duplicated, malformed or ungrounded review fails atomically",async()=>{
+test("independent audit preserves valid Gate findings and isolates malformed evidence",async()=>{
   const d=decision({scope:.6,behavior:.2});
-  for (const checks of [
-    [check("scope")],
-    [check("scope"),check("scope")],
-    [check("scope","gap",{evidence:[]}),check("behavior")],
-    [check("scope"),check("behavior","gap",{question:""})],
-    [check("scope"),check("behavior","gap",{evidence:["NOT SUPPLIED"]})],
-  ]) {
+  const valid=check("behavior","gap",{
+    title:"Dark mode behavior undefined",
+    reason:"The task does not specify activation or persistence, which changes the expected flow.",
+    evidence:["Users want dark mode on web and mobile."],
+    question:"Should dark mode follow system settings or a user toggle?",
+  });
+  const ai=mockAi({checks:[
+    check("scope","gap",{evidence:["invented specification from Figma"]}),
+    valid,
+  ]});
+  const events=[];
+  const res=await runSelectiveAudit(task,d,ai,undefined,(stage,fields)=>events.push({stage,fields}));
+  assert.equal(ai.calls.length,1);
+  assert.equal(res.status,"partial");
+  assert.deepEqual(res.selected,["scope","behavior"]);
+  assert.deepEqual(res.unverified,["scope"]);
+  assert.deepEqual(res.checks.map(c=>c.dimension),["behavior"]);
+  assert.equal(res.findings.length,1);
+  assert.equal(res.findings[0].title,"Dark mode behavior undefined");
+  assert.ok(events.some(e=>e.stage==="gate_rejected" && e.fields.dimension==="scope" &&
+    e.fields.reason==="evidence_not_in_task"));
+  assert.ok(!JSON.stringify(events).includes("invented specification"));
+});
+
+test("missing or duplicated Gate results are marked unverified, not silently cleared",async()=>{
+  const d=decision({scope:.6,behavior:.2});
+  for(const checks of [[check("scope")],[check("scope"),check("scope")]]){
     const ai=mockAi({checks});
     const res=await runSelectiveAudit(task,d,ai);
-    assert.equal(res.status,"unavailable");
-    assert.equal(res.errorCategory,"invalid_response");
+    if(checks.length===1){
+      assert.equal(res.status,"partial");
+      assert.deepEqual(res.unverified,["behavior"]);
+      assert.deepEqual(res.checks.map(c=>c.dimension),["scope"]);
+    }else{
+      assert.equal(res.status,"unavailable");
+      assert.deepEqual(res.unverified,["scope","behavior"]);
+      assert.deepEqual(res.checks,[]);
+    }
     assert.deepEqual(res.findings,[]);
-    assert.deepEqual(res.checks,[]);
   }
+});
+
+test("whole batch fails closed if no gate result survives validation",async()=>{
+  const d=decision({scope:.6,behavior:.2});
+  const ai=mockAi({checks:[
+    check("scope","gap",{evidence:["fabricated quote"]}),
+    check("behavior","gap",{evidence:["also fabricated"]}),
+  ]});
+  const res=await runSelectiveAudit(task,d,ai);
+  assert.equal(res.status,"unavailable");
+  assert.equal(res.errorCategory,"invalid_response");
+  assert.deepEqual(res.unverified,["scope","behavior"]);
+  assert.deepEqual(res.findings,[]);
+  assert.deepEqual(res.checks,[]);
+});
+
+test("pure quotation wrappers are stripped only when literal original passage matches",async()=>{
+  const d=decision({scope:.6});
+  const ai=mockAi({checks:[check("scope","gap",{
+    title:"Dark mode coverage unspecified",
+    reason:"The change names platforms but leaves the affected page boundaries unclear.",
+    evidence:["“Users want dark mode on web and mobile.”"],
+    question:"Which pages should use dark mode?",
+  })]});
+  const res=await runSelectiveAudit(task,d,ai);
+  assert.equal(res.status,"complete");
+  assert.deepEqual(res.unverified,[]);
+  assert.equal(res.checks[0].evidence[0],"Users want dark mode on web and mobile.");
+  assert.equal(res.findings.length,1);
 });
 
 test("GPT model or truncation failures keep Gemini routing without fake findings",async()=>{
