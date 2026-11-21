@@ -66,3 +66,13 @@ Merging code does not prove the Worker has been deployed. Verify the deployed ve
 
 ### Operational prerequisite
 The repository is not automatically linked to Cloudflare Workers Builds. Merging to main does not deploy. Use the repository's `cf deploy` from a checked-out build environment with Cloudflare credentials and installed dependencies; verify Worker settings and deployment ID afterwards. Keep `FEEDBACK_VERIFIER_MODE=off` by default.
+
+## Iteration 4 — Bounded targeted rewrite repair
+
+- When the independent verifier returns a valid, applied patch with `repair_needed=true`, the existing low-reasoning rewrite repair is invoked once, even if the primary rewrite core was otherwise acceptable.
+- The repair receives the original task and **final selected findings**, never the verifier's untrusted prose as instructions.
+- A repaired rewrite must pass the existing material-improvement and source-grounding checks.
+- If the repair fails, a previously valid primary rewrite is retained and assembled with the **final** findings; otherwise the clarification draft is used.
+- Blocked contradictions still take priority and produce a clarification draft rather than an ungrounded rewrite.
+- No second verifier call or recursive model discussion is introduced. No forced number of findings.
+- Rollout remains `off` by default. Shadow/on activation requires provider credentials, evaluation and privacy review.

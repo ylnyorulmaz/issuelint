@@ -256,6 +256,7 @@ export async function runAnalysis(
 
   onUsage(raw);
   let reviewed: ReturnType<typeof parseReviewV2>;
+  let verifierRepairRequested = false;
   try {
     const parsed=extractJsonResponse(raw);
     reviewed = parseReviewV2(parsed, task);
@@ -265,6 +266,7 @@ export async function runAnalysis(
         if (independentMode && verdict && record(parsed)) {
           // Fail atomically: invalid patch falls back to validated primary output.
           reviewed = verifyPatchedReview(parsed, task, reviewed.checks, verdict);
+          verifierRepairRequested = verdict.repair_needed && verdict.verdicts.length > 0;
         }
       } catch {
         // No verifier failure can break primary review or leak task content.
@@ -317,7 +319,8 @@ export async function runAnalysis(
     return {...base,suggestedRewrite:clarification,rewriteStatus:clarification?"clarification_draft":"unavailable"};
   }
 
-  if (isMeaningfulRewrite(candidate, task) && isGroundedCore(candidate, task)) {
+  const candidateValid = isMeaningfulRewrite(candidate, task) && isGroundedCore(candidate, task);
+  if (candidateValid && !verifierRepairRequested) {
     finish();
     return { ...base, suggestedRewrite:assembleRewrite(candidate,analysis.findings,task), rewriteStatus:"rewritten" };
   }
@@ -327,6 +330,13 @@ export async function runAnalysis(
   if(repaired) {
     finish();
     return {...base,suggestedRewrite:assembleRewrite(repaired,analysis.findings,task),rewriteStatus:"rewritten"};
+  }
+
+  // If a targeted editorial repair failed, preserve an already-grounded primary
+  // rewrite rather than degrading the response into a clarification checklist.
+  if (candidateValid) {
+    finish();
+    return {...base,suggestedRewrite:assembleRewrite(candidate,analysis.findings,task),rewriteStatus:"rewritten"};
   }
 
   // Never display copied original task as an AI-generated improvement.
