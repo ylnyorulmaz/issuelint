@@ -442,3 +442,58 @@ test('Decision scorecard provides a keyboard-accessible explanatory tooltip',asy
   assert.match(component,/GPT-OSS reviews independently/);
   assert.match(css,/\.decision-score-help > summary:focus-visible/);
 });
+
+import { analyzeQuickScanLive } from '../src/api.ts';
+
+test('Quick Scan transport validates the exact Gemini-only checklist',async()=>{
+  const dimensions=['contradictions','actionability','scope','granularity','behavior','completion',
+    'outcome','references','dependencies','clarity','feasibility'];
+  const scan={mode:'quick_scan',analyzed:true,scan:{model:'gemini-decision-1',checked:11,
+    durationMs:200,gates:dimensions.map((dimension,i)=>({dimension,assessment:i===0?'gap':i===1?'not_applicable':'clear'}))}};
+  const old=globalThis.fetch;
+  let calls=0;
+  globalThis.fetch=async(url,opts)=>{
+    calls++;
+    assert.equal(url,'/api/quick-scan');
+    assert.equal(opts.headers.Authorization,'Bearer test-preview');
+    assert.deepEqual(JSON.parse(opts.body),validTask);
+    return new Response(JSON.stringify(scan),{status:200});
+  };
+  try{
+    const result=await analyzeQuickScanLive(validTask,'test-preview',new AbortController().signal);
+    assert.equal(result.gates.length,11);
+    assert.equal(result.gates[0].assessment,'gap');
+    assert.equal(calls,1);
+    const invalid=structuredClone(scan);
+    invalid.scan.gates[2].dimension='contradictions';
+    globalThis.fetch=async()=>new Response(JSON.stringify(invalid),{status:200});
+    await assert.rejects(()=>analyzeQuickScanLive(validTask,'test-preview',new AbortController().signal),
+      e=>e instanceof ApiError&&e.code==='INVALID_RESPONSE');
+    const noAudit=structuredClone(scan);
+    noAudit.scan.gates[0].probabilities={clear:.1,gap:.9,not_applicable:0};
+    globalThis.fetch=async()=>new Response(JSON.stringify(noAudit),{status:200});
+    await assert.rejects(()=>analyzeQuickScanLive(validTask,'test-preview',new AbortController().signal),
+      e=>e instanceof ApiError&&e.code==='INVALID_RESPONSE');
+  } finally {globalThis.fetch=old;}
+});
+
+test('Quick Scan homepage stays compact and full/original engines remain accessible',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const [app,quick,worker,admin]=await Promise.all([
+    readFile(new URL('../src/index.tsx',import.meta.url),'utf8'),
+    readFile(new URL('../src/components/QuickScanScorecard.tsx',import.meta.url),'utf8'),
+    readFile(new URL('../worker/index.ts',import.meta.url),'utf8'),
+    readFile(new URL('../src/components/AdminStation.tsx',import.meta.url),'utf8'),
+  ]);
+  assert.match(app,/void runQuickScan\(\)/);
+  assert.match(app,/Quick Scan/);
+  assert.match(app,/onClick=\{\(\) => void runDecision\(\)\}/);
+  assert.match(app,/async function runAI\(/);
+  assert.match(worker,/await runSelectiveAudit\(/);
+  assert.match(worker,/await runAnalysis\(/);
+  assert.match(worker,/\/api\/quick-scan/);
+  assert.match(admin,/Send to Original AI/);
+  assert.match(admin,/Send to Decision Model/);
+  assert.doesNotMatch(quick,/<details|<summary|probabilities|\.reason|\.question|\.evidence|percent\(/);
+  assert.match(quick,/class="quick-scan-row"/);
+});
