@@ -3,9 +3,10 @@ import { render } from 'solid-js/web';
 import { analyze, blank, examples, type Task, type TaskType, type Domain } from './analyzer';
 import { analyzeLive, analyzeDecisionLive, getHealth, ApiError, type ApiAnalysis, type ApiDecisionResult, type ApiFinding } from './api';
 import './style.css';
-import './styles.neobrutalist.css';
+// Archived design preserved in src/styles.neobrutalist.css; inactive during minimalist-only beta.
 import './styles.minimalist.css';
-import { readDesignTheme, saveDesignTheme, type DesignTheme } from './design-theme';
+// Legacy visual theme choices are retained in src/design-theme.ts; no longer shown or applied.
+import { readAppearance, saveAppearance, type Appearance } from './appearance';
 import { BrandEmblem, SectionIndex, FindingMark, ScreenLabel } from './components/Constructivist';
 import { prepareReviewTask, reviewTextLength, reviewInputValid } from './review-task';
 import { analyticsConfigured, readAnalyticsConsent, saveAnalyticsConsent, enableAnalytics, trackAnalyticsEvent, type AnalyticsConsent } from './analytics';
@@ -15,6 +16,7 @@ import { ReviewLoading } from './components/ReviewLoading';
 import { DecisionScorecard } from './components/DecisionScorecard';
 import { AdminStation } from './components/AdminStation';
 import './styles.admin.css';
+import './styles.appearance.css';
 import './styles.decision.css';
 import { readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from './preview-access';
 import { logClient, newRequestId, reportClientFailure } from './diagnostics';
@@ -60,8 +62,7 @@ function App() {
   const [tab, setTab] = createSignal<'findings' | 'draft'>('findings');
   const [selected, setSelected] = createSignal<string | null>(null);
   const [copied, setCopied] = createSignal(false);
-  const [dark, setDark] = createSignal(window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
-  const [designTheme, setDesignTheme] = createSignal<DesignTheme>(readDesignTheme());
+  const [dark, setDark] = createSignal(readAppearance() === 'dark');
   const [analyticsConsent, setAnalyticsConsent] = createSignal<AnalyticsConsent>(readAnalyticsConsent());
   const [showPrivacyChoices, setShowPrivacyChoices] = createSignal(false);
   let requestController: AbortController | undefined;
@@ -95,9 +96,10 @@ function App() {
     });
   });
 
-  function chooseDesignTheme(next: DesignTheme) {
-    setDesignTheme(next);
-    saveDesignTheme(next);
+  function chooseAppearance(next: Appearance) {
+    if (dark() === (next === 'dark')) return;
+    setDark(next === 'dark');
+    saveAppearance(next);
     trackAnalyticsEvent('theme_changed');
   }
   function chooseAnalyticsConsent(value: 'accepted' | 'declined') {
@@ -274,24 +276,16 @@ function App() {
   const totalLength = () => reviewTextLength(task());
   const inputValid = () => reviewInputValid(task());
 
-  return <div class="app" data-theme={dark() ? 'dark' : 'light'} data-design={designTheme()}>
+  return <div class="app" data-theme={dark() ? 'dark' : 'light'} data-design="minimalist">
     <header class="header"><div class="header-inner">
       <a class="brand" href="#top" aria-label="IssueLint home"><BrandEmblem/><span class="brand-word">ISSUE<strong>LINT</strong></span></a>
       <nav aria-label="Primary"><a href="#analyze" class="nav-current">01 / Analyze</a><a href="#examples">02 / Examples</a><a href="#guide">03 / Process</a></nav>
       <div class="header-right">
-        <div class="design-switcher" role="group" aria-label="Choose a visual design theme">
-          <span class="design-switcher-caption" aria-hidden="true">STYLE</span>
-          <button type="button" class="design-option" aria-pressed={designTheme() === 'constructivist'} title="Minimal Constructivism" onClick={() => chooseDesignTheme('constructivist')}>
-            <span class="design-name-long">Constructivist</span><span class="design-name-short">Construct.</span>
-          </button>
-          <button type="button" class="design-option" aria-pressed={designTheme() === 'neobrutalist'} title="Neobrutalism" onClick={() => chooseDesignTheme('neobrutalist')}>
-            <span class="design-name-long">Neobrutalist</span><span class="design-name-short">Neo</span>
-          </button>
-          <button type="button" class="design-option" aria-pressed={designTheme() === 'minimalist'} title="Minimalist (calm design)" onClick={() => chooseDesignTheme('minimalist')}>
-            <span class="design-name-long">Minimalist</span><span class="design-name-short">Minimal</span>
-          </button>
+        <div class="appearance-switcher" role="group" aria-label="Choose light or dark appearance">
+          <span class="appearance-switcher-caption" aria-hidden="true">MODE</span>
+          <button class="appearance-option" type="button" aria-pressed={!dark()} onClick={() => chooseAppearance('light')}>Light</button>
+          <button class="appearance-option" type="button" aria-pressed={dark()} onClick={() => chooseAppearance('dark')}>Dark</button>
         </div>
-        <button class="theme" type="button" onClick={() => setDark(!dark())} aria-label={dark() ? 'Switch to light mode' : 'Switch to dark mode'} title={dark() ? 'Light mode' : 'Dark mode'}>{dark() ? '☀' : '☾'}</button>
       </div>
     </div></header>
 
