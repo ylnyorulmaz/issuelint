@@ -18,7 +18,7 @@
 - **Prioritized feedback:** up to five actionable findings, deduplicated by underlying issue. Critical source-verifiable contradictions take precedence. Status is recomputed from the final findings: `ready`, `needs_clarification` or `blocked`.
 - **Grounded rewrite:** outputs `rewritten`, `clarification_draft` or `unavailable`. Blocked contradictions use a clarification draft; the system must not silently choose a conflicting instruction, fabricate references or present the original task as a new rewrite.
 - **Running review:** animated loading/skeleton and elapsed time; the four focus labels are illustrative, **not** real streaming pipeline stages. Cancel aborts the browser request.
-- **Visuals:** Minimalist (default), Constructivist and Neobrutalism, with a separate light/dark toggle. Theme preference is persisted under `issuelint.design-theme.v2`. **For private testing**, a code manually typed into Private AI access code is also saved in that browser's `localStorage` (`issuelint.preview-access.v1`) and prefilled on later visits to the same origin. Use **Forget code** to clear it; do not use this on shared devices. The code is never hardcoded or served by the Worker. This browser-only convenience is **not** an authentication bypass.
+- **Visuals:** Minimalist is the **only active design** for the beta, with explicit Light / Dark options in the top menu on `/` and `/admin`. The manual appearance choice persists under `issuelint.appearance.v1`; before the first manual choice, the OS color scheme is used. Existing legacy `issuelint.design-theme.v2` preferences are deliberately ignored. **The alternative theme files and `src/design-theme.ts` have NOT been deleted**; the style selector and Neobrutalist stylesheet import are simply inactive. **For private testing**, a code manually typed into Private AI access code is also saved in that browser's `localStorage` (`issuelint.preview-access.v1`) and prefilled on later visits to the same origin. Use **Forget code** to clear it; do not use this on shared devices. The code is never hardcoded or served by the Worker. This browser-only convenience is **not** an authentication bypass.
 - **Fallback:** demo/basic structural review without Workers AI; it must not be represented as full AI analysis.
 - **Optional analytics:** GA4 and Microsoft Clarity are disabled without build-time public IDs. When configured, scripts are loaded only after opt-in; analytics events are allowlisted and contain no task text or access codes.
 
@@ -35,6 +35,13 @@ The app currently has no user accounts, database, third-party task-platform sync
 - **Secret:** add your own **`GEMINI_API_KEY`** to Cloudflare **Workers & Pages → `issuelint-dev` → Settings → Variables and Secrets** as a secret, from Google AI Studio. The Worker reads it as a runtime secret and **never ships it to the frontend**. The existing production secret is declared as `bindings.secret()` in production configuration; branch previews do not require a key. `GET /api/health` returns `decisionConfigured: false` and disables the experimental button until it is configured. The existing V1 remains usable. Google AI Studio no-cost tier has usage limits; this release does not hardcode keys or substitute a paid provider.
 - **API response:** `{mode:"decision",analyzed:true,decision:{model:"gemini-decision-1",gates:[{dimension,assessment,confidence,probabilities:{clear,gap,not_applicable}}],checked:11,durationMs}}`.
 - **Future:** No binary acceptance threshold or automatically blocking tickets. We will benchmark/calibrate on labeled examples before using decision scores to control the user verdict. V2 presently makes no grounding claims; original V1 validation remains unchanged.
+
+
+### Minimalist-only beta appearance
+
+- The page root always uses `data-design="minimalist"`; the archived Constructivist/Neobrutalist CSS and theme storage utility remain in source control for potential future experiments, but no longer appear as visual choices.
+- Light and Dark are accessible, mutually exclusive pressed-state buttons in the header. Selection is persisted only in local browser storage, never sent to the Worker; either page reads the same preference. The app defaults to the OS preference when no manual preference is stored.
+- Check UI regression with `npm run check`, then inspect both `/` and `/admin` at narrow mobile widths and in both color modes. No analysis logic, prompts, fixtures or secrets changed.
 
 ## Private admin test station (`/admin`)
 

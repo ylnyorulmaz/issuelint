@@ -1,0 +1,38 @@
+/* Minimalist-only beta: simple accessible Light/Dark picker.
+ * Legacy design-switcher and alternative theme stylesheet files remain archived.
+ */
+.app[data-design="minimalist"] .appearance-switcher {
+  display: inline-flex; align-items: center; gap: 2px;
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 3px; background: var(--soft); flex-shrink: 0;
+}
+.app[data-design="minimalist"] .appearance-switcher-caption {
+  font-size: 9px; font-weight: 700; letter-spacing: .07em;
+  color: var(--muted); padding: 0 9px;
+}
+.app[data-design="minimalist"] .appearance-option {
+  min-height: 34px; min-width: 54px; padding: 7px 12px;
+  border: 0; border-radius: 999px; background: transparent;
+  color: var(--muted); font-size: 11px; font-weight: 650;
+  white-space: nowrap; cursor: pointer;
+}
+.app[data-design="minimalist"] .appearance-option[aria-pressed="true"] {
+  color: var(--paper); background: var(--ink);
+}
+.app[data-design="minimalist"] .appearance-option:not([aria-pressed="true"]):hover {
+  color: var(--ink); background: var(--hint);
+}
+.app[data-design="minimalist"] .appearance-option:focus-visible {
+  outline: 2px solid var(--red); outline-offset: 2px;
+}
+@media(max-width:650px){
+  .app[data-design="minimalist"] .appearance-switcher-caption { display:none; }
+  .app[data-design="minimalist"] .appearance-option {
+    min-width: 48px; min-height: 33px; padding: 6px 9px;
+  }
+}
+@media(max-width:370px){
+  .app[data-design="minimalist"] .appearance-option {
+    min-width: 43px; padding: 6px 7px; font-size:10px;
+  }
+}
