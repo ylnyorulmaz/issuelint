@@ -191,7 +191,17 @@ test('Decision v2 frontend sends task to separate endpoint and validates eleven 
     return new Response(JSON.stringify({mode:'decision',analyzed:true,decision:{
       model:'gemini-decision-1',checked:11,durationMs:310,
       gates:dimensions.map(dimension=>({dimension,assessment:dimension==='scope'?'gap':'clear',
-        confidence:.87,probabilities:{clear:.1,gap:.87,not_applicable:.03}}))
+        confidence:dimension==='scope'?.87:.9,
+        probabilities:dimension==='scope'?
+          {clear:.1,gap:.87,not_applicable:.03} : {clear:.9,gap:.07,not_applicable:.03}})),
+      audit:{
+        status:'complete',model:'@cf/openai/gpt-oss-120b',threshold:.85,
+        selected:['scope'],durationMs:720,
+        checks:[{dimension:'scope',assessment:'clear',
+          reason:'The task specifies a single, coherent set of changes to review.',
+          kind:'suggestion',severity:'suggestion',title:'',evidence:[],question:''}],
+        findings:[]
+      }
     }}),{status:200,headers:{'X-Request-ID':'decision-test-001'}});
   };
   try {
@@ -201,6 +211,8 @@ test('Decision v2 frontend sends task to separate endpoint and validates eleven 
     assert.equal(captured.init.headers['X-Request-ID'],'decision-test-001');
     assert.equal(out.checked,11);
     assert.equal(out.gates.find(g=>g.dimension==='scope').assessment,'gap');
+    assert.equal(out.audit.checks[0].assessment,'clear');
+    assert.deepEqual(out.audit.selected,['scope']);
   }finally{globalThis.fetch=previousFetch;}
 });
 
@@ -223,4 +235,53 @@ test('Decision v2 shows actionable configuration error while health keeps V1 ava
     await assert.rejects(()=>analyzeDecisionLive(validTask,'code',new AbortController().signal),
       e=>e instanceof ApiError&&e.code==='DECISION_NOT_CONFIGURED'&&/GEMINI_API_KEY/.test(e.message));
   }finally{globalThis.fetch=previousFetch;}
+});
+
+
+test('Decision client rejects missing reviewer state and mismatched routing rather than hiding the failure',async()=>{
+  const saved=globalThis.fetch;
+  const dimensions=['contradictions','actionability','scope','granularity','behavior',
+    'completion','outcome','references','dependencies','clarity','feasibility'];
+  const base={
+    mode:'decision',analyzed:true,decision:{
+      model:'gemini-decision-1',checked:11,durationMs:100,
+      gates:dimensions.map(dimension=>({dimension,assessment:'clear',confidence:.9,
+        probabilities:{clear:.9,gap:.08,not_applicable:.02}})),
+    },
+  };
+  try {
+    globalThis.fetch=async()=>new Response(JSON.stringify(base),{status:200});
+    await assert.rejects(()=>analyzeDecisionLive(validTask,'token',new AbortController().signal),
+      e=>e instanceof ApiError&&e.code==='INVALID_RESPONSE');
+    const mismatch=structuredClone(base);
+    mismatch.decision.audit={
+      status:'complete',model:'@cf/openai/gpt-oss-120b',threshold:.85,
+      selected:['scope'],checks:[],findings:[],durationMs:4,
+    };
+    globalThis.fetch=async()=>new Response(JSON.stringify(mismatch),{status:200});
+    await assert.rejects(()=>analyzeDecisionLive(validTask,'token',new AbortController().signal),
+      e=>e instanceof ApiError&&e.code==='INVALID_RESPONSE');
+  }finally{globalThis.fetch=saved;}
+});
+
+test('Decision client preserves unavailable audit warning without inventing reviewer results',async()=>{
+  const saved=globalThis.fetch;
+  const dimensions=['contradictions','actionability','scope','granularity','behavior',
+    'completion','outcome','references','dependencies','clarity','feasibility'];
+  globalThis.fetch=async()=>new Response(JSON.stringify({mode:'decision',analyzed:true,decision:{
+    model:'gemini-decision-1',checked:11,durationMs:100,
+    gates:dimensions.map(dimension=>({
+      dimension,assessment:'clear',confidence:dimension==='scope'?.82:.9,
+      probabilities:dimension==='scope'?
+        {clear:.82,gap:.15,not_applicable:.03}:{clear:.9,gap:.08,not_applicable:.02},
+    })),
+    audit:{status:'unavailable',model:'@cf/openai/gpt-oss-120b',threshold:.85,
+      selected:['scope'],checks:[],findings:[],durationMs:120,errorCategory:'upstream'},
+  }}),{status:200});
+  try {
+    const result=await analyzeDecisionLive(validTask,'token',new AbortController().signal);
+    assert.equal(result.audit.status,'unavailable');
+    assert.deepEqual(result.audit.selected,['scope']);
+    assert.deepEqual(result.audit.findings,[]);
+  }finally{globalThis.fetch=saved;}
 });
