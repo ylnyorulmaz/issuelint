@@ -1,4 +1,4 @@
-export type SourceMode = "selection" | "modal" | "page";
+export type SourceMode = "selection" | "modal" | "card" | "page";
 
 export interface ExtractionResult {
   title: string;
@@ -15,6 +15,14 @@ export const SOFT_LIMIT_CHARS = 8_000;
 
 /** Messages from the service worker to the side panel. */
 export type PanelMessage = { type: "clipper:extract"; tabId: number };
+
+/** Element picker ("Pick Card / Area"). The side panel starts it with chrome.tabs.sendMessage; the content
+ *  script then opens a runtime port with this name and reports back over it. A closed port ends the picker. */
+export const PICKER_PORT = "clipper-picker";
+export type PickerCommand = { type: "START_ELEMENT_PICKER" } | { type: "CANCEL_ELEMENT_PICKER" };
+export type PickerEvent =
+  | { type: "ELEMENT_PICKED"; result: ExtractionResult }
+  | { type: "ELEMENT_PICKER_CANCELLED"; reason: string };
 
 /** Exact request body sent to the backend. */
 export interface AnalyzeRequest {

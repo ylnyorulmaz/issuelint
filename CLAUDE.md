@@ -39,7 +39,7 @@ The first priority for a coding task is to identify **which route and result con
 | Light/Dark, typography, brand | `src/styles.minimalist.css`, `src/styles.readability.css`, `src/styles.quick-scan.css`, `public/brand/` |
 | Security/ops/diagnostics | `worker/index.ts`, `src/diagnostics.ts`, `cloudflare.config.ts`, `.github/workflows/` |
 | Static About / guide pages, SEO, shared header/footer | `public/about/`, `public/guides/`, `public/site-header.css`, `public/site-footer.css`, `public/robots.txt`, `public/sitemap.xml`, `index.html`, `test/client.test.mjs` |
-| Chrome extension (Clipper) | `extension/src/content.ts`, `extension/src/sidepanel.ts`, `extension/src/lib/{issuelint,scorecard,api,settings}.ts`, `extension/test/`, `extension/README.md` |
+| Chrome extension (Clipper) | `extension/src/content.ts`, `extension/src/picker.ts`, `extension/src/sidepanel.ts`, `extension/src/lib/{issuelint,scorecard,api,settings}.ts`, `extension/test/`, `extension/README.md` |
 | MCP server | `mcp/src/{index,client,task,formatter,stdout-guard}.ts`, `mcp/test/smoke.test.mjs`, `mcp/README.md` |
 | A Worker schema or response-shape change | Also `extension/src/lib/issuelint.ts`, `extension/src/lib/scorecard.ts`, `mcp/src/task.ts`, `mcp/src/formatter.ts` and their tests |
 
@@ -64,7 +64,7 @@ The first priority for a coding task is to identify **which route and result con
 - No new Worker routes or schema changes for them unless the task explicitly asks; if the Worker contract changes, update both clients and their tests in the same PR.
 - Mirror `presentDecisionGate`: unverified is never clear. No invented readiness score; Quick Scan ✓ = “nothing flagged”.
 - Reject over-limit text (6,500 description / 8,000 total) instead of truncating; never inject the source URL into task text.
-- Extension: minimal MV3 permissions (optional per-origin host access only), on-demand content script with no network calls and no DOM mutation, key in `chrome.storage.local`, `textContent` rendering, request-free Mock mode.
+- Extension: minimal MV3 permissions (optional per-origin host access only), on-demand content script with no network calls and no change to page content (the Pick card picker's temporary shadow-root overlay and listeners must be torn down on pick/Esc/cancel/tab switch/navigation/panel close), key in `chrome.storage.local`, `textContent` rendering, request-free Mock mode.
 - MCP: nothing on stdout but JSON-RPC (`src/stdout-guard.ts` stays the first import), stderr logs with fixed fields only, one call per tool invocation, error results must say the task was **not** checked.
 
 ### Original AI / SayGM

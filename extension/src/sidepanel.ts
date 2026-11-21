@@ -9,7 +9,9 @@ import {
 import {
   DEFAULT_SETTINGS, isIssueLintMode, loadSettings, MODE_LABELS, saveSettings, type BackendMode, type Settings,
 } from "./lib/settings.ts";
-import { SOFT_LIMIT_CHARS, type ExtractionResult, type PanelMessage, type SourceMode } from "./lib/types.ts";
+import {
+  PICKER_PORT, SOFT_LIMIT_CHARS, type ExtractionResult, type PanelMessage, type PickerCommand, type PickerEvent, type SourceMode,
+} from "./lib/types.ts";
 
 // ---------- DOM ----------
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -37,6 +39,8 @@ const ui = {
   notice: $<HTMLElement>("notice"),
   noticeText: $<HTMLElement>("notice-text"),
   noticeAction: $<HTMLButtonElement>("notice-action"),
+  pick: $<HTMLButtonElement>("pick"),
+  pickLabel: $<HTMLElement>("pick-label"),
   segments: Array.from(document.querySelectorAll<HTMLElement>(".segmented .seg")),
   charCount: $<HTMLElement>("char-count"),
   pageTitle: $<HTMLElement>("page-title"),
@@ -71,7 +75,10 @@ let extractedTabId: number | null = null;
 let extracting = false;
 let analysis: AbortController | null = null;
 
-const SOURCE_LABELS: Record<SourceMode, string> = { selection: "Selection", modal: "Modal", page: "Full Page" };
+const SOURCE_LABELS: Record<SourceMode, string> = { selection: "Selection", modal: "Modal", card: "Card", page: "Full Page" };
+
+/** Active "Pick card" session: the tab it runs in and, once the content script connects, its port. */
+let picker: { tabId: number; port: chrome.runtime.Port | null } | null = null;
 
 // ---------- Notices ----------
 function showNotice(message: string, kind: "error" | "info" = "error", action?: { label: string; run: () => void }) {
@@ -131,6 +138,7 @@ function describeInjectionError(err: unknown, tab: chrome.tabs.Tab) {
 
 async function extract(tabId?: number) {
   if (extracting) return;
+  cancelPicker();
   extracting = true;
   ui.reextract.disabled = true;
   ui.reextract.classList.add("is-busy");
@@ -164,6 +172,88 @@ async function extract(tabId?: number) {
     ui.reextract.classList.remove("is-busy");
   }
 }
+
+// ---------- Pick card / area ----------
+function setPickUi(active: boolean) {
+  ui.pick.setAttribute("aria-pressed", String(active));
+  ui.pickLabel.textContent = active ? "Picking… Esc to cancel" : "Pick card";
+  ui.pick.title = active
+    ? "Click a card or area on the page. Hold Shift for the exact element. Esc or click here to cancel."
+    : "Pick a card or area on the page. Hold Shift for the exact element; Esc cancels.";
+}
+
+async function togglePicker() {
+  if (picker) {
+    cancelPicker();
+    return;
+  }
+  if (analysis || extracting) return;
+  const tab = await activeTab();
+  if (!tab?.id) {
+    showNotice("No active tab found.");
+    return;
+  }
+  const tabId = tab.id;
+  picker = { tabId, port: null };
+  setPickUi(true);
+  clearNotice();
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+    const start: PickerCommand = { type: "START_ELEMENT_PICKER" };
+    await chrome.tabs.sendMessage(tabId, start);
+  } catch (err) {
+    if (picker?.tabId === tabId) endPicker();
+    describeInjectionError(err, tab);
+  }
+}
+
+/** Ends the session locally and tells the page to remove its overlay (idempotent). */
+function cancelPicker() {
+  const current = picker;
+  if (!current) return;
+  endPicker();
+  const cancel: PickerCommand = { type: "CANCEL_ELEMENT_PICKER" };
+  if (current.port) {
+    try {
+      current.port.postMessage(cancel);
+      current.port.disconnect();
+    } catch {
+      // Port already closed: the page has torn down on its own.
+    }
+  } else {
+    chrome.tabs.sendMessage(current.tabId, cancel).catch(() => undefined);
+  }
+}
+
+function endPicker() {
+  picker = null;
+  setPickUi(false);
+}
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== PICKER_PORT) return;
+  // Every open side panel (one per window) hears this; only the one that started the picker answers.
+  if (!picker || port.sender?.tab?.id !== picker.tabId || picker.port) return;
+  const session = picker;
+  session.port = port;
+  port.onMessage.addListener((event: PickerEvent) => {
+    if (picker !== session) return;
+    endPicker();
+    if (event?.type === "ELEMENT_PICKED" && event.result && typeof event.result.markdown === "string") {
+      setExtraction(event.result, session.tabId);
+      if (!event.result.markdown.trim()) {
+        showNotice("That area has no readable text. Try a larger area, or hold Shift for the exact element.", "info");
+      } else if (event.result.truncated) {
+        showNotice("The picked area was very long, so the clip was cut at 100,000 characters. Trim it before analyzing.", "info");
+      }
+    } else if (event?.type === "ELEMENT_PICKER_CANCELLED" && event.reason === "extract_failed") {
+      showNotice("Could not read that area. Try another one, or Re-extract the page.");
+    }
+  });
+  port.onDisconnect.addListener(() => {
+    if (picker === session) endPicker();
+  });
+});
 
 function setExtraction(result: ExtractionResult, tabId: number) {
   extraction = result;
@@ -256,6 +346,7 @@ function requestOrigin(pattern: string): Promise<boolean> {
 
 async function analyzeTask() {
   if (!ui.markdown.value.trim() || analysis) return;
+  cancelPicker();
   const mode = settings.mode;
 
   // Everything before the permission prompt stays synchronous to keep the click's user gesture.
@@ -323,6 +414,7 @@ function setLoading(loading: boolean) {
   ui.analyze.classList.toggle("is-busy", loading);
   ui.results.setAttribute("aria-busy", String(loading));
   ui.markdown.readOnly = loading;
+  ui.pick.disabled = loading;
   updateCount();
   if (loading) {
     ui.results.hidden = false;
@@ -580,6 +672,13 @@ async function refreshGrantedPattern() {
 
 // ---------- Wiring ----------
 ui.reextract.addEventListener("click", () => void extract());
+ui.pick.addEventListener("click", () => void togglePicker());
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && picker) {
+    e.preventDefault();
+    cancelPicker();
+  }
+});
 ui.copy.addEventListener("click", () => void copyMarkdown());
 ui.analyze.addEventListener("click", () => void analyzeTask());
 ui.cancel.addEventListener("click", () => analysis?.abort());
@@ -603,9 +702,11 @@ chrome.runtime.onMessage.addListener((message: PanelMessage) => {
   if (message?.type === "clipper:extract") void extract(message.tabId);
 });
 chrome.tabs.onActivated.addListener(({ tabId }) => {
+  if (picker && tabId !== picker.tabId) cancelPicker();
   if (extractedTabId !== null && tabId !== extractedTabId) markStale("Active tab changed — click Re-extract to clip it.");
 });
 chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (picker && tabId === picker.tabId && info.status === "loading") cancelPicker();
   if (tabId === extractedTabId && info.status === "complete") markStale("The page reloaded — click Re-extract to refresh.");
 });
 chrome.storage.onChanged.addListener(() => {

@@ -110,13 +110,27 @@ main { display: flex; flex-direction: column; gap: 12px; }
 .page-title:empty { display: none; }
 
 /* Segmented source indicator (read-only) */
-.segmented { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--border-subtle); border-radius: var(--radius); overflow: hidden; }
+.segmented { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border-subtle); border-radius: var(--radius); overflow: hidden; }
 .seg {
   text-align: center; padding: 6px 4px;
   font: 500 10.5px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .08em;
   color: var(--text-secondary);
 }
 .seg + .seg { border-left: 1px solid var(--border-subtle); }
+
+/* Pick card / area */
+.pick-btn {
+  appearance: none; cursor: pointer; margin-left: auto;
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px;
+  font: 500 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-secondary); background: transparent;
+  border: 1px solid var(--border-subtle); border-radius: var(--radius);
+  transition: color .12s, border-color .12s, background .12s;
+}
+.pick-btn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--border-strong); }
+.pick-btn:disabled { opacity: .4; cursor: not-allowed; }
+.pick-btn[aria-pressed="true"] { color: var(--bg-page); background: var(--accent-sage); border-color: var(--accent-sage); }
+.pick-btn[aria-pressed="true"] svg { animation: pulse 1.2s ease-in-out infinite; }
 .seg.is-active { color: var(--bg-page); background: var(--accent-sage); }
 
 /* Editor */

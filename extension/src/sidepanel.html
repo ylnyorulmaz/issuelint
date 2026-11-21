@@ -93,14 +93,24 @@
         <div class="card-head">
           <span class="step" aria-hidden="true">01</span>
           <h2 id="extract-heading" class="kicker"><span class="sr-only">01 </span>Extract</h2>
+          <button id="pick" class="pick-btn" type="button" aria-pressed="false"
+            title="Pick a card or area on the page. Hold Shift for the exact element; Esc cancels.">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+              <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.6" />
+              <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+              <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+            </svg>
+            <span id="pick-label">Pick card</span>
+          </button>
         </div>
         <div class="segmented" role="group" aria-label="Extraction source">
           <span class="seg" data-mode="selection">Selection</span>
           <span class="seg" data-mode="modal">Modal</span>
+          <span class="seg" data-mode="card">Card</span>
           <span class="seg" data-mode="page">Full Page</span>
         </div>
         <p id="page-title" class="page-title"></p>
-        <textarea id="markdown" spellcheck="false" placeholder="Re-extract (↻) or click the toolbar icon to clip the current page. Select text first to clip only the selection." aria-label="Extracted Markdown"></textarea>
+        <textarea id="markdown" spellcheck="false" placeholder="Re-extract (↻) or click the toolbar icon to clip the current page. Select text first to clip only the selection, or use Pick card to click one card or area." aria-label="Extracted Markdown"></textarea>
         <p id="limit-hint" class="limit-hint" role="status" hidden></p>
         <div class="meta-row">
           <span id="char-count" class="char-count" aria-live="polite"></span>
