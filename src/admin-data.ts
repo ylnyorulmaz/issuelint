@@ -1,6 +1,6 @@
 import type { Task } from './analyzer';
-import { ApiError } from './api';
-import { newRequestId } from './diagnostics';
+import { ApiError } from './api.ts';
+import { newRequestId } from './diagnostics.ts';
 
 export type AdminSource = 'chatgpt' | 'gemini';
 export type AdminExpectedIssue = { dimension: string; issue: string; importance?: string; question?: string };
@@ -38,7 +38,7 @@ function record(v:unknown):v is Record<string,unknown> {
 }
 /** Keep a strict, stable client shape without mixing rubric oracle into model requests. */
 export function parseAdminFixture(input:unknown, source:AdminSource):AdminFixture {
-  const invalid=()=>new ApiError('INVALID_FIXTURE','The test set has an invalid shape.','' as unknown as number);
+  const invalid=()=>new ApiError('INVALID_FIXTURE','The test set has an invalid shape.',0);
   if(!record(input)||input.source!==source||typeof input.dataset_id!=='string'||
     typeof input.schema_version!=='string'||typeof input.status!=='string'||
     !Array.isArray(input.cases)||input.cases.length!==12) throw invalid();
