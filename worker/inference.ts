@@ -1,3 +1,4 @@
+import { verifyPatchedReview } from "./verifier-patch.ts";
 import { taskSource, type Task, type Finding } from "./schema.ts";
 import { parseReviewV2, REVIEW_V2_JSON_SCHEMA, type ReviewContext } from "./review-v2.ts";
 import { SYSTEM_PROMPT, taskMessage } from "./prompt.ts";
@@ -229,7 +230,11 @@ async function repairRewrite(task: Task, findings: Finding[], ai: AiRunner, mode
   }
 }
 
-export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODEL, onPrimaryReview?: (checks: readonly import("./review-v2.ts").ReviewCheck[]) => Promise<void>): Promise<ReviewedAnalysis> {
+export async function runAnalysis(
+  task: Task, ai: AiRunner, model = DEFAULT_MODEL,
+  onPrimaryReview?: (checks: readonly import("./review-v2.ts").ReviewCheck[]) => Promise<import("./feedback-verifier.ts").VerifierVerdict | undefined>,
+  independentMode = false,
+): Promise<ReviewedAnalysis> {
   const selected = selectModel(model);
   const usage=emptyUsage();
   const started=Date.now();
@@ -255,10 +260,17 @@ export async function runAnalysis(task: Task, ai: AiRunner, model = DEFAULT_MODE
     const parsed=extractJsonResponse(raw);
     reviewed = parseReviewV2(parsed, task);
     if (onPrimaryReview) {
-      try { await onPrimaryReview(reviewed.checks); }
-      catch { /* Independent verifier errors never break primary review. */ }
+      try {
+        const verdict = await onPrimaryReview(reviewed.checks);
+        if (independentMode && verdict && record(parsed)) {
+          // Fail atomically: invalid patch falls back to validated primary output.
+          reviewed = verifyPatchedReview(parsed, task, reviewed.checks, verdict);
+        }
+      } catch {
+        // No verifier failure can break primary review or leak task content.
+      }
     }
-    const uncertain=suspiciousClearDimensions(task,reviewed.checks);
+    const uncertain = independentMode ? [] : suspiciousClearDimensions(task, reviewed.checks);
     if(uncertain.length && record(parsed)) {
       try {
         // One optional second opinion only on context-critical potentially missed gaps.
