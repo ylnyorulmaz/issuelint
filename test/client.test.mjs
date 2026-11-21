@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { analyzeLive, ApiError, getHealth } from '../src/api.ts';
+import { analyzeLive, analyzeDecisionLive, ApiError, getHealth } from '../src/api.ts';
 
 const validTask = { title:'Check sales task', description:'Contact qualified leads on Friday.', type:'General', domain:'Sales', criteria:'', context:'' };
 const analysis = { status:'ready', summary:'Clear task', findings:[], suggestedRewrite:'Contact qualified leads on Friday.', rewriteStatus:'rewritten' };
@@ -177,5 +177,50 @@ test('client errors preserve the server correlation id without displaying the be
       e=>e instanceof ApiError && e.status===502 && e.requestId==='server-trace-001' &&
         !e.message.includes('another-secret-private-code'),
     );
+  }finally{globalThis.fetch=previousFetch;}
+});
+
+
+test('Decision v2 frontend sends task to separate endpoint and validates eleven gate responses',async()=>{
+  const previousFetch=globalThis.fetch;
+  const dimensions=['contradictions','actionability','scope','granularity','behavior',
+    'completion','outcome','references','dependencies','clarity','feasibility'];
+  let captured;
+  globalThis.fetch=async(url,init)=>{
+    captured={url,init};
+    return new Response(JSON.stringify({mode:'decision',analyzed:true,decision:{
+      model:'gemini-decision-1',checked:11,durationMs:310,
+      gates:dimensions.map(dimension=>({dimension,assessment:dimension==='scope'?'gap':'clear',
+        confidence:.87,probabilities:{clear:.1,gap:.87,not_applicable:.03}}))
+    }}),{status:200,headers:{'X-Request-ID':'decision-test-001'}});
+  };
+  try {
+    const out=await analyzeDecisionLive(validTask,'private-preview-code',new AbortController().signal,'decision-test-001');
+    assert.equal(captured.url,'/api/analyze-v2');
+    assert.equal(captured.init.headers.Authorization,'Bearer private-preview-code');
+    assert.equal(captured.init.headers['X-Request-ID'],'decision-test-001');
+    assert.equal(out.checked,11);
+    assert.equal(out.gates.find(g=>g.dimension==='scope').assessment,'gap');
+  }finally{globalThis.fetch=previousFetch;}
+});
+
+test('Decision v2 frontend rejects missing or malformed gates and does not fabricate results',async()=>{
+  const previousFetch=globalThis.fetch;
+  globalThis.fetch=async()=>new Response(JSON.stringify({mode:'decision',analyzed:true,decision:{
+    model:'gemini-decision-1',checked:11,durationMs:20,gates:[]
+  }}),{status:200});
+  try {
+    await assert.rejects(
+      ()=>analyzeDecisionLive(validTask,'code',new AbortController().signal),
+      e=>e instanceof ApiError&&e.code==='INVALID_RESPONSE');
+  }finally{globalThis.fetch=previousFetch;}
+});
+
+test('Decision v2 shows actionable configuration error while health keeps V1 available',async()=>{
+  const previousFetch=globalThis.fetch;
+  globalThis.fetch=async()=>new Response(JSON.stringify({error:'DECISION_NOT_CONFIGURED'}),{status:503});
+  try {
+    await assert.rejects(()=>analyzeDecisionLive(validTask,'code',new AbortController().signal),
+      e=>e instanceof ApiError&&e.code==='DECISION_NOT_CONFIGURED'&&/GEMINI_API_KEY/.test(e.message));
   }finally{globalThis.fetch=previousFetch;}
 });

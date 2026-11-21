@@ -19,7 +19,22 @@ export type ApiAnalysis = {
   reviewCoverage?: { checked: number; gaps: number; reported: number };
 };
 export type LiveResponse = { mode: 'ai'; analyzed: true; analysis: ApiAnalysis };
-export type Health = { status: string; aiEnabled: boolean; aiBindingConfigured: boolean };
+export type DecisionAssessment = 'clear' | 'gap' | 'not_applicable';
+export type DecisionDimension = 'contradictions' | 'actionability' | 'scope' | 'granularity' |
+  'behavior' | 'completion' | 'outcome' | 'references' | 'dependencies' | 'clarity' | 'feasibility';
+export type DecisionGate = {
+  dimension: DecisionDimension;
+  assessment: DecisionAssessment;
+  confidence: number;
+  probabilities: Record<DecisionAssessment, number>;
+};
+export type ApiDecisionResult = {
+  model: 'gemini-decision-1';
+  gates: DecisionGate[];
+  checked: number;
+  durationMs: number;
+};
+export type Health = { status: string; aiEnabled: boolean; aiBindingConfigured: boolean; decisionConfigured: boolean };
 
 export class ApiError extends Error {
   readonly code: string;
@@ -47,7 +62,8 @@ export async function getHealth(): Promise<Health> {
     if (!object(json) || typeof json.aiEnabled !== 'boolean' || typeof json.aiBindingConfigured !== 'boolean') {
       throw new Error('Unexpected health response');
     }
-    return { status: String(json.status ?? 'unknown'), aiEnabled: json.aiEnabled, aiBindingConfigured: json.aiBindingConfigured };
+    return { status: String(json.status ?? 'unknown'), aiEnabled: json.aiEnabled, aiBindingConfigured: json.aiBindingConfigured,
+      decisionConfigured: json.decisionConfigured === true };
   } finally { clearTimeout(timeout); }
 }
 
@@ -119,4 +135,84 @@ export async function analyzeLive(task: Task, token: string, signal: AbortSignal
     : undefined;
   return { status: a.status as ApiAnalysis['status'], summary: a.summary, findings, suggestedRewrite: a.suggestedRewrite,
     rewriteStatus: a.rewriteStatus as ApiAnalysis['rewriteStatus'], reviewContext: context, reviewCoverage: coverage };
+}
+
+
+const DECISION_DIMENSIONS: DecisionDimension[] = [
+  'contradictions','actionability','scope','granularity','behavior','completion',
+  'outcome','references','dependencies','clarity','feasibility',
+];
+const DECISION_ASSESSMENTS: DecisionAssessment[] = ['clear','gap','not_applicable'];
+const isProbability = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
+
+/** Separate V2 transport; V1 analyzeLive and its output contract are unchanged. */
+export async function analyzeDecisionLive(
+  task: Task, token: string, signal: AbortSignal, suppliedId?: string,
+): Promise<ApiDecisionResult> {
+  const id = safeRequestId(suppliedId) ?? newRequestId();
+  const started = Date.now();
+  logClient('info', 'decision_request', {requestId:id});
+  let response: Response;
+  try {
+    response = await fetch('/api/analyze-v2', {
+      method:'POST', cache:'no-store', signal,
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,'X-Request-ID':id},
+      body:JSON.stringify(task),
+    });
+  } catch {
+    logClient('warn', signal.aborted ? 'decision_cancelled' : 'decision_network_failed',
+      {requestId:id,category:signal.aborted?'timeout':'network',durationMs:Date.now()-started});
+    throw new ApiError(signal.aborted ? 'CANCELLED' : 'NETWORK_ERROR',
+      signal.aborted ? 'Decision review cancelled.' : 'Network error. Please retry.',0,id);
+  }
+  const requestId = safeRequestId(response.headers.get('X-Request-ID')) ?? id;
+  logClient(response.ok?'info':'warn','decision_http_response',
+    {requestId,status:response.status,durationMs:Date.now()-started});
+  let body: unknown;
+  try { body = await response.json(); }
+  catch { throw new ApiError('INVALID_RESPONSE','Gemini returned an unreadable response.',response.status,requestId); }
+  if (!response.ok) {
+    const data = object(body) ? body : {};
+    const code = typeof data.error==='string' ? data.error : 'DECISION_UNAVAILABLE';
+    const msg = code==='DECISION_NOT_CONFIGURED' ?
+      'Gemini Decision 1 is not configured. Add GEMINI_API_KEY to Cloudflare Worker secrets.' :
+      response.status===401?'Private access code is missing or incorrect.' :
+      response.status===429?'Too many requests. Try again later.' :
+      code==='DECISION_RATE_LIMIT'?'Gemini rate limit reached. Try again later.' :
+      response.status>=500?'Gemini Decision review is unavailable. Try again later.' :
+      'Could not complete the Decision review.';
+    throw new ApiError(code,msg,response.status,requestId);
+  }
+  if (!object(body) || body.mode!=='decision' || body.analyzed!==true || !object(body.decision))
+    throw new ApiError('INVALID_RESPONSE','The server returned an invalid Decision review.',response.status,requestId);
+  const d = body.decision;
+  if (d.model!=='gemini-decision-1' || d.checked!==11 || !Array.isArray(d.gates) ||
+      d.gates.length!==DECISION_DIMENSIONS.length || typeof d.durationMs!=='number' ||
+      !Number.isFinite(d.durationMs) || d.durationMs<0)
+    throw new ApiError('INVALID_RESPONSE','Incomplete Decision scorecard.',response.status,requestId);
+  const gates: DecisionGate[] = [];
+  const seen=new Set<string>();
+  for (const entry of d.gates) {
+    if (!object(entry) || typeof entry.dimension!=='string' ||
+        !DECISION_DIMENSIONS.includes(entry.dimension as DecisionDimension) ||
+        seen.has(entry.dimension) || !DECISION_ASSESSMENTS.includes(entry.assessment as DecisionAssessment) ||
+        !isProbability(entry.confidence) || !object(entry.probabilities) ||
+        Object.keys(entry.probabilities).length!==3 ||
+        !DECISION_ASSESSMENTS.every(x=>isProbability((entry.probabilities as Record<string,unknown>)[x])))
+      throw new ApiError('INVALID_RESPONSE','Malformed Decision gate.',response.status,requestId);
+    seen.add(entry.dimension);
+    const p=entry.probabilities;
+    if (Math.abs((p.clear as number)+(p.gap as number)+(p.not_applicable as number)-1)>.02)
+      throw new ApiError('INVALID_RESPONSE','Malformed Decision probabilities.',response.status,requestId);
+    gates.push({
+      dimension:entry.dimension as DecisionDimension,
+      assessment:entry.assessment as DecisionAssessment,
+      confidence:entry.confidence as number,
+      probabilities:{
+        clear:p.clear as number,gap:p.gap as number,not_applicable:p.not_applicable as number,
+      },
+    });
+  }
+  return {model:'gemini-decision-1',gates,checked:11,durationMs:d.durationMs as number};
 }

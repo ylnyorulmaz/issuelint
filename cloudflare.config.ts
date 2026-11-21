@@ -20,6 +20,7 @@ export default defineConfig(({ mode, isPreview }) => {
         AI_MODEL: bindings.text("@cf/openai/gpt-oss-120b"),
         FEEDBACK_VERIFIER_MODE: bindings.text(privateProduction ? "on" : "off"),
         SAYGM_API_KEY: bindings.secret(),
+        GEMINI_API_KEY: bindings.secret(),
       },
       observability: {
         enabled: true,

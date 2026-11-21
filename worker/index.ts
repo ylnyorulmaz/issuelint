@@ -1,6 +1,7 @@
 import { callSaygmVerifier, verifierMode, SaygmError } from "./saygm.ts";
 import { runAnalysis, InferenceError, type AiRunner } from "./inference.ts";
 import { parseTask, ValidationError } from "./schema.ts";
+import { callGeminiDecisions, DecisionError } from "./decision.ts";
 
 /** For Iteration 2, AI is disabled unless explicitly enabled and protected. */
 interface WorkerEnv {
@@ -10,6 +11,7 @@ interface WorkerEnv {
   PREVIEW_TOKEN?: string;
   AI_MODEL?: string;
   SAYGM_API_KEY?: string;
+  GEMINI_API_KEY?: string;
   FEEDBACK_VERIFIER_MODE?: string;
 }
 
@@ -115,6 +117,7 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
         previewAuthConfigured: previewTokenConfigured(env.PREVIEW_TOKEN),
         feedbackVerifierMode: env.SAYGM_API_KEY ? verifierMode(env.FEEDBACK_VERIFIER_MODE) : "off",
         feedbackVerifierConfigured: !!env.SAYGM_API_KEY,
+        decisionConfigured: !!env.GEMINI_API_KEY?.trim(),
       });
     }
 
@@ -143,6 +146,59 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
         status: entry.status as number, durationMs: entry.durationMs as number,
       });
       return json({ ok: true });
+    }
+
+    if (pathname === "/api/analyze-v2") {
+      if (request.method !== "POST") return methodNotAllowed("POST");
+      if (!/^application\/json(?:\s*;|\s*$)/i.test(request.headers.get("content-type") ?? ""))
+        return error("UNSUPPORTED_MEDIA_TYPE", "Send application/json.", 415);
+      if (env.ANALYZE_ENABLED !== "true")
+        return error("AI_DISABLED", "Live analysis is not enabled in this environment.", 503);
+      if (!previewTokenConfigured(env.PREVIEW_TOKEN))
+        return error("PREVIEW_AUTH_MISCONFIGURED", "Private preview authentication is not configured correctly.", 503);
+      if (!(await verifiedToken(request, env.PREVIEW_TOKEN!)))
+        return error("PREVIEW_AUTH_REQUIRED", "A valid preview token is required.", 401);
+      if (!env.GEMINI_API_KEY?.trim())
+        return error("DECISION_NOT_CONFIGURED", "Gemini Decision 1 is not configured. Add GEMINI_API_KEY to Worker secrets.", 503);
+      let task;
+      try { task = parseTask(await readBody(request)); }
+      catch (cause) {
+        if (cause instanceof ValidationError)
+          return error(cause.field === "size" ? "PAYLOAD_TOO_LARGE" :
+            cause.field === "json" ? "INVALID_JSON" : "INVALID_TASK",
+            cause.message, cause.field === "size" ? 413 : cause.field === "json" ? 400 : 422);
+        return error("INVALID_JSON", "Unable to parse request body.", 400);
+      }
+      const started = Date.now();
+      logApi("info", "issuelint.decision_started", { requestId, model: "gemini-decision-1", checked: 11 });
+      try {
+        const result = await callGeminiDecisions(task, env.GEMINI_API_KEY);
+        for (const gate of result.gates)
+          logApi("info", "issuelint.decision_gate", {
+            requestId, dimension: gate.dimension, assessment: gate.assessment,
+            confidence: Math.round(gate.confidence * 1000) / 1000,
+          });
+        logApi("info", "issuelint.decision_result", {
+          requestId, ok: true, durationMs: Date.now() - started,
+          checked: result.checked,
+          clear: result.gates.filter(g => g.assessment === "clear").length,
+          gap: result.gates.filter(g => g.assessment === "gap").length,
+          notApplicable: result.gates.filter(g => g.assessment === "not_applicable").length,
+        });
+        return json({ mode: "decision", analyzed: true, decision: result });
+      } catch (cause) {
+        const code = cause instanceof DecisionError ? cause.code : "unknown";
+        const httpStatus = cause instanceof DecisionError ? cause.providerStatus : 0;
+        logApi("warn", "issuelint.decision_result", {
+          requestId, ok: false, category: code, providerStatus: httpStatus,
+          durationMs: Date.now() - started,
+        });
+        return error(code === "provider_http" && httpStatus === 429 ?
+          "DECISION_RATE_LIMIT" : "DECISION_UNAVAILABLE",
+          code === "provider_http" && httpStatus === 429 ?
+          "Gemini Decision 1 rate limit reached. Try again later." :
+          "Gemini Decision 1 could not complete the review. Try again later.", 502);
+      }
     }
 
     if (pathname === "/api/analyze") {
@@ -240,15 +296,18 @@ export default {
     if (!pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
     const requestId = requestIdFrom(request);
     const started = Date.now();
-    if (pathname === "/api/analyze")
-      logApi("info", "issuelint.request_started", {requestId, endpoint:"analyze"});
+    if (pathname === "/api/analyze" || pathname === "/api/analyze-v2")
+      logApi("info", "issuelint.request_started",
+        {requestId, endpoint: pathname === "/api/analyze" ? "analyze" : "analyze-v2"});
     try {
       const response = await handleApi(request, env, requestId);
       response.headers.set("X-Request-ID", requestId);
-      if (pathname === "/api/analyze" || (pathname !== "/api/health" && response.status >= 400))
+      if (pathname === "/api/analyze" || pathname === "/api/analyze-v2" ||
+          (pathname !== "/api/health" && response.status >= 400))
         logApi(response.status >= 500 ? "error" : response.status >= 400 ? "warn" : "info",
           "issuelint.request_finished", {
-            requestId, endpoint: pathname === "/api/analyze" ? "analyze" : "client_or_other",
+            requestId, endpoint: pathname === "/api/analyze" ? "analyze" :
+              pathname === "/api/analyze-v2" ? "analyze-v2" : "client_or_other",
             status: response.status, durationMs: Date.now()-started
           });
       return response;
