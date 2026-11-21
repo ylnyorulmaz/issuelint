@@ -1,0 +1,156 @@
+{
+  "dataset_id": "issuelint-paste-only-control-v1",
+  "schema_version": "1.0.0",
+  "status": "human_review_required",
+  "source_note": "Four fictional description-only cases. The title and all additional input fields are blank. The browser derives a title from the description before submitting to the API.",
+  "cases": [
+    {
+      "id": "P-01",
+      "domain": "Other",
+      "quality": "deliberately_flawed",
+      "scenario": "Two incompatible announcement times",
+      "task": {
+        "title": "",
+        "description": "Send the release announcement to every customer tomorrow at 09:00. Do not contact any customer tomorrow before 17:00.",
+        "type": "General",
+        "domain": "Other",
+        "criteria": "",
+        "context": "",
+        "scope": "",
+        "outcome": "",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "blocked",
+        "must_detect": [
+          {
+            "dimension": "contradictions",
+            "issue": "The task requires an announcement at 09:00 but forbids all customer contact before 17:00.",
+            "source_quotes": [
+              "tomorrow at 09:00",
+              "Do not contact any customer tomorrow before 17:00"
+            ],
+            "question": "Should the announcement move after 17:00 or should the contact restriction change?",
+            "importance": "critical"
+          }
+        ],
+        "expected_material_findings": "one_or_more",
+        "must_not_invent": [
+          "Invent a timezone or approval meeting"
+        ]
+      }
+    },
+    {
+      "id": "P-02",
+      "domain": "Other",
+      "quality": "deliberately_flawed",
+      "scenario": "Unspecified checkout problem",
+      "task": {
+        "title": "",
+        "description": "Improve the checkout page. It is bad and needs to work better.",
+        "type": "General",
+        "domain": "Other",
+        "criteria": "",
+        "context": "",
+        "scope": "",
+        "outcome": "",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "needs_clarification",
+        "must_detect": [
+          {
+            "dimension": "behavior",
+            "issue": "The current checkout problem and expected behavior are not described.",
+            "source_quotes": [
+              "It is bad and needs to work better"
+            ],
+            "question": "What currently goes wrong during checkout, and what should happen instead?",
+            "importance": "important"
+          }
+        ],
+        "expected_material_findings": "one_or_more",
+        "must_not_invent": [
+          "Assume the checkout is broken by a payment provider",
+          "Invent a numerical conversion target"
+        ]
+      }
+    },
+    {
+      "id": "P-03",
+      "domain": "Other",
+      "quality": "deliberately_flawed",
+      "scenario": "Conflicting mailing eligibility",
+      "task": {
+        "title": "",
+        "description": "Send the newsletter tomorrow to every subscriber, including unsubscribed contacts. Never send newsletters to contacts who have unsubscribed.",
+        "type": "General",
+        "domain": "Other",
+        "criteria": "",
+        "context": "",
+        "scope": "",
+        "outcome": "",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "blocked",
+        "must_detect": [
+          {
+            "dimension": "contradictions",
+            "issue": "The email instruction expressly includes unsubscribed contacts but also forbids emailing them.",
+            "source_quotes": [
+              "including unsubscribed contacts",
+              "Never send newsletters to contacts who have unsubscribed"
+            ],
+            "question": "Should unsubscribed contacts be excluded from tomorrow's newsletter?",
+            "importance": "critical"
+          }
+        ],
+        "expected_material_findings": "one_or_more",
+        "must_not_invent": [
+          "Invent a CRM or exception to consent rules"
+        ]
+      }
+    },
+    {
+      "id": "P-04",
+      "domain": "Other",
+      "quality": "well_specified_control",
+      "scenario": "Simple button label clean control",
+      "task": {
+        "title": "",
+        "description": "On the /settings page, change the save button text from 'Submit' to 'Save changes'. Do not change what the button does.",
+        "type": "General",
+        "domain": "Other",
+        "criteria": "",
+        "context": "",
+        "scope": "",
+        "outcome": "",
+        "references": ""
+      },
+      "oracle": {
+        "expected_status": "ready",
+        "must_detect": [],
+        "expected_material_findings": "zero",
+        "minor_suggestions_permitted": true,
+        "expected_non_gap_gates": [
+          "contradictions",
+          "actionability",
+          "scope",
+          "granularity",
+          "behavior",
+          "completion",
+          "outcome",
+          "references",
+          "dependencies",
+          "clarity",
+          "feasibility"
+        ],
+        "must_not_invent": [
+          "Require a new Figma design",
+          "Invent a new confirmation dialog"
+        ]
+      }
+    }
+  ]
+}

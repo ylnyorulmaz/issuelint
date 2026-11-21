@@ -5,6 +5,7 @@ import { callGeminiDecisions, DecisionError } from "./decision.ts";
 import { runSelectiveAudit } from "./decision-audit.ts";
 import chatgptFixture from "../test/fixtures/task-review-control-v1.json" with { type: "json" };
 import geminiFixture from "../test/fixtures/task-review-gemini-v1.json" with { type: "json" };
+import pasteFixture from "../test/fixtures/task-review-paste-only-v1.json" with { type: "json" };
 
 /** For Iteration 2, AI is disabled unless explicitly enabled and protected. */
 interface WorkerEnv {
@@ -160,9 +161,9 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
       if (!(await verifiedToken(request, env.PREVIEW_TOKEN!)))
         return error("PREVIEW_AUTH_REQUIRED", "A valid preview token is required.", 401);
       const source = new URL(request.url).searchParams.get("source");
-      if (source !== "chatgpt" && source !== "gemini")
-        return error("INVALID_SOURCE", "Choose chatgpt or gemini.", 400);
-      const fixture = source === "chatgpt" ? chatgptFixture : geminiFixture;
+      if (source !== "chatgpt" && source !== "gemini" && source !== "paste")
+        return error("INVALID_SOURCE", "Choose chatgpt, gemini or paste.", 400);
+      const fixture = source === "chatgpt" ? chatgptFixture : source === "gemini" ? geminiFixture : pasteFixture;
       logApi("info", "issuelint.admin_fixture_loaded", { requestId, source, count: fixture.cases.length });
       return json({
         source, dataset_id: fixture.dataset_id, schema_version: fixture.schema_version,

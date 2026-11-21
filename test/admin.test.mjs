@@ -114,3 +114,29 @@ test('admin frontend loader sends Bearer only, uses source filter and respects 4
       e=>e.code==='FIXTURE_LOAD_FAILED'&&e.status===401);
   }finally{globalThis.fetch=saved;}
 });
+
+test('four protected paste-only tasks have blank extra fields, but valid derived API titles',async()=>{
+  const unauthorized=await worker.fetch(request('paste','GET',''),env());
+  assert.equal(unauthorized.status,401);
+  const result=await worker.fetch(request('paste'),env());
+  assert.equal(result.status,200);
+  const raw=await result.json();
+  assert.equal(raw.cases.length,4);
+  const {taskForAdminReview}=await import('../src/admin-data.ts');
+  const fixture=parseAdminFixture(raw,'paste');
+  assert.equal(fixture.cases.filter(x=>x.quality==='well_specified_control').length,1);
+  for(const item of fixture.cases) {
+    assert.equal(item.task.title,'');
+    assert.equal(item.task.domain,'Other');
+    assert.equal(item.task.type,'General');
+    for(const k of ['criteria','context','scope','outcome','references']) assert.equal(item.task[k],'');
+    const task=taskForAdminReview(item);
+    assert.equal(task.title,item.task.description.trim().split(/\\r?\\n/).find(Boolean)?.slice(0,120));
+    assert.deepEqual(parseTask(task),task);
+    assert.equal('oracle' in task,false);
+  }
+  const injected=structuredClone(raw);
+  injected.cases[0].task.context='Sneaky details';
+  assert.throws(()=>parseAdminFixture(injected,'paste'),/invalid shape/);
+  assert.throws(()=>parseAdminFixture(raw,'chatgpt'),/invalid shape/);
+});

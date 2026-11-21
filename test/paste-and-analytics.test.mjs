@@ -65,3 +65,18 @@ test('2.3 structured fields are optional but counted and validated', () => {
   assert.equal(reviewInputValid({...task,outcome:'x'.repeat(1001)}),false);
   assert.equal(reviewInputValid({...task,references:'x'.repeat(1001)}),false);
 });
+
+test('four control cases reproduce description-only task input',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const fixture=JSON.parse(await readFile(new URL('./fixtures/task-review-paste-only-v1.json',import.meta.url),'utf8'));
+  assert.equal(fixture.cases.length,4);
+  for(const {task,oracle} of fixture.cases) {
+    assert.equal(task.title,'');
+    assert.equal(task.type,'General');
+    assert.equal(task.domain,'Other');
+    for(const k of ['criteria','context','scope','outcome','references'])assert.equal(task[k],'');
+    assert.ok(reviewInputValid(task));
+    assert.ok(prepareReviewTask(task).title);
+    for(const issue of oracle.must_detect)assert.ok(issue.source_quotes.every(q=>task.description.includes(q)));
+  }
+});
