@@ -121,16 +121,16 @@ The Worker is named `issuelint-dev` and is configured in `cloudflare.config.ts` 
 | `AI` | Native Workers AI binding |
 | `ASSETS` | Built SPA assets |
 | `AI_MODEL` | `@cf/openai/gpt-oss-120b` (model allowlist is in `worker/inference.ts`) |
-| `ANALYZE_ENABLED` | Must be `true` for live inference; repository config defaults to `false` |
+| `ANALYZE_ENABLED` | `true` for protected production builds; `false` for local development/branch previews |
 | `PREVIEW_TOKEN` | **Secret** used by the private Bearer gate; preserve on deployments |
 | `SAYGM_API_KEY` | **Secret** for optional external verifier |
-| `FEEDBACK_VERIFIER_MODE` | `off` / `shadow` / `on`; repository config defaults to `off` |
+| `FEEDBACK_VERIFIER_MODE` | `on` on protected production builds; `off` for local development/branch previews. Runtime mode can still be changed via Dashboard after deployment, but a new production build restores `on`. |
 
-The Cloudflare **Workers Builds** dashboard has been connected to GitHub `ylnyorulmaz/issuelint` on production branch `main`, with build command `npx cf build`, deploy command `npx cf deploy --prebuilt` and root `/`. Its operation and first successful build must still be checked in Cloudflare build logs; repository connection by itself is not a successful deployment. A push to `main` is intended to trigger a build. For a local, authorized deployment, use `npm run deploy` (`cf deploy`), then verify the live Worker.
+Cloudflare **Workers Builds** watches GitHub `ylnyorulmaz/issuelint` on production branch `main`, with build command `npx cf build`, deploy command `npx cf deploy --prebuilt --force` and root `/`. The force flag is required to migrate the legacy Dashboard/API-uploaded Worker to native Static Assets with source-controlled configuration; the same command will override Dashboard variable edits on later pushes. **Do not run with `--force` against other workers or before verifying expected binding values.** A push to `main` triggers the build, but a successful deploy and live health response must still be verified. For local, authorized deployment, use `npm run deploy` (`cf deploy`) after understanding the configuration delta.
 
 Cloudflare dashboard variable/secret changes can create a new Worker **version without updating its code**. Always distinguish repository commit, build execution, deployed version and live response. Check that `ANALYZE_ENABLED`, both secrets and verifier mode survived a new deployment. Do not assume that the repository's default flags match dashboard overrides.
 
-Other workflows: `.github/workflows/ci.yml` runs `npm run check` on PRs and main; `export-build.yml` generates an older compatibility release bundle on main; `smoke.yml` probes a deployed site and unauthorized API access. **Known maintenance issue:** `smoke.yml` currently expects the 2.3/2.4-era health response and inline HTML; it must be updated to validate the 2.5/native-assets deployment before treating that job as a reliable release gate. A failing live smoke job is not proof that TypeScript/unit tests failed, and a passing source build is not proof the live site updated.
+Other workflows: `.github/workflows/ci.yml` runs `npm run check` on PRs and main; `export-build.yml` generates an older compatibility release bundle on main; `smoke.yml` is **manual** (`workflow_dispatch`) because GitHub push workflows can race the asynchronous Cloudflare deployment. The smoke checks a deployed 2.5 native-assets page, `on` mode configuration and unauthenticated 401; it does **not** exercise the authenticated external verifier. A passing source build is not proof the live site updated.
 
 ## Privacy and production-readiness checks
 
