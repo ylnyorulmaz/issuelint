@@ -101,6 +101,7 @@ export default {
         reviewEngineVersion: "2.5",
         aiBindingConfigured: env.AI != null,
         aiEnabled: env.ANALYZE_ENABLED === "true",
+        previewAuthConfigured: previewTokenConfigured(env.PREVIEW_TOKEN),
         feedbackVerifierMode: env.SAYGM_API_KEY ? verifierMode(env.FEEDBACK_VERIFIER_MODE) : "off",
         feedbackVerifierConfigured: !!env.SAYGM_API_KEY,
       });
