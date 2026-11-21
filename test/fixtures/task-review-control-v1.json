@@ -1,16 +1,19 @@
 {
   "dataset_id": "issuelint-cross-domain-control-v1",
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "created_on": "2026-11-21",
-  "purpose": "Small, author-labeled adversarial and clean controls for IssueLint task review across Software, Marketing and Sales.",
+  "purpose": "Author-labeled, adversarial regression and positive controls for IssueLint task-quality review in Software, Marketing, and Sales. NOT a blind holdout or independently adjudicated ground truth.",
   "status": "human_review_required",
   "instructions": {
-    "model_input": "Send ONLY cases[i].task to /api/analyze or /api/analyze-v2. Never send the oracle, scenario, quality, case ID, or notes to the model.",
-    "human_oracle": "Oracle labels are hypotheses by the dataset author, NOT independently established ground truth. Review disagreements instead of forcing the model to match an expected answer.",
-    "scoring": "Use semantic matching for issue meaning and clarification question, not verbatim title equality. Distinguish missing material gaps, invented findings, critical contradiction misses and invalid evidence.",
-    "clean_controls": "For well_specified_control cases, zero IMPORTANT/CRITICAL material findings is the target. Small nonblocking suggestions may be acceptable.",
+    "model_input": "Send ONLY cases[i].task (its title, description, type, domain, criteria, context, scope, outcome, references) to the public /api/analyze or /api/analyze-v2 request. Never send the oracle, expected labels, scenario, quality, ID, or dataset metadata.",
+    "human_oracle": "Labels are author hypotheses to be independently adjudicated. Some expected issues may overlap; one material finding covering the root cause is better than duplicate findings. A disagreement is a review signal, not automatically a model failure.",
+    "scoring": "Score required must_detect issues semantically at the root-cause level, not by exact finding titles, question wording or number of dimensions cited. Treat bonus_detect as optional/non-penalizing; a V2 GPT audit returns at most one check per dimension. Verify every quoted source substring, penalize invented requirements and distinguish V2 skipped/unverified Gates from Clear.",
+    "clean_controls": "For well_specified_control, expect no material IMPORTANT/CRITICAL gaps. Accept CLEAR or NOT_APPLICABLE in expected_non_gap_gates; do not require exact Clear classifications or arbitrary metrics and extra documents. Minor grounded, nonblocking suggestions are permissible.",
     "routing_note": "Gemini P(Clear)<0.85 is an experimental routing threshold and should not be mistaken for correctness probability. Track both its routing omissions and GPT-OSS findings.",
-    "privacy": "Fictional scenarios only: no real customer contacts, email addresses, pricing records, secrets, or credentials."
+    "privacy": "Fictional scenarios only: no real customer contacts, email addresses, pricing records, secrets, or credentials.",
+    "status_semantics": "oracle.expected_status refers to the V1 readiness verdict (ready / needs_clarification / blocked); V2 does NOT return that verdict and instead returns Gemini probabilities plus GPT audit status (complete / partial / unavailable). Compare V2 against semantic must_detect and positive-control false positives, not direct expected_status equality.",
+    "regression_contamination": "SW-01 duplicates a pre-existing IssueLint golden regression example and previously used dark-mode reviews. It is NOT an independent blind evaluation. Evaluate fresh holdouts separately and do not tune routing/prompts solely to pass this file.",
+    "temporal_stability": "All task scenarios should be intelligible without knowing today's calendar date. Calendar words can refer to a named relative launch/campaign week; do not silently infer a year."
   },
   "dimensions": [
     "contradictions",
@@ -97,7 +100,8 @@
           "Assume a mobile framework"
         ],
         "expected_material_findings": "one_or_more"
-      }
+      },
+      "evaluation_role": "known_regression"
     },
     {
       "id": "SW-02",
@@ -106,7 +110,7 @@
       "scenario": "Explicit release deadline versus mandatory approval",
       "task": {
         "title": "Release account-settings CSV export",
-        "description": "Release the account-settings CSV export to production by Wednesday 17:00 this week. Do not deploy anything until the security approval meeting on Thursday 10:00 this week. Both instructions apply to the same release.",
+        "description": "Release the account-settings CSV export to production by Wednesday 17:00 of the planned launch week. Do not deploy anything until the mandatory security approval meeting on Thursday 10:00 of that same launch week. Both instructions apply to the same release.",
         "type": "Feature",
         "domain": "Software",
         "criteria": "The downloadable CSV includes only the signed-in user's settings and is available from Settings > Export.",
@@ -122,8 +126,8 @@
             "dimension": "contradictions",
             "issue": "A Wednesday production deadline conflicts with a Thursday no-deploy-before approval prerequisite.",
             "source_quotes": [
-              "Release the account-settings CSV export to production by Wednesday 17:00 this week",
-              "Do not deploy anything until the security approval meeting on Thursday 10:00 this week"
+              "Release the account-settings CSV export to production by Wednesday 17:00 of the planned launch week",
+              "Do not deploy anything until the mandatory security approval meeting on Thursday 10:00 of that same launch week"
             ],
             "question": "Should the release deadline move until after Thursday's approval, or can the approval meeting be moved earlier?",
             "importance": "critical"
@@ -138,7 +142,8 @@
           "Fabricate a third conflicting deadline"
         ],
         "expected_material_findings": "one_or_more"
-      }
+      },
+      "evaluation_role": "new_control_candidate"
     },
     {
       "id": "SW-03",
@@ -189,7 +194,8 @@
           "Assume an explicit impossible constraint exists"
         ],
         "expected_material_findings": "one_or_more"
-      }
+      },
+      "evaluation_role": "new_control_candidate"
     },
     {
       "id": "SW-04",
@@ -198,34 +204,39 @@
       "scenario": "Bounded web filter persistence with specified behavior",
       "task": {
         "title": "Persist issue-list status filter across browser refreshes",
-        "description": "On the web app's Issues list only, persist the status filter (All, Open, Closed) in localStorage. Restore it on reload in the same browser. If no saved value or an unknown saved value exists, default to All. Changing the filter immediately updates the visible list. Do not sync this preference between devices or accounts.",
+        "description": "On the signed-in web app's Issues list only, persist the status filter (All, Open, Closed) in localStorage under a key scoped to the signed-in account ID. Restore it on reload for that account in the same browser. If no saved value or an unknown saved value exists, default to All. Changing the filter immediately updates the visible list. Do not sync this preference between devices or accounts.",
         "type": "Feature",
         "domain": "Software",
-        "criteria": "Select Open and refresh: Open remains selected and only Open issues appear. Select Closed and refresh: Closed persists. Clear storage or insert an unknown value: All appears without errors. Other filters and issue data stay unchanged.",
+        "criteria": "Select Open and refresh: Open remains selected and only Open issues appear. Select Closed and refresh: Closed persists. Clear storage or insert an unknown value: All appears without errors. Other filters and issue data stay unchanged. Switch to another account in the same browser: that account starts with its own All/default selection, not the first account's value.",
         "context": "The Issues page already has a working status filter and uses localStorage for non-sensitive UI preferences.",
-        "scope": "Web > Issues list; status-filter state only.",
+        "scope": "Signed-in web > Issues list; the status-filter state per account and browser only.",
         "outcome": "Users keep their selected status filter after a browser refresh.",
         "references": ""
       },
       "oracle": {
         "expected_status": "ready",
         "must_detect": [],
-        "expected_clear_gates": [
-          "contradictions",
-          "scope",
-          "behavior",
-          "completion",
-          "outcome",
-          "actionability",
-          "references"
-        ],
         "must_not_invent": [
           "Demand a Figma URL",
           "Demand a server-side preference store",
           "Demand a measurable conversion KPI"
         ],
         "expected_material_findings": "zero",
-        "minor_suggestions_permitted": true
+        "minor_suggestions_permitted": true,
+        "expected_non_gap_gates": [
+          "contradictions",
+          "actionability",
+          "scope",
+          "granularity",
+          "behavior",
+          "completion",
+          "outcome",
+          "references",
+          "dependencies",
+          "clarity",
+          "feasibility"
+        ],
+        "notes": "All eleven quality dimensions should have no material gaps; CLEAR or NOT_APPLICABLE are both acceptable when a dimension does not apply."
       }
     },
     {
@@ -235,11 +246,11 @@
       "scenario": "Vague awareness brief without a target, channel or deliverable",
       "task": {
         "title": "Increase our brand awareness",
-        "description": "Make our marketing really take off next month. Post everywhere and reach the right people with something engaging.",
+        "description": "Make our marketing really take off during the next campaign cycle. Post everywhere and reach the right people with something engaging.",
         "type": "Request",
         "domain": "Marketing",
         "criteria": "",
-        "context": "No target segment, product proposition or campaign brief has been supplied.",
+        "context": "We are launching a refreshed product page and already have a company LinkedIn account.",
         "scope": "",
         "outcome": "",
         "references": ""
@@ -270,7 +281,7 @@
             "dimension": "completion",
             "issue": "No recognizable deliverable or finish condition exists for 'take off'.",
             "source_quotes": [
-              "Make our marketing really take off next month."
+              "Make our marketing really take off during the next campaign cycle."
             ],
             "question": "What output or outcome marks this campaign task complete?",
             "importance": "important"
@@ -287,7 +298,8 @@
           "Assume every social platform is approved"
         ],
         "expected_material_findings": "one_or_more"
-      }
+      },
+      "evaluation_role": "new_control_candidate"
     },
     {
       "id": "MK-02",
@@ -329,7 +341,8 @@
           "Require a new design asset"
         ],
         "expected_material_findings": "one_or_more"
-      }
+      },
+      "evaluation_role": "new_control_candidate"
     },
     {
       "id": "MK-03",
@@ -359,19 +372,10 @@
             ],
             "question": "What primary metric and stopping/winner-selection rule should this A/B test use?",
             "importance": "important"
-          },
-          {
-            "dimension": "behavior",
-            "issue": "The experiment does not specify how variants are allocated or when a winner should replace the control.",
-            "source_quotes": [
-              "Run an A/B test",
-              "Roll out the winner"
-            ],
-            "question": "How will visitors be assigned to variants and what triggers the rollout?",
-            "importance": "important"
           }
         ],
         "allowed_related_gates": [
+          "behavior",
           "clarity",
           "actionability"
         ],
@@ -380,8 +384,22 @@
           "Insist on arbitrary KPIs unrelated to headline comparison",
           "Flag missing headlines when both are supplied"
         ],
-        "expected_material_findings": "one_or_more"
-      }
+        "expected_material_findings": "one_or_more",
+        "bonus_detect": [
+          {
+            "dimension": "behavior",
+            "issue": "The experiment does not specify how variants are allocated or when a winner should replace the control.",
+            "source_quotes": [
+              "Run an A/B test",
+              "Roll out the winner"
+            ],
+            "question": "How will visitors be assigned to variants and what triggers the rollout?",
+            "importance": "suggestion"
+          }
+        ],
+        "notes": "Primary material defect is lack of a winner metric/stop rule. Experiment traffic allocation can be provided by the existing experiment tool; do not force a second finding unless implementation truly depends on it."
+      },
+      "evaluation_role": "new_control_candidate"
     },
     {
       "id": "MK-04",
@@ -390,27 +408,18 @@
       "scenario": "Specified day-three trial onboarding reminder campaign",
       "task": {
         "title": "Send one day-three setup reminder to opted-in trial users",
-        "description": "Send one reminder email to trial users who registered 72 hours ago and have not finished the in-app setup checklist. Include only contacts with marketing email consent; exclude unsubscribed, bounced, paid, and previously contacted users. Subject: 'Finish setting up your workspace'. Body: 'Your workspace is ready. Open the setup checklist to finish the remaining steps.' The CTA opens the existing checklist. Use the current approved email template and campaign tool.",
+        "description": "Every day at 10:00 UTC, send one setup reminder email to trial users who registered at least 72 but less than 96 hours earlier and have not finished the in-app setup checklist. Include only recipients with recorded marketing email consent; exclude unsubscribed, bounced, paid, and anyone already sent this reminder. Subject: 'Finish setting up your workspace'. Body: 'Your workspace is ready. Open the setup checklist to finish the remaining steps.' The CTA opens the existing checklist. Use the current approved email layout and campaign tool.",
         "type": "Feature",
         "domain": "Marketing",
-        "criteria": "Audience filters satisfy inclusion and exclusion rules. One send at most per eligible account. Standard footer and unsubscribe are present. A test email renders on desktop and mobile. No excluded contact receives a message; sends and clicks appear in existing analytics.",
-        "context": "The campaign tool already has the approved template, unsubscribe suppression, and a working checklist deep link.",
-        "scope": "One day-three lifecycle email; no web product changes.",
+        "criteria": "Audience filters satisfy all inclusion and exclusion rules. At most one send per eligible user across all runs. Standard footer and unsubscribe are present. A test email renders on desktop and mobile. No excluded recipient receives a message; sends and clicks appear in existing analytics.",
+        "context": "The campaign tool already provides the approved email layout, unsubscribe suppression, UTC registration timestamps, consent fields, previous-send history, and a working checklist deep link.",
+        "scope": "One automated day-three lifecycle reminder; no web product changes.",
         "outcome": "Eligible trial users receive one compliant setup reminder.",
         "references": ""
       },
       "oracle": {
         "expected_status": "ready",
         "must_detect": [],
-        "expected_clear_gates": [
-          "contradictions",
-          "scope",
-          "behavior",
-          "completion",
-          "outcome",
-          "references",
-          "dependencies"
-        ],
         "must_not_invent": [
           "Demand a new marketing consent system",
           "Require a separate Figma file",
@@ -418,7 +427,21 @@
           "Claim the checklist deep link is absent"
         ],
         "expected_material_findings": "zero",
-        "minor_suggestions_permitted": true
+        "minor_suggestions_permitted": true,
+        "expected_non_gap_gates": [
+          "contradictions",
+          "actionability",
+          "scope",
+          "granularity",
+          "behavior",
+          "completion",
+          "outcome",
+          "references",
+          "dependencies",
+          "clarity",
+          "feasibility"
+        ],
+        "notes": "All eleven quality dimensions should have no material gaps; CLEAR or NOT_APPLICABLE are both acceptable when a dimension does not apply."
       }
     },
     {
@@ -427,8 +450,8 @@
       "quality": "deliberately_flawed",
       "scenario": "Conflicting outreach eligibility and approval timing",
       "task": {
-        "title": "Follow up every pipeline lead today",
-        "description": "Contact every lead in the pipeline by 17:00 today. Only contact leads marked Qualified; everyone, including Unqualified leads, must receive the same outreach. Use the new outreach script, which will not be approved until tomorrow.",
+        "title": "Follow up every pipeline lead on campaign Day 1",
+        "description": "Contact every lead in the pipeline by 17:00 on campaign Day 1. Only contact leads marked Qualified; everyone, including Unqualified leads, must receive the same outreach. Use the new outreach script, which cannot be approved until campaign Day 2. Both conditions apply to this campaign.",
         "type": "Request",
         "domain": "Sales",
         "criteria": "All outreach must use approved copy; do not message prospects before that approval.",
@@ -442,22 +465,12 @@
         "must_detect": [
           {
             "dimension": "contradictions",
-            "issue": "The outreach mandate includes Unqualified leads but a separate rule excludes them.",
+            "issue": "The same campaign explicitly says to contact only Qualified leads but also include Unqualified leads.",
             "source_quotes": [
               "Only contact leads marked Qualified",
               "including Unqualified leads"
             ],
             "question": "Should Unqualified leads be excluded, or is the eligibility policy changing?",
-            "importance": "critical"
-          },
-          {
-            "dimension": "contradictions",
-            "issue": "The task requires completion today but prohibits messages before script approval tomorrow.",
-            "source_quotes": [
-              "by 17:00 today",
-              "will not be approved until tomorrow"
-            ],
-            "question": "Should the outreach deadline or the script approval date change?",
             "importance": "critical"
           }
         ],
@@ -466,12 +479,26 @@
           "actionability"
         ],
         "must_not_invent": [
-          "Treat both conflicts as a single vague style nit",
+          "Ignore both explicit conflicts",
           "Assume the script is already approved",
-          "Invent a CRM segment"
+          "Invent a CRM segment or third conflicting deadline"
         ],
-        "expected_material_findings": "one_or_more"
-      }
+        "expected_material_findings": "one_or_more",
+        "bonus_detect": [
+          {
+            "dimension": "contradictions",
+            "issue": "The task requires completion today but prohibits messages before script approval tomorrow.",
+            "source_quotes": [
+              "by 17:00 on campaign Day 1",
+              "cannot be approved until campaign Day 2"
+            ],
+            "question": "Should the outreach deadline or the script approval date change?",
+            "importance": "critical"
+          }
+        ],
+        "notes": "Two independent contradictions intentionally coexist, but the V2 GPT audit permits only one Contradictions check per request. The audience contradiction is required for baseline recall; the timing/approval contradiction is a bonus to reveal the current 1-check-per-gate coverage limit, not a mandatory second finding."
+      },
+      "evaluation_role": "new_control_candidate"
     },
     {
       "id": "SA-02",
@@ -484,7 +511,7 @@
         "type": "Request",
         "domain": "Sales",
         "criteria": "",
-        "context": "We sell a B2B product, but no buyer profile, offer or approved sales message is specified.",
+        "context": "We sell a B2B SaaS product for internal workflows. The sales team has access to its existing CRM.",
         "scope": "",
         "outcome": "",
         "references": ""
@@ -497,17 +524,17 @@
             "issue": "The account and buyer definition is absent; 'best accounts' does not identify a target segment.",
             "source_quotes": [
               "the best accounts",
-              "no buyer profile"
+              "Find companies to sell our product to"
             ],
             "question": "Which industries, regions, company sizes and buyer roles qualify as target accounts?",
             "importance": "important"
           },
           {
             "dimension": "actionability",
-            "issue": "The offer and approved pitch content are not given, so the sales message cannot be tailored responsibly.",
+            "issue": "The instruction requests a tailored pitch but supplies no concrete offer, approved message or customer value proposition.",
             "source_quotes": [
               "tailor the pitch",
-              "no buyer profile, offer or approved sales message"
+              "sell our product to"
             ],
             "question": "What value proposition and approved offer should this outreach use?",
             "importance": "important"
@@ -524,7 +551,8 @@
           "Assume that sending cold email to any company is authorized"
         ],
         "expected_material_findings": "one_or_more"
-      }
+      },
+      "evaluation_role": "new_control_candidate"
     },
     {
       "id": "SA-03",
@@ -562,7 +590,19 @@
             ],
             "question": "Who will grant access to the pricing workspace before quote drafting starts?",
             "importance": "important"
-          },
+          }
+        ],
+        "allowed_related_gates": [
+          "actionability",
+          "completion"
+        ],
+        "must_not_invent": [
+          "Ask for the CRM segment ID when the view is already visible",
+          "Suggest sending unapproved quotes",
+          "Invent prices or discounts"
+        ],
+        "expected_material_findings": "one_or_more",
+        "bonus_detect": [
           {
             "dimension": "actionability",
             "issue": "Correct customer rates cannot be calculated before the pricing source is available.",
@@ -574,16 +614,9 @@
             "importance": "important"
           }
         ],
-        "allowed_related_gates": [
-          "completion"
-        ],
-        "must_not_invent": [
-          "Ask for the CRM segment ID when the view is already visible",
-          "Suggest sending unapproved quotes",
-          "Invent prices or discounts"
-        ],
-        "expected_material_findings": "one_or_more"
-      }
+        "notes": "Missing the price file and lacking workspace access are separately actionable prerequisites. The actionability issue is derivative of those blockers; do not double-penalize a reviewer that reports the two root causes without another actionability finding."
+      },
+      "evaluation_role": "new_control_candidate"
     },
     {
       "id": "SA-04",
@@ -592,11 +625,11 @@
       "scenario": "Constrained follow-up to eligible recent demo attendees",
       "task": {
         "title": "Follow up with qualified demo attendees",
-        "description": "Each business day at 10:00, email contacts in CRM view 'Demo attendees — action due' if they attended a demo 2–3 business days ago, requested pricing, and have not replied since the demo. Exclude unsubscribed contacts, bounced addresses, and open opportunities owned by another rep. Use the existing approved follow-up template: 'Thanks for the demo. Would you like a 15-minute call to review the pricing options for your team?' The CTA is the calendar link already in that template. Send at most once per eligible contact.",
+        "description": "Every Monday–Friday at 10:00 Europe/London, excluding UK bank holidays, email contacts in CRM view 'Demo attendees — action due' if they attended a demo 2–3 UK business days ago, explicitly agreed to sales email, requested pricing, and have not replied since the demo. Exclude unsubscribed contacts, bounced addresses, anyone previously sent this reminder (marked Follow-up complete), and open opportunities owned by another rep. Use the existing approved follow-up template: 'Thanks for the demo. Would you like a 15-minute call to review the pricing options for your team?' The CTA is the calendar link already in that template. Send at most once per eligible contact.",
         "type": "Request",
         "domain": "Sales",
-        "criteria": "Review the eligible list before sending. Excluded contacts receive nothing. Each eligible contact receives at most one email. Log the activity in the CRM and mark Follow-up complete. Route replies requesting a quote to the account owner within one business day.",
-        "context": "The CRM view, approved template and calendar link are already available to the assigned sales rep.",
+        "criteria": "Review the eligible list before sending. Excluded contacts receive nothing. Each eligible contact receives at most one email. Log the activity in the CRM and mark Follow-up complete. Route replies requesting a quote to the account owner within one UK business day.",
+        "context": "The assigned sales rep can access the CRM view, UK business-day calendar, approval/consent flags, Follow-up complete field, send history, approved template and calendar link.",
         "scope": "Email follow-up only; no phone calls, new prospecting or discount offers.",
         "outcome": "Eligible demo attendees receive one compliant follow-up with activity recorded in the CRM.",
         "references": ""
@@ -604,16 +637,6 @@
       "oracle": {
         "expected_status": "ready",
         "must_detect": [],
-        "expected_clear_gates": [
-          "contradictions",
-          "scope",
-          "behavior",
-          "completion",
-          "outcome",
-          "references",
-          "dependencies",
-          "actionability"
-        ],
         "must_not_invent": [
           "Require a new outreach template",
           "Invent discounts",
@@ -621,7 +644,21 @@
           "Demand a Figma design or arbitrary sales quota"
         ],
         "expected_material_findings": "zero",
-        "minor_suggestions_permitted": true
+        "minor_suggestions_permitted": true,
+        "expected_non_gap_gates": [
+          "contradictions",
+          "actionability",
+          "scope",
+          "granularity",
+          "behavior",
+          "completion",
+          "outcome",
+          "references",
+          "dependencies",
+          "clarity",
+          "feasibility"
+        ],
+        "notes": "All eleven quality dimensions should have no material gaps; CLEAR or NOT_APPLICABLE are both acceptable when a dimension does not apply."
       }
     }
   ]
