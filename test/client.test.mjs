@@ -98,3 +98,44 @@ test('server may explicitly mark a rewrite as unavailable', async () => {
     assert.equal(result.suggestedRewrite,'');
   } finally { globalThis.fetch = originalFetch; }
 });
+
+import { PREVIEW_ACCESS_STORAGE_KEY, readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from '../src/preview-access.ts';
+
+test('preview code is prefilled on the same browser after manual entry, and can be forgotten', () => {
+  const saved = new Map();
+  const storage = {
+    getItem: k => saved.get(k) ?? null,
+    setItem: (k, v) => saved.set(k, v),
+    removeItem: k => saved.delete(k),
+  };
+  assert.equal(readRememberedPreviewCode(storage), '');
+  rememberPreviewCode('  private-test-access-code-1234567890  ', storage);
+  assert.equal(saved.get(PREVIEW_ACCESS_STORAGE_KEY), 'private-test-access-code-1234567890');
+  assert.equal(readRememberedPreviewCode(storage), 'private-test-access-code-1234567890');
+  forgetPreviewCode(storage);
+  assert.equal(readRememberedPreviewCode(storage), '');
+});
+
+test('preview storage handles disabled storage, blank and oversized inputs without leaking secrets', () => {
+  const blocked = {
+    getItem: () => { throw Error('disabled'); },
+    setItem: () => { throw Error('disabled'); },
+    removeItem: () => { throw Error('disabled'); },
+  };
+  assert.equal(readRememberedPreviewCode(blocked), '');
+  assert.doesNotThrow(() => rememberPreviewCode('token-123456789012345678901234', blocked));
+  assert.doesNotThrow(() => forgetPreviewCode(blocked));
+  const values = new Map();
+  const storage = {
+    getItem: k => values.get(k) ?? null,
+    setItem: (k, v) => values.set(k, v),
+    removeItem: k => values.delete(k),
+  };
+  rememberPreviewCode('example-valid-preview-token-12345678', storage);
+  rememberPreviewCode(' '.repeat(3), storage);
+  assert.equal(readRememberedPreviewCode(storage), '');
+  rememberPreviewCode('x'.repeat(257), storage);
+  assert.equal(readRememberedPreviewCode(storage), '');
+  storage.setItem(PREVIEW_ACCESS_STORAGE_KEY, 'x'.repeat(257));
+  assert.equal(readRememberedPreviewCode(storage), '');
+});
