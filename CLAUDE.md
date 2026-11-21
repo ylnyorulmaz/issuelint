@@ -21,7 +21,7 @@ This file supplements [AGENTS.md](AGENTS.md). **Read AGENTS.md first**; it is th
 
 ## Diagnostic development
 
-Maintain bounded, privacy-safe logs in `worker/index.ts` and `src/diagnostics.ts`, correlated through `X-Request-ID`. Keep phase events low-cardinality and never log raw exceptions, user tasks, secret values or model output. `/api/client-events` is an authenticated, bounded error-event collector; retain its allowlist. An `invalid_patch` SayGM failure must not break validated primary output. Primary GPT-OSS uses `reasoning_effort: "low"`; SayGM has no app-level timeout, but the browser still has a 180-second overall analysis timer. Cover success/failure/timeout/invalid JSON and no-secret assertions in tests.
+Maintain bounded, privacy-safe logs in `worker/index.ts` and `src/diagnostics.ts`, correlated through `X-Request-ID`. Keep phase events low-cardinality and never log raw exceptions, user tasks, secret values or model output. `/api/client-events` is an authenticated, bounded error-event collector; retain its allowlist. An `invalid_patch` SayGM failure must not break validated primary output. Primary GPT-OSS uses `reasoning_effort: "low"`; SayGM has no app-level timeout, but the browser still has a 180-second overall analysis timer. SayGM requests omit `max_tokens`; provider defaults and model caps still apply. Retain the 1 MiB streaming response safety cap and strict JSON patch validation. Cover success/failure/timeout/invalid JSON, large safe provider envelopes, and no-secret assertions in tests.
 
 ## Validation and delivery
 
