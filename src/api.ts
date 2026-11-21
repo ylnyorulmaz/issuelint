@@ -1,4 +1,5 @@
 import type { Task } from './analyzer';
+import { newRequestId, safeRequestId, logClient } from './diagnostics';
 
 export type ApiFinding = {
   kind: 'missing' | 'ambiguity' | 'contradiction' | 'suggestion';
@@ -22,9 +23,13 @@ export type Health = { status: string; aiEnabled: boolean; aiBindingConfigured: 
 
 export class ApiError extends Error {
   readonly code: string;
-  constructor(code: string, message: string) {
+  readonly status: number;
+  readonly requestId: string;
+  constructor(code: string, message: string, status = 0, requestId = "unknown") {
     super(message);
     this.code = code;
+    this.status = status;
+    this.requestId = requestId;
     this.name = 'ApiError';
   }
 }
@@ -46,17 +51,31 @@ export async function getHealth(): Promise<Health> {
   } finally { clearTimeout(timeout); }
 }
 
-export async function analyzeLive(task: Task, token: string, signal: AbortSignal): Promise<ApiAnalysis> {
-  const response = await fetch('/api/analyze', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-    body: JSON.stringify(task),
-    signal,
-    cache: 'no-store',
-  });
+export async function analyzeLive(task: Task, token: string, signal: AbortSignal, suppliedId?: string): Promise<ApiAnalysis> {
+  const id = safeRequestId(suppliedId) ?? newRequestId();
+  const started = Date.now();
+  logClient("info", "review_request", {requestId:id});
+  let response: Response;
+  try {
+    response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, 'X-Request-ID': id },
+      body: JSON.stringify(task),
+      signal,
+      cache: 'no-store',
+    });
+  } catch {
+    logClient("warn", signal.aborted ? "review_timeout" : "review_network_failed",
+      {requestId:id, category: signal.aborted ? "timeout" : "network", durationMs:Date.now()-started});
+    throw new ApiError(signal.aborted ? "TIMEOUT" : "NETWORK_ERROR",
+      signal.aborted ? "Analysis timed out. Please retry." : "Network error. Check your connection and retry.",0,id);
+  }
+  const requestId = safeRequestId(response.headers.get('X-Request-ID')) ?? id;
+  logClient(response.ok ? "info" : "warn", "review_http_response",
+    {requestId,status:response.status,durationMs:Date.now()-started});
   let data: unknown;
   try { data = await response.json(); }
-  catch { throw new ApiError('INVALID_RESPONSE', 'The server returned an unreadable response.'); }
+  catch { throw new ApiError('INVALID_RESPONSE', 'The server returned an unreadable response.', response.status, requestId); }
   if (!response.ok) {
     const body = object(data) ? data : {};
     const code = typeof body.error === 'string' ? body.error : 'REQUEST_FAILED';
@@ -68,16 +87,16 @@ export async function analyzeLive(task: Task, token: string, signal: AbortSignal
     else if (code === 'AI_TRUNCATED') message = 'The model did not finish its response. Please retry.';
     else if (code === 'AI_INVALID_RESPONSE') message = 'The model returned an incomplete review. Please retry.';
     else if (response.status >= 500) message = 'The AI service could not complete the analysis. Please retry.';
-    throw new ApiError(code, message);
+    throw new ApiError(code, message, response.status, requestId);
   }
   if (!object(data) || data.mode !== 'ai' || data.analyzed !== true || !object(data.analysis)) {
-    throw new ApiError('INVALID_RESPONSE', 'The server returned an unexpected analysis.');
+    throw new ApiError('INVALID_RESPONSE', 'The server returned an unexpected analysis.', response.status, requestId);
   }
   const a = data.analysis;
   if (!['ready','needs_clarification','blocked'].includes(String(a.status)) ||
       typeof a.summary !== 'string' || typeof a.suggestedRewrite !== 'string' ||
       !['rewritten', 'clarification_draft', 'unavailable'].includes(String(a.rewriteStatus)) || !Array.isArray(a.findings)) {
-    throw new ApiError('INVALID_RESPONSE', 'The analysis did not match the expected format.');
+    throw new ApiError('INVALID_RESPONSE', 'The analysis did not match the expected format.', response.status, requestId);
   }
   const findings: ApiFinding[] = [];
   for (const raw of a.findings) {
@@ -86,7 +105,7 @@ export async function analyzeLive(task: Task, token: string, signal: AbortSignal
         typeof raw.title !== 'string' || typeof raw.detail !== 'string' ||
         typeof raw.question !== 'string' || !Array.isArray(raw.evidence) ||
         raw.evidence.some((e: unknown) => typeof e !== 'string')) {
-      throw new ApiError('INVALID_RESPONSE', 'The findings were malformed.');
+      throw new ApiError('INVALID_RESPONSE', 'The findings were malformed.', response.status, requestId);
     }
     findings.push(raw as ApiFinding);
   }
