@@ -12,6 +12,7 @@ import { analyticsConfigured, readAnalyticsConsent, saveAnalyticsConsent, enable
 import './styles.entry.css';
 import './styles.review-loading.css';
 import { ReviewLoading } from './components/ReviewLoading';
+import { readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from './preview-access';
 
 const types: TaskType[] = ['General', 'Bug', 'Feature', 'Improvement', 'Request'];
 const domains: Domain[] = ['Software', 'Marketing', 'Sales', 'Operations', 'Other'];
@@ -45,7 +46,7 @@ function App() {
   const [error, setError] = createSignal('');
   const [loading, setLoading] = createSignal(false);
   const [available, setAvailable] = createSignal<'checking' | 'private' | 'demo'>('checking');
-  const [accessCode, setAccessCode] = createSignal('');
+  const [accessCode, setAccessCode] = createSignal(readRememberedPreviewCode());
   const [details, setDetails] = createSignal(false);
   const [entryMode, setEntryMode] = createSignal<'paste' | 'build'>('paste');
   const [tab, setTab] = createSignal<'findings' | 'draft'>('findings');
@@ -246,8 +247,11 @@ function App() {
           <div class="counter" classList={{ 'over-budget': totalLength() > 8000 }}>{totalLength().toLocaleString()} / 8,000 characters</div>
           <Show when={available() === 'private'}>
             <div class="preview-code"><label for="preview-code">Private AI access code</label>
-              <input id="preview-code" type="password" autocomplete="off" value={accessCode()} placeholder="Paste your preview code" onInput={e => { setAccessCode(e.currentTarget.value); setError(''); }}/>
-              <p>{accessCode().trim() ? 'Access code entered.' : 'Private preview requires a code. Or use demo review.'}</p>
+              <input id="preview-code" type="password" autocomplete="off" value={accessCode()} placeholder="Enter once — remembered on this browser" onInput={e => { const code = e.currentTarget.value; setAccessCode(code); rememberPreviewCode(code); setError(''); }}/>
+              <div class="preview-code-footer">
+                <p>{accessCode().trim() ? 'Code remembered in this browser for testing.' : 'Enter a code once; it will be prefilled next time.'}</p>
+                <button type="button" disabled={!accessCode()} onClick={() => { forgetPreviewCode(); setAccessCode(''); setError(''); }}>Forget code</button>
+              </div>
             </div>
           </Show>
           <Show when={error()}><div class="api-error" role="alert">{error()}</div></Show>
