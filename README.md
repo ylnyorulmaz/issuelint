@@ -1,221 +1,237 @@
 # IssueLint
 
-**IssueLint** reviews work requests, tickets and briefs for execution readiness. It provides source-grounded findings, clarification questions and a copy-ready rewrite when the input supports one. It is **platform-independent**: users can paste Jira issues, GitHub tickets or plain text; there is no Jira integration in this repository.
+**The second opinion for every task.** IssueLint is a lightweight, platform-independent AI review tool for tasks, tickets, to-dos, user stories, and work briefs. Paste a request, identify potential execution problems in a fast checklist, and run a deeper evidence-oriented review when clarification is needed.
 
-**Stack:** SolidJS, TypeScript, Vite, Cloudflare Workers, Cloudflare Workers AI (GPT-OSS 120B), with an optional independent DeepSeek verifier via SayGM.
+**Live site:** https://issuelint.com  
+**Source of truth:** [`main`](https://github.com/ylnyorulmaz/issuelint/tree/main)  
+**Stage:** private AI preview / pre-public-beta evaluation. **Not** a generally available, rate-limited, multi-user production service.  
+**Product strategy and ICP:** [PRODUCT.md](PRODUCT.md)  
+**Contributor/agent instructions:** [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md)
 
-- Site: https://issuelint.com
-- Preview Worker: https://issuelint-dev.yorulmazyln.workers.dev
-- Source of truth: this repository's `main` branch.
-- **Code version:** Review Engine **2.5** (see `worker/index.ts`). A merge does not prove that Cloudflare is serving that version; verify the live health endpoint and deployment separately.
-- **Release stage:** private AI preview, **not** an authenticated, rate-limited public API or a production-quality-verified release.
+IssueLint works with text copied from Jira, GitHub Issues, Linear, email, documents, and meetings. **There are no native Jira/Linear/GitHub ticket integrations in this codebase.** The UI currently uses one active Minimalist theme with Light/Dark appearance.
 
-## What the app does
+## 1. The experience today
 
-- **Paste existing task:** paste a work request; the first nonempty line supplies the API title when none is entered.
-- **Build a task:** supply description, title, domain/type, scope/audience, expected outcome, references, completion criteria and constraints; optional fields stay optional in the browser.
-- **Eleven-dimensional audit:** contradictions, actionability, scope, granularity, behavior, completion, outcome, references, dependencies, clarity and feasibility. Every dimension must receive a model assessment; **eleven findings are not required**.
-- **Prioritized feedback:** up to five actionable findings, deduplicated by underlying issue. Critical source-verifiable contradictions take precedence. Status is recomputed from the final findings: `ready`, `needs_clarification` or `blocked`.
-- **Grounded rewrite:** outputs `rewritten`, `clarification_draft` or `unavailable`. Blocked contradictions use a clarification draft; the system must not silently choose a conflicting instruction, fabricate references or present the original task as a new rewrite.
-- **Running review:** animated loading/skeleton and elapsed time; the four focus labels are illustrative, **not** real streaming pipeline stages. Cancel aborts the browser request.
-- **Visuals:** Minimalist is the **only active design** for the beta, with explicit Light / Dark options in the top menu on `/` and `/admin`. The manual appearance choice persists under `issuelint.appearance.v1`; before the first manual choice, the OS color scheme is used. Existing legacy `issuelint.design-theme.v2` preferences are deliberately ignored. **The alternative theme files and `src/design-theme.ts` have NOT been deleted**; the style selector and Neobrutalist stylesheet import are simply inactive. **For private testing**, a code manually typed into Private AI access code is also saved in that browser's `localStorage` (`issuelint.preview-access.v1`) and prefilled on later visits to the same origin. Use **Forget code** to clear it; do not use this on shared devices. The code is never hardcoded or served by the Worker. This browser-only convenience is **not** an authentication bypass.
-- **Fallback:** demo/basic structural review without Workers AI; it must not be represented as full AI analysis.
-- **Optional analytics:** GA4 and Microsoft Clarity are disabled without build-time public IDs. When configured, scripts are loaded only after opt-in; analytics events are allowlisted and contain no task text or access codes.
+### The two public-facing analysis actions
 
-The app currently has no user accounts, database, third-party task-platform synchronization or persistent storage of submitted task text in its own application code.
+| UI action | Backend | Models | What the user receives | Intended use |
+| --- | --- | --- | --- | --- |
+| **Quick Scan** (primary) | `POST /api/quick-scan` | Google `gemini-decision-1` | Eleven non-expandable rows with a green ✓ or red ✕. No scores, percentages, evidence, model explanations, or rewritten ticket. | Fast initial screening. |
+| **Analyze v2 · Decision** (secondary) | `POST /api/analyze-v2` | Google `gemini-decision-1`, then selectively Cloudflare Workers AI `@cf/openai/gpt-oss-120b` | Compact, expandable eleven-gate scorecard with Gemini `P(Clear)`, GPT-OSS reasoning when audited, verified source excerpts, clarification questions, and prioritized findings. | Deeper examination of possible issues. |
 
-## Iteration 1 — Gemini Decision 1 (experimental)
+Both buttons use the **same validated task input**. The full review is not the old Original AI pipeline: its first stage is Gemini, followed by a separately prompted GPT-OSS audit of selected gates.
 
-**Two independent analysis buttons:** the existing **Analyze with AI** is unchanged (GPT-OSS 120B → optional DeepSeek verifier). The adjacent **Analyze v2 · Decision** calls the separate protected `POST /api/analyze-v2` endpoint. Both accept the same validated task including optional title, scope, outcome, references, criteria and context. V2 never calls GPT-OSS or SayGM in this iteration.
+**Legacy capability retained, not removed:** `POST /api/analyze` runs the **Original AI** review (GPT-OSS 120B at low reasoning with the optional independent SayGM/DeepSeek verifier and guarded rewrite logic). It is **not** the primary homepage button. It remains callable through the API and the private `/admin` test station for controlled comparisons. Do not merge these three paths conceptually or in code.
 
-- `worker/decision.ts` sends **one** Google Gemini Decisions API `POST https://generativelanguage.googleapis.com/v1beta/decisions` request using `gemini-decision-1`, shared `input`, and **eleven independent `choice` questions** keyed by the existing dimensions: `contradictions`, `actionability`, `scope`, `granularity`, `behavior`, `completion`, `outcome`, `references`, `dependencies`, `clarity`, `feasibility`. Choices: `clear`, `gap`, `not_applicable`.
-- The response is **strictly validated**: exactly 11 known dimensions, one per gate; expected option IDs, bounded probabilities and confidence, complete 3-option distribution. Invalid or incomplete provider output returns a clean error; **no invented scores**.
-- The new **11 Gate Scorecard** displays per-gate outcome, probability distribution, model confidence and provider latency. It is a **classification-only experiment**, not human-verified evidence, a justification, or a Suggested Draft. Explanations, citations and rewrite generation are explicitly **Iteration 2**, not part of this release.
-- **Privacy/security:** V2 uses the same `PREVIEW_TOKEN` Bearer gate, JSON input validator, 8,000-character task limit and request ID. It never returns or logs `GEMINI_API_KEY`, task content, Google response bodies or raw exceptions. Cloudflare logs `issuelint.decision_started`, 11 `issuelint.decision_gate` entries (fixed gate/outcome/confidence only), and `issuelint.decision_result` with counts, latency and known failure category.
-- **Secret:** add your own **`GEMINI_API_KEY`** to Cloudflare **Workers & Pages → `issuelint-dev` → Settings → Variables and Secrets** as a secret, from Google AI Studio. The Worker reads it as a runtime secret and **never ships it to the frontend**. The existing production secret is declared as `bindings.secret()` in production configuration; branch previews do not require a key. `GET /api/health` returns `decisionConfigured: false` and disables the experimental button until it is configured. The existing V1 remains usable. Google AI Studio no-cost tier has usage limits; this release does not hardcode keys or substitute a paid provider.
-- **API response:** `{mode:"decision",analyzed:true,decision:{model:"gemini-decision-1",gates:[{dimension,assessment,confidence,probabilities:{clear,gap,not_applicable}}],checked:11,durationMs}}`.
-- **Future:** No binary acceptance threshold or automatically blocking tickets. We will benchmark/calibrate on labeled examples before using decision scores to control the user verdict. V2 presently makes no grounding claims; original V1 validation remains unchanged.
+A local **demo review** is also available when requested. Demo output is illustrative/structural, **not** a semantic AI assessment.
 
+### Input modes
 
-### Minimalist-only beta appearance
+- **Paste existing task:** Paste one paragraph or a complete ticket into the description field. The title is visible and **optional**; if blank, the client derives a title from the first nonempty description line (up to 120 characters) before submitting to the API. All further details are optional.
+- **Build a task:** Compose a title, description, type/domain, and optionally scope, intended outcome, references, completion criteria and context. Do not demand unnecessary ceremony for small tasks.
+- **Example tasks:** Predefined examples help users explore behavior; loading one does not automatically call an AI provider.
+- **Private preview code:** A visitor must supply the valid `PREVIEW_TOKEN` to use live AI. A manually entered code can be remembered in that browser (see Security). No self-service public signup exists.
 
-- The page root always uses `data-design="minimalist"`; the archived Constructivist/Neobrutalist CSS and theme storage utility remain in source control for potential future experiments, but no longer appear as visual choices.
-- Light and Dark are accessible, mutually exclusive pressed-state buttons in the header. Selection is persisted only in local browser storage, never sent to the Worker; either page reads the same preference. The app defaults to the OS preference when no manual preference is stored.
-- Check UI regression with `npm run check`, then inspect both `/` and `/admin` at narrow mobile widths and in both color modes. No analysis logic, prompts, fixtures or secrets changed.
+A submitted task is evaluated across **11 dimensions**:
 
-## Private admin test station (`/admin`)
-
-- Open `https://issuelint.com/admin`. This is a **private-preview test page**, not a public dashboard or an admin role-management system. Enter the same `PREVIEW_TOKEN` access code as the main app. Test datasets and author-labeled expectations are served by the protected `GET /api/admin/test-cases?source=chatgpt|gemini` endpoint, never shipped to the public client bundle.
-- **Load test cases from ChatGPT** reads `test/fixtures/task-review-control-v1.json` (12 cases, 3 flawed + 1 clean per domain). **Load test cases from Gemini** reads `test/fixtures/task-review-gemini-v1.json` (12 Gemini-origin reviewed task inputs from the user-supplied reviewed fixture; summarized oracle labels for comparison).
-- Each case has expandable **exact task details**, a separate hidden-by-default oracle, **Send to Original AI** (`POST /api/analyze`, GPT-OSS / optional SayGM verifier) and **Send to Decision Model** (`POST /api/analyze-v2`, Gemini Decision 1 → selective GPT-OSS high-reasoning audit). Neither pipeline is modified by this page. Both outputs are retained locally in the current browser view for side-by-side inspection, with per-run duration and error messages.
-- Only the `task` object is sent to the analysis API. Never send benchmark `oracle`, quality flag, expected severity, or control-group source to either model. One run is user-initiated at a time; no automatic paid/batch executions or persistent server history.
-- `PREVIEW_TOKEN` is a **shared preview token**, not distinct role-based admin authentication. Do not put sensitive or proprietary benchmark content in these datasets while this is the only auth boundary. If wider beta access is planned, give `/api/admin/test-cases` a separate admin identity/access policy.
-- Regression tests: `test/admin.test.mjs`. Auth, invalid source, 12-case distribution, schema and no leaked oracle in task payloads are checked by the standard `npm run check`.
-- Oracle matches are **not auto-graded semantically**: model findings are compared manually to author expectations; a name/wording mismatch is not automatically a model miss.
-
-## Decision Engine — Iteration 2 (selective independent audit)
-
-**Live V2 sequence:** `POST /api/analyze-v2` (private Bearer) → Google `gemini-decision-1` returns all 11 Gate probabilities → Cloudflare Worker selects **only** Gate IDs where `P(clear) < 0.85` → **one** native Workers AI `@cf/openai/gpt-oss-120b` call with `reasoning_effort: "high"` → strict source quote validation, de-duplication and separate scorecard explanation.
-
-- **Blind reviewer:** The GPT-OSS prompt includes the validated original task and only the selected Gate questions/rubrics. It does **not** include Gemini probabilities, verdicts, confidence, the 0.85 threshold or an indication that the Gate was flagged. Reviewing a Gate does **not** imply it is deficient.
-- **All three outcomes accepted:** For each Gate GPT independently returns `clear`, `gap` or `not_applicable` and a concise specific explanation. A `gap` must include source-grounded direct quotation(s), a focused title, an actionable question and materiality. Clear/N/A must include a reason but no fabricated issue.
-- **Synchronous, single GPT call:** 1 Google request plus 0 or 1 GPT-OSS request (0 when no Gate falls below threshold). There is no per-Gate GPT loop, no DeepSeek verifier and no rewrite in the V2 route. V1 remains unchanged.
-- **Grounded output:** `worker/decision-audit.ts` validates every reviewed Gate and answer, source quotations (allowing whitespace normalization and stripping purely decorative wrapping quote marks **only when the unwrapped quote literally matches the source**), bounded text and contradictions (two source excerpts). Prioritized findings reuse `prioritizeChecks` for source-conscious root issue deduplication, generic-gap filtering and deterministic contradiction safeguards. Prompting cannot guarantee truth; user judgment remains necessary.
-- **Safe failure and partial recovery:** If GPT-OSS is unavailable or truncated, Gemini's original scorecard still returns alongside `audit.status: "unavailable"`. A malformed or ungrounded **individual Gate** is excluded from findings and recorded in `audit.unverified`; other independently validated Gate checks survive under `audit.status: "partial"`. If none survive, the audit is `unavailable`. UI clearly marks each unverified Gate. No unsupported evidence, reviewer explanations or findings are fabricated. The client rejects inconsistent or omitted Gate IDs.
-- **Observability:** `issuelint.decision_audit` logs fixed `routed/started/completed/partial/failed/gate_rejected` stages, selected/ignored/verified counts, latency, Gate ID and allowlisted rejection reason (e.g. `evidence_not_in_task`) with request ID. No user task text, prompts, response bodies, API keys or probability distributions are included.
-- **Deployment:** The production Gemini secret is now provisioned in Cloudflare, and `cloudflare.config.ts` declares its existing binding for protected production deploys while branch previews do not require it. Do not overwrite/remove existing secrets. V2 is disabled without `GEMINI_API_KEY`; reviews require Workers AI `AI` binding to produce explanations.
-- **Scoring caveat:** 0.85 is an *uncalibrated routing threshold*, **not** an assertion that any lower Clear probability is wrong. Gates above threshold are **skipped**, not independently verified. Evaluate false negatives/positives and threshold sensitivity on labeled real tasks before making any production quality promises.
-- **Return contract:** `decision.audit` contains `status` (`complete` / `partial` / `unavailable`), `unverified` (Gate IDs), `model`, `threshold:0.85`, `selected`, `checks` (per-Gate assessment, reason, title, evidence, question, severity, kind), `findings` (deduplicated), `durationMs` and optional safe `errorCategory`. The original `decision.gates` always retains the complete Google probability table.
-
-## Review Engine 2.5
-
-### Inference pipeline
-
-1. `worker/inference.ts` calls `@cf/openai/gpt-oss-120b` through the native Workers AI binding (low reasoning; 4,700 maximum output tokens) to produce the eleven checks and a grounded rewrite core.
-2. `worker/review-v2.ts` validates all dimensions, quoted source evidence, contradictions, issue selection and final summaries/status.
-3. When enabled, `worker/saygm.ts` sends the original task **and all eleven checks** to SayGM's `deepseek-v4.1-flash-1017` for an independent verdict.
-4. In `on` mode only, `worker/feedback-verifier.ts` and `worker/verifier-patch.ts` validate and apply bounded patch actions (`KEEP`, `SUPPRESS`, `DOWNGRADE`, `REVISE`, `ADD`), then rerun deterministic review validation. The verifier cannot suppress or downgrade a critical finding, or invent source quotes.
-5. `worker/inference.ts` optionally runs **one** low-reasoning Workers AI rewrite repair for an invalid/unchanged draft or an accepted verifier request for repair. No recursive verifier/repair conversation is implemented. If the repair fails, a valid earlier rewrite is retained when possible.
-
-The prior conditional GPT-OSS quality gate (`worker/quality-gate.ts`) is used when the independent verifier is **not** in `on` mode. It is **replaced, not stacked**, in `on` mode. Verifier failures preserve the validated primary result and do **not** imply that the original quality gate is rerun in that mode.
-
-| `FEEDBACK_VERIFIER_MODE` | Effect |
+| Dimension | Question being screened |
 | --- | --- |
-| `off` (default) | No SayGM request; original conditional GPT-OSS quality gate can run. |
-| `shadow` | SayGM runs and reports coarse telemetry, but its verdict does **not** change visible findings; original gate remains active. |
-| `on` | Apply valid independent patches, recompute and optionally repair; original conditional gate is skipped. |
+| Contradictions | Are material instructions or constraints incompatible? |
+| Actionability | Can meaningful work begin without an execution-critical unanswered decision? |
+| Scope | Are relevant boundaries, platforms, audiences and deliverables specified? |
+| Granularity | Is this one cohesive, manageable unit of work? |
+| Behavior | Are required interactions and rules sufficiently clear? |
+| Completion | Can an assignee tell when the work is done? |
+| Outcome | Is the intended changed state or result understandable? |
+| References | Are required artifacts such as a Figma design or specification locatable? |
+| Dependencies | Are material prerequisites and sequencing constraints workable? |
+| Clarity | Can the task be interpreted without material ambiguity? |
+| Feasibility | Is there a separately identifiable, source-supported implementation obstacle? |
 
-If `SAYGM_API_KEY` is absent, the effective mode is `off` regardless of the flag. An invalid mode also resolves to `off`. The SayGM verifier request has **no application-level timeout** or abort timer. It still makes one attempt with no retry; provider/Cloudflare execution limits and the browser’s separate 180-second analysis timeout may end requests. `on` affects **all** AI requests to this Worker; no percentage or per-user rollout exists.
+The classifier's underlying outcomes are `clear`, `gap` and `not_applicable`. A **gap** is a potential material issue—not a definitive judgement. An optional field being empty is **not automatically a gap**.
 
-**Limits of the implementation:** literal-evidence validation and deterministic guards reduce hallucinations, but do not prove all semantic judgments correct. Do not claim quality improvements without representative live model evaluation. See [the full 2.5 design and rollout record](docs/feedback-quality-engine-2.5.md).
+### Quick Scan semantics
 
-## API and access
+Quick Scan makes **one Gemini Decisions API request** containing all eleven independent choice questions. It returns **only the dimension and assessment** for each gate; detailed provider probabilities and text are deliberately excluded from the response.
 
-`GET /api/health` is public and returns an object shaped like:
+- **Green ✓:** Gemini found no material problem **or** rated the dimension `not_applicable`. The compact UI combines both states; green is **not a guarantee of correctness or readiness**.
+- **Red ✕:** Gemini flagged `gap`, which may warrant closer review.
+- **No percentages and no expandable explanations** in this mode.
+- **No GPT-OSS, SayGM, rewrite, or audit call** is performed.
+- Quick Scan is usually intended to be fast. Its runtime depends on Google/network conditions; observed subsecond runs are **not an SLA or benchmark**.
 
-```json
-{
-  "status": "ok",
-  "service": "issuelint",
-  "iteration": 5,
-  "reviewEngineVersion": "2.5",
-  "aiBindingConfigured": true,
-  "aiEnabled": true,
-  "feedbackVerifierMode": "off",
-  "feedbackVerifierConfigured": false
-}
-```
+Implementation: `worker/decision.ts`, `worker/index.ts`, `src/api.ts`, `src/components/QuickScanScorecard.tsx`, `src/styles.quick-scan.css`.
 
-The example shows the **shape, not measured live settings**. Confirm actual values at https://issuelint.com/api/health or the Worker URL. Health indicates configuration, **not** that a provider call succeeded.
+### Analyze v2 semantics
 
-`POST /api/analyze` requires `Content-Type: application/json` and a private `Authorization: Bearer <token>` header. The Worker rejects missing/incorrect tokens; configured `PREVIEW_TOKEN` must be **at least 24 characters**. A short code such as `yalin` does not pass the current implementation. The token is not a public login system.
+The full Decision route uses the same Gemini 11-choice result, then applies the **experimental routing rule** `P(clear) < 0.85`. A gate with exactly `0.85` is not selected. **One** independent high-reasoning GPT-OSS call audits all selected gates together; no call occurs when none are selected.
+
+- The GPT-OSS prompt sees the **task and selected gate rubrics**, but **not** Gemini choices, probabilities, confidence, or threshold. It can independently report `clear`, `gap` or `not_applicable`.
+- Each reviewed gate has a bounded reason; a `gap` requires literal, checked task excerpts and a focused clarification question. Unsupported individual gate outputs are quarantined.
+- The compact UI shows Gemini **`P(Clear)`**, **not** a task score or calibrated probability of correctness. A green ✓ beside, for example, `63%` means GPT-OSS independently cleared that gate. A result not independently audited above the routing threshold is labeled as Gemini-only screening in the expandable view.
+- Icons include ✓ (no issue identified), ✕ (needs attention), ? (selected but not verified), and — (not applicable).
+- Explanations, quotations and clarification questions appear **only when a row is expanded**. Prioritized issues are separately collapsible.
+- `audit.status` can be `complete`, `partial` or `unavailable`. A model failure must not be disguised as a successful independent verification.
+- This full Decision v2 route does **not** generate a rewritten ticket and does **not** call the SayGM/DeepSeek verifier.
+
+Implementation: `worker/decision.ts`, `worker/decision-audit.ts`, `src/decision-presentation.ts`, `src/components/DecisionScorecard.tsx`.
+
+### Original AI / Review Engine 2.5
+
+The retained `POST /api/analyze` mechanism is a separate, fuller text-review and rewriting pipeline:
+
+1. Workers AI `@cf/openai/gpt-oss-120b` (primary, low reasoning) creates an eleven-dimension structured review and rewrite core.
+2. `worker/review-v2.ts`, `worker/schema.ts` and deterministic guards validate source evidence, prevent fabricated critical contradictions and prioritize **up to five** distinct actionable findings.
+3. If enabled, SayGM `deepseek-v4.1-flash-1017` independently reviews all eleven checks and returns a strictly validated, bounded patch verdict. `off`, `shadow` and `on` modes are supported.
+4. In `on`, only validated patch actions are applied; the old conditional quality gate is skipped, **not stacked**. When not in `on`, the earlier conditional quality gate may run.
+5. At most **one** targeted low-reasoning rewrite repair can be attempted. No recursive judge/rewrite debate exists.
+6. A rewrite is marked `rewritten`, `clarification_draft` or `unavailable`; unresolved contradictions must not be silently “fixed” by inventing a decision.
+
+The resulting task status is `ready`, `needs_clarification` or `blocked`, computed from final validated findings. A failed optional verifier must not discard a valid primary result. Further historical details: [Review Engine 2.5 notes](docs/feedback-quality-engine-2.5.md).
+
+## 2. Waiting, appearance and browser behavior
+
+- Quick Scan has a lightweight logo-based animated loading state; the full Decision flow has the same brand animation and explanatory waiting instructions.
+- The full review may take around **1–2 minutes** depending on provider load, though runs can be shorter or longer. These are informational estimates, **not guaranteed latency**.
+- Switching tabs or minimizing a window normally preserves an in-flight browser request. **Do not refresh, close, or navigate away**: analysis is currently tied to the active page and not recoverable from a server-side job.
+- On cancellation, the frontend aborts the request; this does **not guarantee** an upstream provider has stopped work or charges.
+- The only active design is **Minimalist**. Light/Dark selection is saved as `issuelint.appearance.v1` and defaults to the OS setting before a manual choice. Retired design assets remain in source control; their selector is hidden.
+- Logo files are in `public/brand/`. New CSS respects responsive widths and prefers-reduced-motion settings.
+- GA4/Clarity scripts, when their optional **public** Vite IDs are configured, are consent-gated. Task text, model output and access codes must not be sent as analytics events.
+
+## 3. Private benchmark station — `/admin`
+
+Visit https://issuelint.com/admin using the same private preview code. This is a **testing interface, not an admin-role authorization system**.
+
+Protected `GET /api/admin/test-cases?source=...` supports:
+
+| Source | File | Cases |
+| --- | --- | ---: |
+| `chatgpt` | `test/fixtures/task-review-control-v1.json` | 12 |
+| `gemini` | `test/fixtures/task-review-gemini-v1.json` | 12 |
+| `paste` | `test/fixtures/task-review-paste-only-v1.json` | 4 |
+
+The paste-only controls contain three deliberately obvious problems and one clean case; the fixture title and extra fields are blank. Admin derives a request title the same way the homepage does when running them.
+
+For every case, testers can inspect the exact task, optionally reveal **author expectations**, and independently send **only the task object** to **Original AI** or **Decision Model**. The oracle, quality label and dataset source must **never** be passed to the model. Results appear side by side; requests are initiated manually. Labels are *evaluation hypotheses*, not automatically graded ground truth, and no server-side run history is stored.
+
+**Access warning:** the shared `PREVIEW_TOKEN` also protects the fixture endpoint. It does **not** separate test visitors from admin access. Introduce a separate admin identity/access policy before distributing widely.
+
+## 4. HTTP API and safety contract
+
+The Worker serves the SPA and the following routes:
+
+| Method and route | Purpose | Auth |
+| --- | --- | --- |
+| `GET /api/health` | Safe configuration/feature status (`iteration: 5`, `reviewEngineVersion: "2.5"`) | Public |
+| `POST /api/quick-scan` | Gemini-only eleven-gate screening | Preview Bearer |
+| `POST /api/analyze-v2` | Gemini screening + selected independent GPT-OSS audit | Preview Bearer |
+| `POST /api/analyze` | Original GPT-OSS + optional SayGM verifier + rewrite pipeline | Preview Bearer |
+| `GET /api/admin/test-cases?source=chatgpt|gemini|paste` | Benchmark datasets and author expectations | Preview Bearer |
+| `POST /api/client-events` | Strictly bounded, privacy-safe client failure events | Preview Bearer |
+
+All POST analysis routes expect `Content-Type: application/json` and `Authorization: Bearer <PREVIEW_TOKEN>`. The Worker enforces the preview token (24–256 characters, nonwhitespace), a **32,768-byte** body cap, and typed task validation. Server failures are sanitized; credentials, provider bodies and task content must not be logged.
+
+A minimal compatible API request is:
 
 ```json
 {
   "title": "Add dark mode",
-  "description": "Users want dark mode on web and mobile. Use the referenced Figma design.",
+  "description": "Support a dark color theme on web and mobile.",
   "type": "Feature",
   "domain": "Software",
   "criteria": "",
-  "context": "",
-  "scope": "",
-  "outcome": "",
-  "references": ""
+  "context": ""
 }
 ```
 
-All nine fields are accepted; `scope`, `outcome` and `references` may be omitted for backward compatibility. The API requires a title and description, even though the browser derives a title for paste-first input. Total submitted text is limited to **8,000 characters**, with individual field limits in `worker/schema.ts`. Request bodies are limited to 32,768 bytes.
+Optionally include `scope`, `outcome` and `references`; the UI can also populate criteria and context. Types: `General`, `Bug`, `Feature`, `Improvement`, `Request`. Domains: `Software`, `Marketing`, `Sales`, `Operations`, `Other`. The API requires a nonempty `title`; the **browser** derives one when a user leaves it blank. Total task text is limited to **8,000 characters**; description is capped at **6,500**, title at **180**; see `worker/schema.ts` for per-field caps.
 
-A successful response contains `mode: "ai"`, `analyzed: true` and `analysis` with `status`, `summary`, `findings`, `suggestedRewrite`, `rewriteStatus`, `reviewContext`, `reviewCoverage`, `findingDimensions` and Workers AI `modelUsage`. `modelUsage` is **not** a consolidated SayGM bill. Failed requests can return `PREVIEW_AUTH_REQUIRED` (401), `INVALID_TASK` (422), `AI_DISABLED` (503), or `AI_TRUNCATED` / `AI_INVALID_RESPONSE` / `AI_UNAVAILABLE` (502).
+### Quick Scan response shape
 
-## Local development
+```json
+{
+  "mode": "quick_scan",
+  "analyzed": true,
+  "scan": {
+    "model": "gemini-decision-1",
+    "checked": 11,
+    "durationMs": 210,
+    "gates": [
+      { "dimension": "contradictions", "assessment": "clear" }
+    ]
+  }
+}
+```
 
-Requires Node.js **>= 22.23.0**. The repository has no committed package-lock; CI installs with `npm install` rather than `npm ci`.
+**Illustrative partial JSON only**: a real successful response has **eleven** ordered gates, not one. `durationMs` is an example value, not an observed SLA. The Quick Scan API intentionally returns **no probabilities or audit**.
+
+The full Decision result instead has `mode:"decision"` and `decision:{model,gates,checked,durationMs,audit}`, with probabilities and validated audit status. Original AI returns `mode:"ai"` and `analysis` with findings, suggested rewrite and review status. Client-side validation is in `src/api.ts`.
+
+`GET /api/health` reports **configuration**, not evidence that an upstream inference succeeded. The API has no public identity, account-specific quota, server-side rate limiter, metered billing, or durable report storage. Do **not** expose the shared preview token as a production multi-tenant access mechanism.
+
+## 5. Local development and tests
+
+**Node.js >= 22.23.0**. The repo intentionally has no committed package lock; CI uses `npm install`, not `npm ci`.
 
 ```bash
 npm install
-npm run check
 npm run dev
+npm run check
 ```
 
-`npm run check` runs strict Worker type checking, Worker unit/integration tests, client tests and the production Vite build. Other useful scripts:
+Useful commands:
+
+| Command | Behavior |
+| --- | --- |
+| `npm run check` | Strict Worker typecheck, Worker/client test suites, production build |
+| `npm run check:worker` | Strict Worker typecheck only |
+| `npm run test:worker` | Worker tests including auth, schema, verifier and Quick Scan |
+| `npm run test:client` | Client contracts and input-mode regression tests |
+| `npm run build` | TypeScript no-emit + Vite production build |
+| `npm run eval:live` | Live provider-backed golden-set evaluation (**external calls; not CI**) |
+| `npm run deploy` | Cloudflare `cf deploy` via repo configuration; use only when authorized |
+
+Additional focused tests live in `test/decision.test.mjs`, `test/decision-audit.test.mjs`, `test/admin.test.mjs` and `test/fixtures/`. Note that `npm run test:worker` does **not** explicitly enumerate `test/decision.test.mjs` and `test/decision-audit.test.mjs`; run them separately when changing Decision behavior:
 
 ```bash
-npm run test:worker
-npm run test:client
-npm run build
-npm run eval:live
+node --experimental-strip-types --test test/decision.test.mjs test/decision-audit.test.mjs
 ```
 
-The live golden-set evaluator makes **real, billable model calls**, is intentionally excluded from default CI, and requires a private token:
+Mocked tests prove contracts—not actual model correctness or deployed behavior. The golden evaluator in `scripts/eval-review.mjs` makes real provider requests; do not run it without authorization and cost awareness.
 
-```bash
-ISSUELINT_EVAL_TOKEN='<private-preview-token>' npm run eval:live -- --base https://issuelint.com --repeat 2
-```
+## 6. Cloudflare configuration and delivery
 
-Do not commit or print tokens, and do not treat mocked unit tests or subjective golden labels as evidence of production accuracy.
+- **Worker:** `issuelint-dev` (Cloudflare Workers + static SPA assets).
+- **Production domain:** https://issuelint.com
+- **Worker URL:** https://issuelint-dev.yorulmazyln.workers.dev
+- **Config source:** `cloudflare.config.ts`; compatibility date currently `2026-11-20`.
+- **Workers Builds:** GitHub `main`, build `npx cf build`, deploy `npx cf deploy --prebuilt --force`. This is **Cloudflare's `cf` toolchain**, not Wrangler.
+- **Branch previews/local:** `ANALYZE_ENABLED=false` by default; protected production builds set it to `true` and set `FEEDBACK_VERIFIER_MODE=on`. Dashboard overrides can be replaced by later deploys; inspect actual live bindings without displaying their values.
 
-## Cloudflare deployment
-
-The Worker is named `issuelint-dev` and is configured in `cloudflare.config.ts` with Workers AI, static assets, observability, and environment bindings:
-
-| Binding | Purpose |
+| Binding | Type / use |
 | --- | --- |
-| `AI` | Native Workers AI binding |
-| `ASSETS` | Built SPA assets |
-| `AI_MODEL` | `@cf/openai/gpt-oss-120b` (model allowlist is in `worker/inference.ts`) |
-| `ANALYZE_ENABLED` | `true` for protected production builds; `false` for local development/branch previews |
-| `PREVIEW_TOKEN` | **Secret** used by the private Bearer gate; preserve on deployments |
-| `SAYGM_API_KEY` | **Secret** for optional external verifier |
-| `FEEDBACK_VERIFIER_MODE` | `on` on protected production builds; `off` for local development/branch previews. Runtime mode can still be changed via Dashboard after deployment, but a new production build restores `on`. |
+| `AI` | Cloudflare Workers AI binding |
+| `ASSETS` | Static assets binding |
+| `AI_MODEL` | Default `@cf/openai/gpt-oss-120b` |
+| `ANALYZE_ENABLED` | Explicit private inference switch |
+| `PREVIEW_TOKEN` | Server-side secret for protected endpoints |
+| `GEMINI_API_KEY` | Server-side secret for Google Decisions; required for Quick Scan and full v2 |
+| `SAYGM_API_KEY` | Server-side secret for optional Original AI verifier |
+| `FEEDBACK_VERIFIER_MODE` | `off` / `shadow` / `on` for Original AI only |
 
-Cloudflare **Workers Builds** watches GitHub `ylnyorulmaz/issuelint` on production branch `main`, with build command `npx cf build`, deploy command `npx cf deploy --prebuilt --force` and root `/`. The force flag is required to migrate the legacy Dashboard/API-uploaded Worker to native Static Assets with source-controlled configuration; the same command will override Dashboard variable edits on later pushes. **Do not run with `--force` against other workers or before verifying expected binding values.** A push to `main` triggers the build, but a successful deploy and live health response must still be verified. For local, authorized deployment, use `npm run deploy` (`cf deploy`) after understanding the configuration delta.
+The `--force` deploy option applies source-controlled Worker configuration and may overwrite Dashboard changes; verify bindings/secrets/flags before and after any deployment.
 
-Cloudflare dashboard variable/secret changes can create a new Worker **version without updating its code**. Always distinguish repository commit, build execution, deployed version and live response. Check that `ANALYZE_ENABLED`, both secrets and verifier mode survived a new deployment. Do not assume that the repository's default flags match dashboard overrides.
+**Release checklist:** create a scoped PR; run checks; merge only after tests; verify the resulting Cloudflare **build ID, outcome, commit, deployment version, traffic share and /api/health**. A merged commit is **not proof of a live deploy**. The manual `.github/workflows/smoke.yml` currently checks the older 2.5/native-assets security gates, not every Quick Scan or v2 behavior; do not claim that workflow alone exhaustively tests these newer paths.
 
-Other workflows: `.github/workflows/ci.yml` runs `npm run check` on PRs and main; `export-build.yml` generates an older compatibility release bundle on main; `smoke.yml` is **manual** (`workflow_dispatch`) because GitHub push workflows can race the asynchronous Cloudflare deployment. The smoke checks a deployed 2.5 native-assets page, `on` mode configuration and unauthenticated 401; it does **not** exercise the authenticated external verifier. A passing source build is not proof the live site updated.
+### Diagnostics
 
-## Diagnostics and troubleshooting
+Server-side fixed event names include `issuelint.decision_started`, `issuelint.decision_gate`, `issuelint.decision_result`, `issuelint.quick_scan_result`, `issuelint.decision_audit`, `issuelint.inference_stage`, `issuelint.verifier_result`, `issuelint.analysis_result` and boundary request events. The browser emits bounded `issuelint.client` logs with correlatable `X-Request-ID`. `/api/client-events` accepts only allowlisted failure telemetry.
 
-**Backend (Cloudflare Workers Observability):** API analyses emit structured events with one `X-Request-ID` for the full request. Search by that ID in Workers Logs:
+**Never record** task titles/descriptions, prompts, generated drafts, source quotes, raw model outputs, Authorization headers, secrets, arbitrary error messages, stacks, or full URLs. Keep responses and failure categories bounded. A successful build or `/api/health` response does not prove SayGM or Gemini answered a real task successfully.
 
-| Event | What it records |
-| --- | --- |
-| `issuelint.request_started` / `issuelint.request_finished` | Correlation ID, endpoint category, HTTP status and total elapsed milliseconds |
-| `issuelint.inference_stage` | Primary invocation/validation, verifier patch, optional quality gate or rewrite-repair transitions; fixed stage labels only |
-| `issuelint.verifier_started` / `issuelint.verifier_result` | Independent verifier mode, 11-check count, success flag, latency, bounded failure category, safe HTTP status and token usage |
-| `issuelint.analysis_result` / `issuelint.inference_failed` | Final status, finding count, inference calls/latency, rewrite status or coarse error category |
-| `issuelint.unhandled_request_error` | Unexpected Worker boundary failure; no raw error or stack |
-| `issuelint.client_event` | Sanitized frontend failure from an authenticated browser, with the same correlation ID |
+## 7. What is not built yet
 
-**Verifier patch rejection diagnostics:** Cloudflare `issuelint.verifier_result` now carries both `category: "invalid_patch"` and a fixed, privacy-safe `validationCode` (e.g. `evidence_not_in_task`, `forbidden_action_field`, `invalid_dimension`, `invalid_action`, `critical_locked`, `invalid_evidence_format`, `add_over_gap`, `invalid_reason`, `duplicate_question`). Filter by `requestId` and `validationCode` to identify the rejected rule. Never store the model's patch JSON, evidence text, raw exception messages, task content or credentials. The SayGM system prompt now specifies each action's **exact allowed fields**, mandatory lengths, permissible assessment transitions, literal evidence and small valid JSON examples. All original guardrails and atomic fallback behavior remain in place; this change does not guarantee every model response will pass validation.
+IssueLint currently does **not** include user accounts, workspace/team management, native ticket write-back, server-side task/report history, job resumption after refresh, per-user credits, billing, or public rate/abuse protection. Provider processing and retention must be assessed before opening external access. Accuracy, false-positive rates, latency distributions, cost per review, and user demand require representative evaluation; no performance guarantee is made by this README.
 
-**SayGM error categories:** `output_truncated` (finish reason limit), `empty_content`, `invalid_json`, `invalid_shape`, `invalid_patch`, `response_too_large`, `timeout`, `http` (plus status), `network`, `config`. Failed verifier calls fall back to validated GPT-OSS output; the failure **must not** be presented as an independently verified review. This change improves diagnosis; it does not guarantee that SayGM will return a valid patch. No retries were added. The SayGM request **omits `max_tokens` entirely**, allowing the model/provider to use its own completion default and maximum. This is **not unlimited provider output**. The gateway response is read incrementally with a 1 MiB transport-body safety cap (previously 30 KB); the final verifier patch contract remains limited to 11 validated decisions and protects against fabricated evidence.
-
-**Frontend:** browser DevTools Console contains `issuelint.client` records for health, request lifecycle, cancellation and failure. API responses include `X-Request-ID`; browser and Worker events can be correlated with it. To find the relevant failure, filter Cloudflare Workers Observability by `issuelint.verifier_result` or `issuelint.client_event`, then by the returned request ID.
-
-`POST /api/client-events` accepts **only** an authenticated Bearer request with `event`, `category`, `status`, `durationMs` (each strictly allowlisted and bounded; body capped at 1 KiB). The browser sends failure reports best-effort and stops after eight reports per page load. Missing/incorrect tokens mean frontend logs remain local only; this endpoint must **not** be opened to unauthenticated Internet clients without abuse protection.
-
-**Privacy rule:** Neither frontend nor Worker logs contain raw tasks, prompts, rewrite text, model response bodies, API keys, browser token, arbitrary exception messages, stack traces, URLs/query strings or user identifiers. Keep diagnostic fields enumerated; never dump error objects or request headers. These logs support investigation but do not prove a provider was successful unless `issuelint.verifier_result` says `ok:true`.
-
-## Privacy and production-readiness checks
-
-- `shadow` and `on` send user-supplied task text and AI audit results to **SayGM**, a third-party provider. Review its data-processing terms and disclose this before inviting external users. No provider-side retention guarantee is made here.
-- App logs capture bounded request/phase/client outcomes and verifier failure codes without raw task content, credentials, prompts, findings, messages, or provider bodies. See **Diagnostics and troubleshooting** above.
-- The app has no public API rate limiter, metering quota, user authentication or abuse controls beyond the private token. Add these and review cost limits before opening public AI access.
-- A safe release requires green CI, confirmed 2.5 live health, one successful real review with a verifier success log in `on` mode, and human-reviewed golden comparisons. If quality/cost/latency degrades, switch `FEEDBACK_VERIFIER_MODE` to `off`.
-
-## Code map
-
-| Area | Files |
-| --- | --- |
-| User interface, themes, loading, analytics | `src/index.tsx`, `src/style.css`, `src/styles.*.css`, `src/components/ReviewLoading.tsx`, `src/design-theme.ts`, `src/analytics.ts` |
-| Client task normalization, API and diagnostics | `src/review-task.ts`, `src/api.ts`, `src/diagnostics.ts`, `src/analyzer.ts` |
-| HTTP, auth, health, structured request/client-event logging | `worker/index.ts` |
-| Primary inference, conditional repair | `worker/inference.ts`, `worker/prompt.ts`, `worker/usage.ts` |
-| Audit, deterministic evidence and quality gate | `worker/schema.ts`, `worker/review-v2.ts`, `worker/quality-gate.ts` |
-| Independent verifier | `worker/saygm.ts`, `worker/feedback-verifier.ts`, `worker/verifier-patch.ts` |
-| Regression and quality evaluation | `test/`, `eval/golden.json`, `scripts/eval-review.mjs` |
-| Deployment and CI | `cloudflare.config.ts`, `.github/workflows/` |
-
-For agent contribution rules, read [AGENTS.md](AGENTS.md). For Claude-specific guidance, read [CLAUDE.md](CLAUDE.md).
+Product decisions, intended audiences, differentiators and explicitly undecided commercial sections live in [PRODUCT.md](PRODUCT.md). Implementation rules are in [AGENTS.md](AGENTS.md); Claude-specific working instructions are in [CLAUDE.md](CLAUDE.md).
