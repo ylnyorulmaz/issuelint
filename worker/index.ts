@@ -64,8 +64,14 @@ async function readBody(request: Request): Promise<unknown> {
   }
 }
 
-async function verifiedToken(request: Request, secret: string | undefined): Promise<boolean> {
-  if (!secret || secret.length < 24) return false;
+function previewTokenConfigured(secret: string | undefined): boolean {
+  // Bearer credentials cannot contain whitespace. Ignore accidental outer
+  // spaces/newlines from secret setup, but reject too-short or unusable config.
+  const normalized = secret?.trim() ?? "";
+  return normalized.length >= 24 && normalized.length <= 256 && !/\s/.test(normalized);
+}
+
+async function verifiedToken(request: Request, secret: string): Promise<boolean> {
   const match = /^Bearer ([^\s]+)$/.exec(request.headers.get("authorization") ?? "");
   if (!match || match[1].length > 256) return false;
 
@@ -73,7 +79,7 @@ async function verifiedToken(request: Request, secret: string | undefined): Prom
   const enc = new TextEncoder();
   const [a, b] = await Promise.all([
     crypto.subtle.digest("SHA-256", enc.encode(match[1])),
-    crypto.subtle.digest("SHA-256", enc.encode(secret)),
+    crypto.subtle.digest("SHA-256", enc.encode(secret.trim())),
   ]);
   const left = new Uint8Array(a);
   const right = new Uint8Array(b);
@@ -109,7 +115,12 @@ export default {
       if (env.ANALYZE_ENABLED !== "true") {
         return error("AI_DISABLED", "Live analysis is not enabled in this environment.", 503);
       }
-      if (!(await verifiedToken(request, env.PREVIEW_TOKEN))) {
+      if (!previewTokenConfigured(env.PREVIEW_TOKEN)) {
+        // Report server misconfiguration separately from invalid visitor input.
+        // Never reveal the configured value, its length or any digest.
+        return error("PREVIEW_AUTH_MISCONFIGURED", "Private preview authentication is not configured correctly.", 503);
+      }
+      if (!(await verifiedToken(request, env.PREVIEW_TOKEN!))) {
         return error("PREVIEW_AUTH_REQUIRED", "A valid preview token is required.", 401);
       }
       if (!env.AI) {

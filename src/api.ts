@@ -61,7 +61,8 @@ export async function analyzeLive(task: Task, token: string, signal: AbortSignal
     const body = object(data) ? data : {};
     const code = typeof body.error === 'string' ? body.error : 'REQUEST_FAILED';
     let message = typeof body.message === 'string' ? body.message : 'Analysis could not be completed.';
-    if (response.status === 401) message = 'The private preview access code is missing or incorrect.';
+    if (code === 'PREVIEW_AUTH_MISCONFIGURED') message = 'The server preview code is not configured correctly. Set PREVIEW_TOKEN to at least 24 characters in Cloudflare and retry.';
+    else if (response.status === 401) message = 'The private preview access code does not match the server code. Use Forget code, then enter the current PREVIEW_TOKEN value.';
     else if (response.status === 429) message = 'Too many requests. Try again later.';
     else if (response.status === 503) message = 'AI analysis is currently disabled. Demo review is still available.';
     else if (code === 'AI_TRUNCATED') message = 'The model did not finish its response. Please retry.';
