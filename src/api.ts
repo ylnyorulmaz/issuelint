@@ -1,5 +1,5 @@
 import type { Task } from './analyzer';
-import { newRequestId, safeRequestId, logClient } from './diagnostics';
+import { newRequestId, safeRequestId, logClient } from './diagnostics.ts';
 
 export type ApiFinding = {
   kind: 'missing' | 'ambiguity' | 'contradiction' | 'suggestion';
