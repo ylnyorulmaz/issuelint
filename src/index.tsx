@@ -551,6 +551,7 @@ function App() {
             <span class="site-footer-heading">Explore</span>
             <a href="/#analyze">Quick Scan</a>
             <a href="/#guide">How it works</a>
+            <a href="/guides/how-to-write-a-clear-task/">Task writing guide</a>
             <a href="/about/">About IssueLint</a>
           </div>
           <div class="site-footer-col">
