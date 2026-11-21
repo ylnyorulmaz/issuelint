@@ -3,29 +3,38 @@ import {test} from 'node:test';
 import worker from '../worker/index.ts';
 import {parseTask} from '../worker/schema.ts';
 import {loadAdminFixture,parseAdminFixture} from '../src/admin-data.ts';
+import {issueAdminSession} from '../worker/admin-auth.ts';
+import {pbkdf2Sync} from 'node:crypto';
 
 const validCode='admin-preview-test-token-with-24-or-more-characters';
-function request(source='chatgpt',method='GET',auth=validCode){
-  return new Request('https://issuelint.example/api/admin/test-cases?source='+source,{
-    method,headers:{Authorization:auth?'Bearer '+auth:''},
-  });
-}
+const password='test-admin-password-do-not-use-in-production';
+const salt=Buffer.from('0102030405060708090a0b0c0d0e0f10','hex');
+const adminHash='pbkdf2-sha256$600000$'+salt.toString('base64url')+'$'+pbkdf2Sync(password,salt,600000,32,'sha256').toString('base64url');
+const sessionSecret=Buffer.alloc(32,23).toString('base64url');
 function env(overrides={}){
   return {
     ASSETS:{async fetch(){return new Response('not-used')}},
     AI:{async run(){throw new Error('Test station fixture GET must not invoke any model');}},
     ANALYZE_ENABLED:'true',PREVIEW_TOKEN:validCode,
+    ADMIN_USERNAME:'admin',ADMIN_PASSWORD_HASH:adminHash,ADMIN_SESSION_SECRET:sessionSecret,
+    ADMIN_LOGIN_RATE_LIMIT:{async limit(){return {success:true};}},
     ...overrides,
   };
+}
+const cookie=(await issueAdminSession(env())).split(';')[0];
+function request(source='chatgpt',method='GET',auth=cookie){
+  return new Request('https://issuelint.example/api/admin/test-cases?source='+source,{
+    method,headers:{Cookie:auth},
+  });
 }
 test('admin fixture API is private and disabled when no private access is configured',async()=>{
   const none=await worker.fetch(request('chatgpt','GET',''),env());
   assert.equal(none.status,401);
   const wrong=await worker.fetch(request('chatgpt','GET','bad-preview-token'),env());
   assert.equal(wrong.status,401);
-  const off=await worker.fetch(request('chatgpt','GET',validCode),env({ANALYZE_ENABLED:'false'}));
+  const off=await worker.fetch(request('chatgpt','GET',cookie),env({ANALYZE_ENABLED:'false'}));
   assert.equal(off.status,503);
-  const misconfigured=await worker.fetch(request('chatgpt','GET',validCode),env({PREVIEW_TOKEN:''}));
+  const misconfigured=await worker.fetch(request('chatgpt','GET',cookie),env({ADMIN_SESSION_SECRET:''}));
   assert.equal(misconfigured.status,503);
   for(const response of [none,wrong,off,misconfigured]){
     const txt=await response.text();
@@ -93,24 +102,25 @@ test('admin client validation rejects tampered dataset and concealed oracle in t
   assert.throws(()=>parseAdminFixture(badDimension,'gemini'),/invalid shape/);
   assert.throws(()=>parseAdminFixture(original,'chatgpt'),/invalid shape/);
 });
-test('admin frontend loader sends Bearer only, uses source filter and respects 401',async()=>{
+test('admin frontend loader uses session cookies, source filters and respects 401',async()=>{
   const saved=globalThis.fetch;
   const fixtureRes=await worker.fetch(request('chatgpt'),env());
   const contents=await fixtureRes.json();
   const calls=[];
   globalThis.fetch=async(url,init)=>{calls.push({url,init});return new Response(JSON.stringify(contents),{status:200});};
   try {
-    const result=await loadAdminFixture('chatgpt',validCode,new AbortController().signal);
+    const result=await loadAdminFixture('chatgpt','',new AbortController().signal);
     assert.equal(result.cases.length,12);
     assert.equal(calls.length,1);
     assert.equal(calls[0].url,'/api/admin/test-cases?source=chatgpt');
     assert.equal(calls[0].init.method,'GET');
-    assert.equal(calls[0].init.headers.Authorization,'Bearer '+validCode);
+    assert.equal('Authorization' in calls[0].init.headers,false);
+    assert.equal(calls[0].init.credentials,'same-origin');
     assert.equal(calls[0].init.cache,'no-store');
   }finally{globalThis.fetch=saved;}
   globalThis.fetch=async()=>new Response(JSON.stringify({error:'PREVIEW_AUTH_REQUIRED'}),{status:401});
   try{
-    await assert.rejects(()=>loadAdminFixture('gemini',validCode,new AbortController().signal),
+    await assert.rejects(()=>loadAdminFixture('gemini','',new AbortController().signal),
       e=>e.code==='FIXTURE_LOAD_FAILED'&&e.status===401);
   }finally{globalThis.fetch=saved;}
 });
