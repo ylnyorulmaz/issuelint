@@ -4,7 +4,7 @@ These instructions apply to **all files in this repository** and to every automa
 
 ## 1. Product constraints: do not drift
 
-IssueLint is a **platform-independent, text-first private-preview task reviewer**, not a Jira connector, project tracker, account platform, or unrestricted public AI endpoint. The current homepage has **two intentionally distinct actions**:
+IssueLint is a **platform-independent, text-first private-preview task reviewer**, not a Jira connector, project tracker, account platform, or unrestricted public AI endpoint. Two companion clients (`extension/`, `mcp/`) reuse the same protected routes; they are clients, not integrations, and add no Worker routes. The current homepage has **two intentionally distinct actions**:
 
 1. **Quick Scan** is the first/primary button. `POST /api/quick-scan` calls **only** Google `gemini-decision-1`, once, for 11 independent gate classifications. It displays a static ✓/✕ checklist. It must **not** call GPT-OSS, SayGM, the Original AI rewrite pipeline, or return probabilities, explanations or audit text.
 2. **Analyze v2 · Decision** is the second button. `POST /api/analyze-v2` runs the **Gemini → selective, independent GPT-OSS audit** path. Preserve the compact expandable scorecard and truthful differentiation between Gemini `P(Clear)` and an independent GPT-OSS decision.
@@ -29,7 +29,10 @@ The optional title field is visible in Paste and Build modes. Blank title + nonb
 | DeepSeek/SayGM verifier contract | `worker/saygm.ts`, `worker/feedback-verifier.ts`, `worker/verifier-patch.ts` |
 | Private benchmark station and fixtures | `src/components/AdminStation.tsx`, `src/admin-data.ts`, `test/fixtures/` |
 | Appearance, brand, analytics, diagnostics | `src/appearance.ts`, `src/styles.*.css`, `public/brand/`, `src/analytics.ts`, `src/diagnostics.ts` |
-| CI and Worker deployment | `.github/workflows/`, `cloudflare.config.ts`, `package.json` |
+| Static public pages and SEO | `public/about/`, `public/guides/how-to-write-a-clear-task/`, `public/site-header.css`, `public/site-footer.css`, `public/robots.txt`, `public/sitemap.xml`, `index.html` |
+| CI and Worker deployment | `.github/workflows/` (`ci.yml`, `export-build.yml`, `smoke.yml`), `cloudflare.config.ts`, `scripts/create-inline-worker.mjs`, `package.json` |
+| Chrome extension (IssueLint Clipper) | `extension/` — `src/content.ts` (extraction), `src/sidepanel.ts`, `src/lib/issuelint.ts` (request mapping), `src/lib/scorecard.ts` (response normalization), `src/lib/api.ts`, `test/` |
+| MCP server (issuelint-mcp) | `mcp/` — `src/index.ts` (tools/prompt), `src/client.ts` (HTTP/errors), `src/task.ts` (schemas/mapping), `src/formatter.ts` (Decision summary), `test/smoke.test.mjs` |
 
 Only Minimalist is active. Keep Light/Dark options and the existing logo; preserve archived design files without adding them to the active menu unless explicitly requested.
 
@@ -70,7 +73,18 @@ Only Minimalist is active. Keep Light/Dark options and the existing logo; preser
 - User-entered preview codes may persist **locally** in the user's browser (`issuelint.preview-access.v1`) for private testing; keep **Forget code**. Do not persist task text or reports server-side or add local history without explicit approval.
 - GA4/Clarity integrations require consent and optional public IDs. Do not include task titles, descriptions, evidence, URLs, model responses, access codes or user secrets in analytics/logs.
 
-## 5. Admin fixtures and evaluation
+## 5. Companion clients: `extension/` and `mcp/`
+
+Both are separate npm packages (own `package.json`, lockfile, tests, README). They are **not** built or tested by the root `npm run check`/CI and are **not** deployed by Cloudflare. Do not import from them in `src/` or `worker/`, and do not add Worker routes for them without an explicit task.
+
+- **Contract mirroring.** Both send the `worker/schema.ts` task shape (`title`, `description`, `type`, `domain`, optional fields) with `Authorization: Bearer <PREVIEW_TOKEN>`. Limits and enums are duplicated in `extension/src/lib/issuelint.ts` and `mcp/src/task.ts`; response parsing is duplicated in `extension/src/lib/scorecard.ts` and `mcp/src/formatter.ts`. **Any change to schema limits/enums or to the Quick Scan/Decision response shapes must update these files and their tests in the same PR.**
+- **Gate semantics.** Decision marks mirror `presentDecisionGate` (`src/decision-presentation.ts`): a validated GPT-OSS check wins; a gate routed to audit but not validated is unverified and is **never** counted or shown as clear. Quick Scan ✓ means “nothing flagged”. Neither client may invent a readiness score; the MCP `readiness` value is derived from findings and `no_gaps_flagged` must not be worded as “correct”.
+- **No silent truncation, no injected facts.** Text over the 6,500-char description cap (or the 8,000 total) is rejected client-side. The source page URL is **not** added to task text (it would become quotable evidence).
+- **Clipper (`extension/`).** Chrome MV3 side panel. Keep permissions minimal: `activeTab`, `scripting`, `sidePanel`, `storage`, with host access only as `optional_host_permissions` requested per origin at runtime; no `<all_urls>` at install, no persistent content scripts, no remote code. The content script is injected on demand, must not modify the page and must not make network requests (Defuddle runs with `useAsync:false` and a blocked `fetch`). The preview code lives in `chrome.storage.local` (never `sync`); render all page/API text with `textContent`, never `innerHTML`. Mock mode must stay request-free.
+- **issuelint-mcp (`mcp/`).** stdio only: **nothing may write to stdout** except the SDK transport (`src/stdout-guard.ts` is imported first and must stay first). Logs go to stderr with fixed fields only — never task text, quotes, model output or `ISSUELINT_API_KEY`. One request per tool call, no retries; every error result must state that the task was **not** checked. Default timeout 120 s (`ISSUELINT_TIMEOUT_MS`); API URL https-only (http for localhost).
+- **Tests.** `cd extension && npm run check` (typecheck, build, unit, Chromium extraction e2e). `cd mcp && npm run smoke-test` (build + stdio tests against a mock Worker). Neither suite makes live provider calls; neither proves real-model behavior.
+
+## 6. Admin fixtures and evaluation
 
 The protected `GET /api/admin/test-cases` supports three `source` values: `chatgpt` (12), `gemini` (12), and `paste` (4 description-only cases: three flawed, one clean). Fixtures and oracles are author hypotheses, **not model-certified ground truth**. Existing `src/admin-data.ts` checks dataset shape and prevents oracle contamination of model requests.
 
@@ -81,7 +95,7 @@ The protected `GET /api/admin/test-cases` supports three `source` values: `chatg
 - When adding fixtures, maintain clear expected root causes, source excerpts and a clean control. Do not silently change old reference labels to make a new model look more accurate.
 - Model quality assertions require manually examined outputs and representative real-model evaluation, not only mocked tests. Run cost-bearing `npm run eval:live` only with permission.
 
-## 6. UI / UX and operational correctness
+## 7. UI / UX and operational correctness
 
 - Keep the home page as a simple **Paste → Quick Scan → optionally deepen** flow. Two primary analysis buttons, minimal non-technical copy, optional structured fields, no forced signup, and no unnecessary new UI modes.
 - Quick Scan should show only the eleven labels and ✓/✕ icons (plus minimal header/disclaimer), not an explainer for each gate.
@@ -90,7 +104,7 @@ The protected `GET /api/admin/test-cases` supports three `source` values: `chatg
 - Never call a decorative loading animation “real pipeline progress.” Do not guarantee provider latency.
 - Add or update tests for changes in status mapping, input derivation, routing, failure states, accessibility and mobile behavior.
 
-## 7. Observability and failure rules
+## 8. Observability and failure rules
 
 - Correlate browser and Worker events with bounded `X-Request-ID`, and preserve `Cache-Control: no-store` on API responses.
 - Maintain typed/sanitized logs in `worker/index.ts` and `src/diagnostics.ts`. Safe events include `issuelint.quick_scan_result`, `issuelint.decision_audit`, `issuelint.verifier_result`, `issuelint.inference_stage` and `issuelint.client_event`.
@@ -98,24 +112,24 @@ The protected `GET /api/admin/test-cases` supports three `source` values: `chatg
 - `POST /api/client-events` is Bearer-protected and accepts ≤1 KiB from a tightly constrained allowlist. No free-form debugging payloads.
 - SayGM failures must preserve fixed categories and `validationCode` rather than upstream body text. Preserve bounded streamed response processing (1 MiB guard) and the atomic fallback.
 
-## 8. Required development and delivery workflow
+## 9. Required development and delivery workflow
 
 1. Read actual current `main` files and relevant tests. State whether a statement refers to **implemented code**, **CI-tested behavior**, **provider-tested behavior**, **deployed Worker** or **user-validated product behavior**.
 2. Scope the change tightly. Do **not** rewrite other engines, prompt logic, fixtures, admin UI, branding or product strategy unless required by the task.
-3. Use Node.js **>=22.23.0**. Run `npm install` then `npm run check` (Worker typecheck + configured Worker/client tests + Vite build). Run `node --experimental-strip-types --test test/decision.test.mjs test/decision-audit.test.mjs` explicitly for decision engine changes: those two suites are not currently enumerated in `test:worker`.
+3. Use Node.js **>=22.23.0**. Run `npm install` then `npm run check` (Worker typecheck + configured Worker/client tests + Vite build). Run `node --experimental-strip-types --test test/decision.test.mjs test/decision-audit.test.mjs` explicitly for decision engine changes: those two suites are not currently enumerated in `test:worker`. For changes in `extension/` or `mcp/`, run that package's own checks (section 5); root CI does not.
 4. Test error paths: missing secret, wrong token, invalid inputs/JSON, incomplete model output, non-grounded evidence, verifier fallback and cross-engine isolation. Confirm Quick Scan makes one Gemini and **zero Workers AI audit** calls.
 5. Documentation changes must update relevant `README.md`, `PRODUCT.md`, `AGENTS.md` and `CLAUDE.md` without changing **TBD** product/business decisions into facts.
 6. Create a focused PR against `main`; report actual commands and outcomes. Never claim a test was run merely because it was written.
-7. After approved merge, verify Cloudflare **commit, build outcome, deployed version/traffic and health endpoint**. A GitHub merge does not prove a live deployment. Respect `cloudflare.config.ts` and avoid casually replacing the `cf` toolchain or overwriting secrets with `--force`.
+7. After approved merge, verify Cloudflare **commit, build outcome, deployed version/traffic and health endpoint**. A GitHub merge does not prove a live deployment. Every merge to `main` triggers a Workers Build and `export-build.yml` (which force-pushes the `release-bundle` branch), even for docs-, `extension/`- or `mcp/`-only changes. Respect `cloudflare.config.ts` and avoid casually replacing the `cf` toolchain or overwriting secrets with `--force`.
 8. Do not infer success of a real Gemini/SayGM request from CI, Worker health or an unauthenticated smoke test alone.
 
-## 9. Agent-specific handoffs
+## 10. Agent-specific handoffs
 
 - **Coder:** smallest correct implementation, typed contracts, deterministic guards, focused diffs.
 - **QA:** fixtures, adversarial/failure tests, negative-path assertions; label real-model evaluations separately.
 - **Documentation/Librarian:** keep architecture, user language, and technical status synchronized with source code; preserve unresolved TBDs.
 - **Product/Growth:** may propose experiments and draft messaging, but **must not publish** unverified claims about accuracy, speed, users, pricing or beta readiness.
 
-## 10. Known release gaps
+## 11. Known release gaps
 
-This is still a private preview. User account auth, independent admin access, public per-user quota/rate limiting, billing, durable job history, representative accuracy/calibration metrics, provider privacy/legal review and public abuse controls are **not implemented**. Consult [PRODUCT.md](PRODUCT.md) before promoting any of them to committed roadmap scope.
+This is still a private preview. User account auth, independent admin access, public per-user quota/rate limiting, billing, durable job history, representative accuracy/calibration metrics, provider privacy/legal review and public abuse controls are **not implemented**. The Clipper extension and MCP server are unpublished developer installs (no Chrome Web Store listing, no npm package), are not covered by root CI, and have not been verified against the live API from an automated environment. Consult [PRODUCT.md](PRODUCT.md) before promoting any of them to committed roadmap scope.

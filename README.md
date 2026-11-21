@@ -3,14 +3,20 @@
 **The second opinion for every task.** IssueLint is a lightweight, platform-independent AI review tool for tasks, tickets, to-dos, user stories, and work briefs. Paste a request, identify potential execution problems in a fast checklist, and run a deeper evidence-oriented review when clarification is needed.
 
 **Live site:** https://issuelint.com  
-**About page:** https://issuelint.com/about/ — static, crawlable product introduction, supported by shared site footer/contact navigation.  
+**About page:** https://issuelint.com/about/ — static, crawlable product introduction.  
+**Task-writing guide:** https://issuelint.com/guides/how-to-write-a-clear-task/ — static, crawlable checklist and examples.  
 **Contact:** yorulmazyln@gmail.com · https://ylnyorulmaz.com  
 **Source of truth:** [`main`](https://github.com/ylnyorulmaz/issuelint/tree/main)  
 **Stage:** private AI preview / pre-public-beta evaluation. **Not** a generally available, rate-limited, multi-user production service.  
 **Product strategy and ICP:** [PRODUCT.md](PRODUCT.md)  
 **Contributor/agent instructions:** [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md)
 
-IssueLint works with text copied from Jira, GitHub Issues, Linear, email, documents, and meetings. **There are no native Jira/Linear/GitHub ticket integrations in this codebase.** The UI currently uses one active Minimalist theme with Light/Dark appearance.
+IssueLint works with text copied from Jira, GitHub Issues, Linear, email, documents, and meetings. **There are no native Jira/Linear/GitHub ticket integrations in this codebase** (no API connection, sync or write-back). The UI currently uses one active Minimalist theme with Light/Dark appearance.
+
+Two **companion clients** live in this repository as separate packages and call the same protected Worker routes (see [section 5](#5-companion-clients-extension-and-mcp)):
+
+- [`extension/`](extension/README.md): **IssueLint Clipper**, a Chrome (Manifest V3) side-panel extension that clips clean Markdown from the open page and runs Quick Scan or Analyze v2 on it.
+- [`mcp/`](mcp/README.md): **issuelint-mcp**, a local stdio MCP server so AI coding agents can run an Analyze v2 pre-flight check before writing code.
 
 ## 1. The experience today
 
@@ -99,6 +105,7 @@ The resulting task status is `ready`, `needs_clarification` or `blocked`, comput
 - On cancellation, the frontend aborts the request; this does **not guarantee** an upstream provider has stopped work or charges.
 - The only active design is **Minimalist**. Light/Dark selection is saved as `issuelint.appearance.v1` and defaults to the OS setting before a manual choice. Retired design assets remain in source control; their selector is hidden.
 - Logo files are in `public/brand/`. New CSS respects responsive widths and prefers-reduced-motion settings.
+- Static, crawlable pages are served from `public/` by Workers Static Assets: `/about/` and `/guides/how-to-write-a-clear-task/`. They share `public/site-header.css` and `public/site-footer.css` with the SPA header/footer. `public/robots.txt` disallows `/admin`; `public/sitemap.xml` lists `/`, `/about/` and the guide. `index.html` carries SEO metadata and a no-JavaScript fallback with links to both pages.
 - GA4/Clarity scripts, when their optional **public** Vite IDs are configured, are consent-gated. Task text, model output and access codes must not be sent as analytics events.
 
 ## 3. Private benchmark station — `/admin`
@@ -172,9 +179,35 @@ The full Decision result instead has `mode:"decision"` and `decision:{model,gate
 
 `GET /api/health` reports **configuration**, not evidence that an upstream inference succeeded. The API has no public identity, account-specific quota, server-side rate limiter, metered billing, or durable report storage. Do **not** expose the shared preview token as a production multi-tenant access mechanism.
 
-## 5. Local development and tests
+## 5. Companion clients: extension and MCP
 
-**Node.js >= 22.23.0**. The repo intentionally has no committed package lock; CI uses `npm install`, not `npm ci`.
+Both are **separate npm packages** with their own `package.json`, lockfile, tests and README. They do **not** add Worker routes, are **not** deployed by Cloudflare, and are **not** run by the root CI (`npm run check`). They use the existing private-preview Bearer gate; neither ships or embeds a token.
+
+| | IssueLint Clipper (`extension/`) | issuelint-mcp (`mcp/`) |
+| --- | --- | --- |
+| Form | Chrome MV3 side panel, loaded unpacked from `extension/dist/` | Local stdio MCP server (`node mcp/dist/index.js`) |
+| Users | People reviewing a ticket in a browser (Jira, Linear, GitHub, …) | AI coding agents (Claude Code, Cursor, Windsurf, Claude Desktop) |
+| Routes | `POST /api/quick-scan` (default) or `POST /api/analyze-v2`; optional custom endpoint | `POST /api/analyze-v2` only |
+| Request body | `{title, description, type:"General", domain:"Other"}` from the page title (or first Markdown line) + edited Markdown | `lint_task`: structured fields; `lint_markdown`: same mapping as the Clipper, `domain` default `Software` |
+| Auth | Preview code entered by the user, stored in `chrome.storage.local` (not synced) | `ISSUELINT_API_KEY` env var |
+| Output | Quick Scan ✓/✕ list or Decision gate list with quotes/questions | Agent-readable Markdown + `structuredContent` (`readiness`, counts, gaps, gates, audit) |
+| Mock mode | Built-in sample data per backend shape (default on) | Tests use a local mock Worker |
+| Published | No (unpacked developer install) | No (not on npm; run by path or `npm link`) |
+
+Shared rules: the source page URL is **not** injected into task text; text over the Worker's 6,500-character description cap is rejected client-side, not truncated; Decision gate marks mirror `presentDecisionGate` (`src/decision-presentation.ts`), so an unverified gate is never shown as clear. **If `worker/schema.ts` limits/enums or the Quick Scan/Decision response shapes change, update `extension/src/lib/issuelint.ts`, `extension/src/lib/scorecard.ts`, `mcp/src/task.ts`, `mcp/src/formatter.ts` and their tests in the same PR.**
+
+**Clipper details** (`extension/README.md`): extraction priority is selection → largest visible open dialog → Defuddle full-page cleanup, converted with Turndown + GFM. Permissions are `activeTab`, `scripting`, `sidePanel`, `storage`; host access is optional and requested per origin at runtime. The content script is injected on demand, makes no network requests and does not modify the page.
+
+**MCP details** (`mcp/README.md`): tools `lint_task` and `lint_markdown`, prompt `preflight_check`. stdout carries JSON-RPC only; logs go to stderr without task text or the key. Default timeout 120 s (`ISSUELINT_TIMEOUT_MS`); missing key, 401/403/429, timeout and invalid input return tool errors stating that the task was **not** checked.
+
+```bash
+cd extension && npm install && npm run check   # typecheck, build, unit + Chromium extraction tests
+cd mcp && npm install && npm run smoke-test     # build + stdio smoke tests against a mock Worker
+```
+
+## 6. Local development and tests
+
+**Node.js >= 22.23.0**. The root app intentionally has no committed package lock; CI uses `npm install`, not `npm ci`. (`extension/` and `mcp/` are separate packages and do commit their own lockfiles.)
 
 ```bash
 npm install
@@ -202,7 +235,7 @@ node --experimental-strip-types --test test/decision.test.mjs test/decision-audi
 
 Mocked tests prove contracts—not actual model correctness or deployed behavior. The golden evaluator in `scripts/eval-review.mjs` makes real provider requests; do not run it without authorization and cost awareness.
 
-## 6. Cloudflare configuration and delivery
+## 7. Cloudflare configuration and delivery
 
 - **Worker:** `issuelint-dev` (Cloudflare Workers + static SPA assets).
 - **Production domain:** https://issuelint.com
@@ -224,7 +257,15 @@ Mocked tests prove contracts—not actual model correctness or deployed behavior
 
 The `--force` deploy option applies source-controlled Worker configuration and may overwrite Dashboard changes; verify bindings/secrets/flags before and after any deployment.
 
-**Release checklist:** create a scoped PR; run checks; merge only after tests; verify the resulting Cloudflare **build ID, outcome, commit, deployment version, traffic share and /api/health**. A merged commit is **not proof of a live deploy**. The manual `.github/workflows/smoke.yml` currently checks the older 2.5/native-assets security gates, not every Quick Scan or v2 behavior; do not claim that workflow alone exhaustively tests these newer paths.
+**Release checklist:** create a scoped PR; run checks; merge only after tests; verify the resulting Cloudflare **build ID, outcome, commit, deployment version, traffic share and /api/health**. A merged commit is **not proof of a live deploy**. Every merge to `main` triggers a Workers Build, even when only `extension/`, `mcp/` or docs changed.
+
+GitHub workflows:
+
+| Workflow | Trigger | What it does |
+| --- | --- | --- |
+| `ci.yml` | PRs and pushes to `main` | `npm install` + root `npm run check` (does **not** cover `extension/` or `mcp/`) |
+| `export-build.yml` | Push to `main` | Runs `npm run check`, builds, and force-pushes the built Worker + site (plus a single-file inline Worker from `scripts/create-inline-worker.mjs`) to the `release-bundle` branch |
+| `smoke.yml` | Manual | Checks the older 2.5/native-assets security gates on the live site, not every Quick Scan or v2 behavior; do not claim it exhaustively tests the newer paths |
 
 ### Diagnostics
 
@@ -232,8 +273,8 @@ Server-side fixed event names include `issuelint.decision_started`, `issuelint.d
 
 **Never record** task titles/descriptions, prompts, generated drafts, source quotes, raw model outputs, Authorization headers, secrets, arbitrary error messages, stacks, or full URLs. Keep responses and failure categories bounded. A successful build or `/api/health` response does not prove SayGM or Gemini answered a real task successfully.
 
-## 7. What is not built yet
+## 8. What is not built yet
 
-IssueLint currently does **not** include user accounts, workspace/team management, native ticket write-back, server-side task/report history, job resumption after refresh, per-user credits, billing, or public rate/abuse protection. Provider processing and retention must be assessed before opening external access. Accuracy, false-positive rates, latency distributions, cost per review, and user demand require representative evaluation; no performance guarantee is made by this README.
+IssueLint currently does **not** include user accounts, workspace/team management, native ticket integrations or write-back, server-side task/report history, job resumption after refresh, per-user credits, billing, or public rate/abuse protection. The Clipper extension and MCP server are unpublished developer installs that reuse the shared preview code; they are not a public distribution channel. Provider processing and retention must be assessed before opening external access. Accuracy, false-positive rates, latency distributions, cost per review, and user demand require representative evaluation; no performance guarantee is made by this README.
 
 Product decisions, intended audiences, differentiators and explicitly undecided commercial sections live in [PRODUCT.md](PRODUCT.md). Implementation rules are in [AGENTS.md](AGENTS.md); Claude-specific working instructions are in [CLAUDE.md](CLAUDE.md).

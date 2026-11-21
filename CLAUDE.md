@@ -11,6 +11,13 @@ IssueLint is a **private-preview, platform-independent task-quality reviewer** i
 
 **Do not confuse these with Original AI.** The older `POST /api/analyze` Review Engine 2.5 (low-reasoning GPT-OSS, optional SayGM/DeepSeek verifier, grounded findings and rewrite) remains intact and is available from the private `/admin` benchmark station. Retention of old code is deliberate.
 
+**Companion clients** (separate npm packages, not built by root CI, not deployed by Cloudflare):
+
+- `extension/` — **IssueLint Clipper**, a Chrome MV3 side panel that clips page Markdown and calls `/api/quick-scan` (default) or `/api/analyze-v2`.
+- `mcp/` — **issuelint-mcp**, a local stdio MCP server whose `lint_task` / `lint_markdown` tools call `/api/analyze-v2` for coding agents.
+
+They mirror the Worker contract by copy, not import. See AGENTS.md §5 before touching them.
+
 The first priority for a coding task is to identify **which route and result contract the request actually targets**. Changing a button label must not silently repurpose another model pipeline.
 
 ## Before writing code
@@ -31,6 +38,10 @@ The first priority for a coding task is to identify **which route and result con
 | Private benchmark | `src/components/AdminStation.tsx`, `src/admin-data.ts`, `test/fixtures/`, `test/admin.test.mjs` |
 | Light/Dark, typography, brand | `src/styles.minimalist.css`, `src/styles.readability.css`, `src/styles.quick-scan.css`, `public/brand/` |
 | Security/ops/diagnostics | `worker/index.ts`, `src/diagnostics.ts`, `cloudflare.config.ts`, `.github/workflows/` |
+| Static About / guide pages, SEO, shared header/footer | `public/about/`, `public/guides/`, `public/site-header.css`, `public/site-footer.css`, `public/robots.txt`, `public/sitemap.xml`, `index.html`, `test/client.test.mjs` |
+| Chrome extension (Clipper) | `extension/src/content.ts`, `extension/src/sidepanel.ts`, `extension/src/lib/{issuelint,scorecard,api,settings}.ts`, `extension/test/`, `extension/README.md` |
+| MCP server | `mcp/src/{index,client,task,formatter,stdout-guard}.ts`, `mcp/test/smoke.test.mjs`, `mcp/README.md` |
+| A Worker schema or response-shape change | Also `extension/src/lib/issuelint.ts`, `extension/src/lib/scorecard.ts`, `mcp/src/task.ts`, `mcp/src/formatter.ts` and their tests |
 
 ## Required engineering invariants
 
@@ -47,6 +58,14 @@ The first priority for a coding task is to identify **which route and result con
 - Return one combined high-reasoning GPT audit for selected gates. Validate independently returned `clear/gap/not_applicable`, exact supporting excerpts and appropriate clarification questions.
 - Partial failures **quarantine bad gates** without contaminating valid sibling checks; full failure yields an explicit unavailable audit. Unverified is **not** a pass.
 - Keep the compact expandable UI. `P(Clear)` is screening probability, not verified model reliability. Preserve accessible tooltip and reading contrast.
+
+### Companion clients (extension / MCP)
+
+- No new Worker routes or schema changes for them unless the task explicitly asks; if the Worker contract changes, update both clients and their tests in the same PR.
+- Mirror `presentDecisionGate`: unverified is never clear. No invented readiness score; Quick Scan ✓ = “nothing flagged”.
+- Reject over-limit text (6,500 description / 8,000 total) instead of truncating; never inject the source URL into task text.
+- Extension: minimal MV3 permissions (optional per-origin host access only), on-demand content script with no network calls and no DOM mutation, key in `chrome.storage.local`, `textContent` rendering, request-free Mock mode.
+- MCP: nothing on stdout but JSON-RPC (`src/stdout-guard.ts` stays the first import), stderr logs with fixed fields only, one call per tool invocation, error results must say the task was **not** checked.
 
 ### Original AI / SayGM
 
@@ -84,8 +103,15 @@ npm run check
 node --experimental-strip-types --test test/decision.test.mjs test/decision-audit.test.mjs
 ```
 
+   For `extension/` or `mcp/` changes (root CI does not run these):
+
+```bash
+cd extension && npm install && npm run check
+cd mcp && npm install && npm run smoke-test
+```
+
 7. Never claim **real-model** correctness from mocked tests. `npm run eval:live` makes externally billable model calls and must be explicitly authorized.
-8. Commit a focused PR to `main` and report changed files, tests, limitations and rollout effect. If asked to deploy, verify the **actual** Cloudflare build, commit and Worker deployment; do not infer live success from a GitHub merge.
+8. Commit a focused PR to `main` and report changed files, tests, limitations and rollout effect. If asked to deploy, verify the **actual** Cloudflare build, commit and Worker deployment; do not infer live success from a GitHub merge. Any merge to `main` (even docs-, `extension/`- or `mcp/`-only) triggers a Workers Build and `export-build.yml`.
 9. Do not change `PRODUCT.md`'s **TBD** fields to invented pricing, distribution, traction, competitive rankings or revenue targets. Mark assumptions explicitly as hypotheses.
 
 ## Review and acceptance checklist
@@ -98,5 +124,6 @@ node --experimental-strip-types --test test/decision.test.mjs test/decision-audi
 - [ ] Light/Dark, responsive UI and reduced-motion support still work.
 - [ ] Tests actually ran and results are reported accurately.
 - [ ] Deployment status is independently verified if deployment was required.
+- [ ] Worker contract changes are mirrored in `extension/` and `mcp/` (and their tests pass).
 
 Historical verifier design: [docs/feedback-quality-engine-2.5.md](docs/feedback-quality-engine-2.5.md).

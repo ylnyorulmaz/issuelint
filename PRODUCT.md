@@ -68,7 +68,7 @@ Consequences may include avoidable clarification loops, rework, delayed handoff,
 | --- | --- | --- |
 | Agencies and outsourced delivery teams | Delivery lead / account PM | Review a client brief before handing it to implementation |
 | QA / test engineering | QA lead / test author | Check whether expected behavior and completion conditions are testable |
-| Independent builders / AI-assisted developers | Indie developer / agent operator | Screen a task before sending it to a coding agent |
+| Independent builders / AI-assisted developers | Indie developer / agent operator | Screen a task before sending it to a coding agent (the MCP server exists to test this; no usage evidence yet) |
 | Marketing and growth teams | Marketing manager / campaign lead | Clarify target audience, channels, deliverables and result |
 | Sales and operations teams | Sales Ops / operations manager | Review handoffs, requests, follow-ups and process changes |
 
@@ -110,6 +110,13 @@ All secondary segments are **exploration hypotheses**; none has a confirmed acqu
 5. Click **Quick Scan** (primary action) for eleven static ✓/✕ marks. This is a Gemini-only screening pass; no explanatory text.
 6. If a dimension is red or the user wants independent scrutiny, click **Analyze v2 · Decision**. This returns a full expandable view, per-gate Gemini `P(Clear)` and GPT-OSS reason/source evidence for gates selected by the current routing policy.
 7. Use clarifying questions or evidence to improve the underlying ticket **manually** in the current task tool. The current full Decision v2 path does not generate a rewritten ticket or write back to third-party systems.
+
+**Other entry points (implemented, private, unpublished):**
+
+- **Browser (IssueLint Clipper, `extension/`):** in Chrome, open the side panel on a ticket page, clip the selection, open modal or cleaned page as Markdown, edit it, and run Quick Scan or Analyze v2 without copy-pasting. It requires the same preview code and is installed unpacked by developers. There is no Chrome Web Store listing.
+- **AI coding agents (issuelint-mcp, `mcp/`):** an agent calls `lint_task` / `lint_markdown` before writing code and is instructed to ask the user the returned clarification questions when gaps or contradictions are found. It uses Analyze v2 only, requires the preview code, and runs locally from the repository (not published to npm).
+
+Both still leave the actual ticket edit to the user; neither writes back to Jira, Linear or GitHub.
 
 **Separate internal evaluation:** `/admin` provides two full-engine comparison buttons: **Original AI** (`/api/analyze`; includes guarded rewrites) and **Decision Model** (`/api/analyze-v2`). It can load 12 ChatGPT-origin, 12 Gemini-origin and four description-only controls. It is not a customer admin product.
 
@@ -153,11 +160,15 @@ A single root problem can surface across dimensions. Future quality work should 
 - Admin test station with 28 author-labeled task cases across three fixtures.
 - Light/Dark Minimalist UI, responsive layout, branded loading states and basic privacy-safe diagnostics.
 - Shared preview Bearer gate and consent-gated optional analytics.
+- Static, crawlable About page and “How to write a clear task” guide with shared header/footer, sitemap and robots rules.
+- **IssueLint Clipper** Chrome side-panel extension (`extension/`): selection / modal / full-page Markdown extraction, editable clip, Quick Scan or Analyze v2 results, Mock mode. Developer install only.
+- **issuelint-mcp** local MCP server (`mcp/`): `lint_task`, `lint_markdown` and a `preflight_check` prompt for coding agents, backed by Analyze v2. Run locally only.
 
 ### Not implemented
 
 - Public user signup/login, team workspaces, RBAC or separate admin permissions.
-- Native integration, browser extension, webhooks or writes back to Jira/GitHub/Linear.
+- Native integration (API connection/sync), webhooks or writes back to Jira/GitHub/Linear. The browser extension only reads the page the user has open.
+- A published Chrome Web Store extension, a published npm MCP package, or per-user keys for either. Both clients reuse the shared preview code.
 - Server-side report storage, saved histories or refresh-resumable background jobs.
 - Public request rate limits, user quotas/credits, billing or payments.
 - Automated model quality grading against human adjudicated ground truth.
@@ -175,6 +186,8 @@ The list above reflects the repository; it is **not** a promise to build all ite
 | The eleven dimensions are independently understandable | Usability sessions, taxonomy conflict review and labeled failure analysis |
 | Deep review adds actionable value beyond quick screening | Blind human comparison of clarified decisions, duplicate root causes and execution readiness |
 | Provider latency is acceptable to target users | Instrumented p50/p95 end-to-end measurements by route and input size |
+| In-context entry points (browser clipper, agent pre-flight via MCP) increase repeat usage over the paste-in web app | Usage comparison across entry points with real testers; agent-side observation of whether returned questions are actually asked |
+| Agents act correctly on the MCP result (stop on critical gaps, don't treat failures as passes) | Transcript review across several agent clients and task types |
 | Third-party task processing is acceptable to customers | Data-processing review, provider policies and customer discovery |
 | A target segment will pay | Real buyer interviews and purchase behavior, not inferred willingness to pay |
 | The product can be operated safely at public scale | Rate/abuse limits, metering, user separation and incident controls |
@@ -233,7 +246,7 @@ The following sections are intentionally **headings and decisions to make later*
 
 ### Integrations and extension strategy — TBD
 
-*To be decided.*
+*To be decided.* (Current implemented state only: a private browser clipper and a local MCP server exist, see §7. Whether to publish them, how to distribute them, and any native integration are undecided.)
 
 ### Collaboration, persistence and workspace features — TBD
 
@@ -265,6 +278,8 @@ The following sections are intentionally **headings and decisions to make later*
 | Primary analysis path | Gemini-only eleven-dimension checklist | Implemented |
 | Deeper analysis path | Gemini + selective GPT-OSS audit | Implemented |
 | Original AI verifier/rewrite | Retained as separate internal comparison path | Implemented |
+| Browser clipper (Chrome extension) | Private developer install calling Quick Scan / Analyze v2 | Implemented; not published, not in root CI |
+| MCP server for coding agents | Local stdio server calling Analyze v2 | Implemented; not published, not in root CI |
 | Initial ICP | Software/product delivery teams | **Hypothesis, not validated** |
 | Secondary audiences | Agencies, QA, builders, marketing, sales and operations | **Hypothesis, not validated** |
 | Public pricing/business model | **TBD** | No decision made |
