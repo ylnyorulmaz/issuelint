@@ -32,7 +32,6 @@ export type SaygmOptions = {
   apiKey?: string;
   task: Task;
   checks: readonly ReviewCheck[];
-  timeoutMs?: number;
   fetcher?: SaygmFetch;
 };
 
@@ -81,7 +80,6 @@ function parseContent(raw: unknown): unknown {
 export async function callSaygmVerifier(options: SaygmOptions): Promise<SaygmResult> {
   const { apiKey, task, checks, fetcher = fetch } = options;
   if (!apiKey?.trim()) throw new SaygmError("config");
-  const timeoutMs = Math.max(1000, Math.min(30000, options.timeoutMs ?? 12000));
   const started = Date.now();
   let response: Response;
   try {
@@ -103,7 +101,6 @@ export async function callSaygmVerifier(options: SaygmOptions): Promise<SaygmRes
           { role: "user", content: JSON.stringify({ task, checks }) },
         ],
       }),
-      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (cause) {
     if (cause instanceof Error && (cause.name === "TimeoutError" || cause.name === "AbortError"))
