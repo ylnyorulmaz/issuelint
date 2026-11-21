@@ -1,7 +1,7 @@
 import { createSignal, For, Show, onMount, onCleanup } from 'solid-js';
 import { render } from 'solid-js/web';
 import { analyze, blank, examples, type Task, type TaskType, type Domain } from './analyzer';
-import { analyzeLive, analyzeDecisionLive, getHealth, ApiError, type ApiAnalysis, type ApiDecisionResult, type ApiFinding } from './api';
+import { analyzeLive, analyzeDecisionLive, analyzeQuickScanLive, getHealth, ApiError, type ApiAnalysis, type ApiDecisionResult, type ApiQuickScanResult, type ApiFinding } from './api';
 import './style.css';
 // Archived design preserved in src/styles.neobrutalist.css; inactive during minimalist-only beta.
 import './styles.minimalist.css';
@@ -15,6 +15,7 @@ import './styles.review-loading.css';
 import { ReviewLoading } from './components/ReviewLoading';
 import { ReviewBrandAnimation, ReviewWaitGuidance } from './components/ReviewWaitGuidance';
 import { DecisionScorecard } from './components/DecisionScorecard';
+import { QuickScanScorecard } from './components/QuickScanScorecard';
 import { AdminStation } from './components/AdminStation';
 import './styles.admin.css';
 import './styles.appearance.css';
@@ -22,6 +23,7 @@ import './styles.decision.css';
 import './styles.readability.css';
 import './styles.decision-compact.css';
 import './styles.review-wait.css';
+import './styles.quick-scan.css';
 import { readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from './preview-access';
 import { logClient, newRequestId, reportClientFailure } from './diagnostics';
 
@@ -55,8 +57,9 @@ function App() {
   const [task, setTask] = createSignal<Task>(blank());
   const [result, setResult] = createSignal<View | null>(null);
   const [decisionResult, setDecisionResult] = createSignal<ApiDecisionResult | null>(null);
+  const [quickResult, setQuickResult] = createSignal<ApiQuickScanResult | null>(null);
   const [decisionConfigured, setDecisionConfigured] = createSignal(false);
-  const [activePipeline, setActivePipeline] = createSignal<'ai'|'decision'>('ai');
+  const [activePipeline, setActivePipeline] = createSignal<'ai'|'decision'|'quick'>('quick');
   const [error, setError] = createSignal('');
   const [loading, setLoading] = createSignal(false);
   const [available, setAvailable] = createSignal<'checking' | 'private' | 'demo'>('checking');
@@ -141,29 +144,29 @@ function App() {
   }
   function chooseEntryMode(mode: 'paste' | 'build') {
     if (entryMode() === mode || loading()) return;
-    cancelRequest(); setEntryMode(mode); setDetails(false); setResult(null); setDecisionResult(null); setError(''); setCopied(false);
+    cancelRequest(); setEntryMode(mode); setDetails(false); setResult(null); setDecisionResult(null); setQuickResult(null); setError(''); setCopied(false);
   }
   function edit<K extends keyof Task>(key: K, value: Task[K]) {
     cancelRequest();
     setTask(t => ({ ...t, [key]: value }));
-    setResult(null); setDecisionResult(null); setError(''); setSelected(null); setCopied(false);
+    setResult(null); setDecisionResult(null); setQuickResult(null); setError(''); setSelected(null); setCopied(false);
   }
   function load(id: string) {
     const example = examples.find(e => e.id === id);
     if (!example) return;
     cancelRequest();
-    setTask({ ...example.task }); setEntryMode('paste'); setResult(null); setDecisionResult(null); setError('');
+    setTask({ ...example.task }); setEntryMode('paste'); setResult(null); setDecisionResult(null); setQuickResult(null); setError('');
     setSelected(id); setTab('findings'); setCopied(false);
     trackAnalyticsEvent('example_loaded');
     document.getElementById('analyze')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function reset() {
-    cancelRequest(); setTask(blank()); setResult(null); setDecisionResult(null); setError(''); setSelected(null);
+    cancelRequest(); setTask(blank()); setResult(null); setDecisionResult(null); setQuickResult(null); setError(''); setSelected(null);
     setDetails(false); setCopied(false);
   }
   function reviewDemo() {
     cancelRequest();
-    setError(''); setTab('findings'); setCopied(false); setDecisionResult(null);
+    setError(''); setTab('findings'); setCopied(false); setDecisionResult(null); setQuickResult(null);
     setResult(fromDemo(prepareReviewTask(task())));
     trackAnalyticsEvent('review_completed');
     revealResults();
@@ -178,7 +181,7 @@ function App() {
       setError('AI is in private preview. Enter your access code or use the demo review.');
       return;
     }
-    setError(''); setResult(null); setDecisionResult(null); setActivePipeline('ai'); setLoading(true); setCopied(false);
+    setError(''); setResult(null); setDecisionResult(null); setQuickResult(null); setActivePipeline('ai'); setLoading(true); setCopied(false);
     trackAnalyticsEvent('review_started');
     setTab('findings');
     revealResults();
@@ -230,7 +233,7 @@ function App() {
       setError('Enter the private preview access code to use Decision v2.');
       return;
     }
-    setError(''); setResult(null); setDecisionResult(null); setActivePipeline('decision');
+    setError(''); setResult(null); setDecisionResult(null); setQuickResult(null); setActivePipeline('decision');
     setLoading(true); setCopied(false); setTab('findings');
     revealResults();
     const controller = new AbortController();
@@ -264,6 +267,55 @@ function App() {
         requestController = undefined;
         activeRequestId = undefined;
         setLoading(false);
+      }
+    }
+  }
+
+
+  /** Short homepage scan. Existing Original AI and audited v2 remain untouched. */
+  async function runQuickScan() {
+    if(loading()||!reviewInputValid(task()))return;
+    if(available()!=='private'||!decisionConfigured()) {
+      setError('Quick Scan requires Gemini Decision 1 to be enabled.');
+      return;
+    }
+    if(!accessCode().trim()) {
+      setError('Enter your private preview access code to run Quick Scan.');
+      return;
+    }
+    setError('');setResult(null);setDecisionResult(null);setQuickResult(null);
+    setActivePipeline('quick');setLoading(true);setCopied(false);setTab('findings');
+    trackAnalyticsEvent('review_started');revealResults();
+    const controller=new AbortController();
+    const requestId=newRequestId();
+    const started=Date.now();
+    requestController=controller;activeRequestId=requestId;
+    requestTimeout=setTimeout(()=>controller.abort(),60000);
+    logClient('info','quick_scan_started',{requestId});
+    try {
+      const scan=await analyzeQuickScanLive(prepareReviewTask(task()),accessCode().trim(),controller.signal,requestId);
+      if(requestController===controller) {
+        setQuickResult(scan);
+        logClient('info','quick_scan_finished',{requestId,durationMs:Date.now()-started});
+        trackAnalyticsEvent('review_completed');revealResults();
+      }
+    } catch(cause) {
+      if(requestController!==controller)return;
+      const message=cause instanceof ApiError?cause.message:
+        controller.signal.aborted?'Quick Scan timed out. Retry.':'Quick Scan could not complete. Retry.';
+      setError(message);
+      const category=cause instanceof ApiError?
+        cause.status===401?'auth':cause.status?'http':cause.code==='CANCELLED'?'timeout':'network':
+        controller.signal.aborted?'timeout':'unknown';
+      reportClientFailure('review_failed',category,accessCode().trim(),
+        cause instanceof ApiError?cause.requestId:requestId,
+        cause instanceof ApiError?cause.status:0,Date.now()-started);
+      trackAnalyticsEvent('review_failed');revealResults();
+    } finally {
+      if(requestController===controller) {
+        requestController=undefined;activeRequestId=undefined;
+        if(requestTimeout)clearTimeout(requestTimeout);
+        requestTimeout=undefined;setLoading(false);
       }
     }
   }
@@ -311,7 +363,7 @@ function App() {
           <span>{available() === 'checking' ? 'Checking analysis availability…' :
             available() === 'private' ? 'AI review · private preview' : 'Demo review · AI not enabled'}</span>
         </div>
-        <form onSubmit={e => { e.preventDefault(); void runAI(); }}>
+        <form onSubmit={e => { e.preventDefault(); void runQuickScan(); }}>
           <div class="input-mode-switch" role="group" aria-label="Choose task input method">
             <button type="button" aria-pressed={entryMode() === 'paste'} class={entryMode() === 'paste' ? 'active' : ''} disabled={loading()} onClick={() => chooseEntryMode('paste')}>Paste existing task</button>
             <button type="button" aria-pressed={entryMode() === 'build'} class={entryMode() === 'build' ? 'active' : ''} disabled={loading()} onClick={() => chooseEntryMode('build')}>Build a task</button>
@@ -349,8 +401,9 @@ function App() {
           </Show>
           <Show when={error()}><div class="api-error" role="alert">{error()}</div></Show>
           <div class="actions primary-actions">
-            <button class="primary" type="submit" disabled={!inputValid() || loading() || available() === 'checking'}>
-              {loading() && activePipeline()==='ai' ? '◌  Analyzing…' : available() === 'private' ? '✦  Analyze with AI' : '✦  Review task'} <span>→</span>
+            <button class="primary" type="submit" disabled={!inputValid() || loading() || available()!=='private' || !decisionConfigured()}
+              title={decisionConfigured()?'Gemini Decision 1 only · quick 11-check screening':'Gemini Decision 1 is not configured'}>
+              {loading() && activePipeline()==='quick' ? '◌  Scanning…' : '✦  Quick Scan'} <span>→</span>
             </button>
             <Show when={available() === 'private'}>
               <button class="decision-action" type="button" disabled={!inputValid() || loading() || !decisionConfigured()}
@@ -381,11 +434,11 @@ function App() {
             </Show>
             <label for="criteria">Completion / acceptance criteria</label><textarea id="criteria" rows={3} maxLength={1200} disabled={loading()} value={task().criteria} onInput={e => edit('criteria', e.currentTarget.value)}/>
             <label for="context">Constraints and context</label><textarea id="context" rows={3} maxLength={1200} disabled={loading()} value={task().context} onInput={e => edit('context', e.currentTarget.value)}/>
-            <button class="optional-analyze" type="submit" disabled={!inputValid() || loading() || available() === 'checking'}>
-              {loading() ? 'Analyzing…' : available() === 'private' ? 'Analyze with AI →' : 'Review task →'}
+            <button class="optional-analyze" type="submit" disabled={!inputValid() || loading() || available()!=='private' || !decisionConfigured()}>
+              {loading() ? 'Scanning…' : 'Quick Scan →'}
             </button>
           </div></Show>
-          <p class="privacy-note">Analyze with AI uses Cloudflare Workers AI. Decision v2 sends task fields to Google Gemini Decisions and Cloudflare Workers AI via the Worker. Demo review runs in your browser.</p>
+          <p class="privacy-note">Quick Scan sends task fields to Google Gemini Decision 1 only. Analyze v2 also uses Cloudflare Workers AI for independent GPT-OSS auditing. The original AI + verifier remains available to internal tests. Demo review runs in your browser.</p>
         </form>
       </div>
 
