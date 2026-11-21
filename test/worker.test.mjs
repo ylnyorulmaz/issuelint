@@ -110,6 +110,21 @@ test("disabled AI endpoint is fail-closed and does not infer", async () => {
   assert.equal(calls.length, 0);
 });
 
+test("health distinguishes preview secret readiness from visible AI configuration", async () => {
+  for (const [secret, ready] of [
+    [undefined, false],
+    ["yalin", false],
+    ["  test-preview-secret-with-24-plus-characters  ", true],
+  ]) {
+    const {env} = makeEnv({ PREVIEW_TOKEN: secret });
+    const res = await worker.fetch(new Request(url + "/api/health"), env);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.previewAuthConfigured, ready);
+    assert.ok(!JSON.stringify(body).includes(secret ?? "missing-key-never-exposed"));
+  }
+});
+
 test("unauthenticated requests cannot invoke live model", async () => {
   const { env, calls } = makeEnv();
   const res = await worker.fetch(post(originalTask, { authorization: "" }), env);
