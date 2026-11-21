@@ -125,13 +125,13 @@ test("missing or too-short preview secret reports configuration failure without 
     assert.equal(res.status, 503);
     const output = await res.json();
     assert.equal(output.error, "PREVIEW_AUTH_MISCONFIGURED");
-    assert.ok(!JSON.stringify(output).includes(secret ?? "no-secret-value"));
+    if (secret?.trim()) assert.ok(!JSON.stringify(output).includes(secret.trim()));
     assert.equal(calls.length, 0);
   }
 });
 
 test("preview token accepts accidental outer whitespace in Cloudflare secret only", async () => {
-  const { env, calls } = makeEnv({ PREVIEW_TOKEN: "  test-preview-secret-with-24-plus-characters\\n" });
+  const { env, calls } = makeEnv({ PREVIEW_TOKEN: "  test-preview-secret-with-24-plus-characters\n" });
   const res = await worker.fetch(post(), env);
   assert.notEqual(res.status, 401);
   assert.notEqual(res.status, 503);
