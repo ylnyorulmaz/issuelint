@@ -107,12 +107,11 @@ export function parseAdminFixture(input:unknown, source:AdminSource):AdminFixtur
   };
 }
 export async function loadAdminFixture(source:AdminSource, code:string, signal:AbortSignal):Promise<AdminFixture> {
-  if(!code.trim())throw new ApiError('PREVIEW_AUTH_REQUIRED','Enter your private preview code to load test cases.',401);
   const url='/api/admin/test-cases?source='+encodeURIComponent(source);
   let response:Response;
   try {
     response=await fetch(url,{
-      method:'GET',headers:{Authorization:'Bearer '+code.trim(),'X-Request-ID':newRequestId()},
+      method:'GET',headers:{...(code.trim()?{Authorization:'Bearer '+code.trim()}:{}),'X-Request-ID':newRequestId()},credentials:'same-origin',
       cache:'no-store',signal,
     });
   } catch {
@@ -120,7 +119,7 @@ export async function loadAdminFixture(source:AdminSource, code:string, signal:A
       signal.aborted?'Loading cancelled.':'Could not load test cases. Check network.',0);
   }
   if(!response.ok)throw new ApiError('FIXTURE_LOAD_FAILED',
-    response.status===401?'Incorrect private preview code.':
+    response.status===401?'Admin session expired. Sign in again.':
       response.status===503?'Admin test station is disabled in this environment.':
         'Could not load the test cases.',response.status);
   let body:unknown;

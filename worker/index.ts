@@ -3,12 +3,13 @@ import { runAnalysis, InferenceError, type AiRunner } from "./inference.ts";
 import { parseTask, ValidationError } from "./schema.ts";
 import { callGeminiDecisions, DecisionError } from "./decision.ts";
 import { runSelectiveAudit } from "./decision-audit.ts";
+import { adminConfigured, adminSession, adminPage, loginPage, unconfiguredPage, checkPassword, issueAdminSession, clearAdminSession, sameOriginPost, ADMIN_RESPONSE_HEADERS, type AdminEnv } from "./admin-auth.ts";
 import chatgptFixture from "../test/fixtures/task-review-control-v1.json" with { type: "json" };
 import geminiFixture from "../test/fixtures/task-review-gemini-v1.json" with { type: "json" };
 import pasteFixture from "../test/fixtures/task-review-paste-only-v1.json" with { type: "json" };
 
 /** For Iteration 2, AI is disabled unless explicitly enabled and protected. */
-interface WorkerEnv {
+interface WorkerEnv extends AdminEnv {
   AI?: AiRunner;
   ASSETS: { fetch(request: Request): Promise<Response> };
   ANALYZE_ENABLED?: string;
@@ -109,6 +110,54 @@ const CLIENT_CATEGORIES = new Set(["http","network","timeout","invalid_response"
 async function handleApi(request: Request, env: WorkerEnv, requestId: string): Promise<Response> {
     const { pathname } = new URL(request.url);
 
+    if (pathname === "/api/admin/login") {
+      if (request.method !== "POST") return methodNotAllowed("POST");
+      if (!adminConfigured(env)) return error("ADMIN_UNAVAILABLE", "Admin sign-in is not configured.", 503);
+      if (!sameOriginPost(request)) return error("ADMIN_ORIGIN_REQUIRED", "Same-origin request required.", 403);
+      if (!/^application\/json(?:\s*;|\s*$)/i.test(request.headers.get("content-type") ?? ""))
+        return error("UNSUPPORTED_MEDIA_TYPE", "Send application/json.", 415);
+      // Cloudflare's approximate rate limit is defense-in-depth, not a distributed lock.
+      // Global + IP counters; no username, credential or task is logged.
+      try {
+        const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+        const [globalResult, ipResult] = await Promise.all([
+          env.ADMIN_LOGIN_RATE_LIMIT!.limit({ key: "admin:global" }),
+          env.ADMIN_LOGIN_RATE_LIMIT!.limit({ key: "admin:ip:" + ip }),
+        ]);
+        if (!globalResult.success || !ipResult.success)
+          return json({error:"LOGIN_RATE_LIMITED",message:"Too many sign-in attempts."},429,{"Retry-After":"60"});
+      } catch {
+        return error("ADMIN_UNAVAILABLE","Admin sign-in is temporarily unavailable.",503);
+      }
+      let input:unknown;
+      try { input = await readBody(request, 2048); }
+      catch { return error("INVALID_LOGIN", "Invalid username or password.", 401); }
+      if (!input || typeof input !== "object" || Array.isArray(input))
+        return error("INVALID_LOGIN", "Invalid username or password.", 401);
+      const data=input as Record<string,unknown>;
+      if (Object.keys(data).some(k=>k!=="username"&&k!=="password") ||
+          typeof data.username!=="string" || typeof data.password!=="string")
+        return error("INVALID_LOGIN","Invalid username or password.",401);
+      const valid=await checkPassword(data.username,data.password,env);
+      logApi(valid?"info":"warn","issuelint.admin_login",{requestId,ok:valid});
+      if(!valid)return error("INVALID_LOGIN","Invalid username or password.",401);
+      const cookie=await issueAdminSession(env);
+      return json({ok:true},200,{"Set-Cookie":cookie});
+    }
+
+    if (pathname === "/api/admin/session") {
+      if (request.method!=="GET") return methodNotAllowed("GET");
+      if (!adminConfigured(env)) return error("ADMIN_UNAVAILABLE","Admin is not configured.",503);
+      if (!(await adminSession(request,env)))return error("ADMIN_AUTH_REQUIRED","Admin sign-in required.",401);
+      return json({authenticated:true},200);
+    }
+
+    if (pathname === "/api/admin/logout") {
+      if (request.method!=="POST") return methodNotAllowed("POST");
+      if (!sameOriginPost(request)) return error("ADMIN_ORIGIN_REQUIRED","Same-origin request required.",403);
+      return json({ok:true},200,{"Set-Cookie":clearAdminSession});
+    }
+
     if (pathname === "/api/health") {
       if (request.method !== "GET") return methodNotAllowed("GET");
       return json({
@@ -131,8 +180,9 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
         return error("UNSUPPORTED_MEDIA_TYPE", "Send application/json.", 415);
       if (!previewTokenConfigured(env.PREVIEW_TOKEN))
         return error("PREVIEW_AUTH_MISCONFIGURED", "Private preview authentication is not configured correctly.", 503);
-      if (!(await verifiedToken(request, env.PREVIEW_TOKEN!)))
-        return error("PREVIEW_AUTH_REQUIRED", "A valid preview token is required.", 401);
+      if (!(await verifiedToken(request, env.PREVIEW_TOKEN!)) &&
+          !(sameOriginPost(request) && await adminSession(request, env)))
+        return error("PREVIEW_AUTH_REQUIRED", "A valid preview code or admin session is required.", 401);
       let payload: unknown;
       try { payload = await readBody(request, 1024); }
       catch { return error("INVALID_CLIENT_EVENT", "Invalid diagnostic event.", 422); }
@@ -156,10 +206,9 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
       if (request.method !== "GET") return methodNotAllowed("GET");
       if (env.ANALYZE_ENABLED !== "true")
         return error("ADMIN_DISABLED", "Private test station is not enabled.", 503);
-      if (!previewTokenConfigured(env.PREVIEW_TOKEN))
-        return error("PREVIEW_AUTH_MISCONFIGURED", "Private preview authentication is not configured correctly.", 503);
-      if (!(await verifiedToken(request, env.PREVIEW_TOKEN!)))
-        return error("PREVIEW_AUTH_REQUIRED", "A valid preview token is required.", 401);
+      if (!adminConfigured(env)) return error("ADMIN_UNAVAILABLE","Admin sign-in is not configured.",503);
+      if (!(await adminSession(request,env)))
+        return error("ADMIN_AUTH_REQUIRED","Admin sign-in required.",401);
       const source = new URL(request.url).searchParams.get("source");
       if (source !== "chatgpt" && source !== "gemini" && source !== "paste")
         return error("INVALID_SOURCE", "Choose chatgpt, gemini or paste.", 400);
@@ -180,8 +229,9 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
         return error("AI_DISABLED", "Live analysis is not enabled in this environment.", 503);
       if (!previewTokenConfigured(env.PREVIEW_TOKEN))
         return error("PREVIEW_AUTH_MISCONFIGURED", "Private preview authentication is not configured correctly.", 503);
-      if (!(await verifiedToken(request, env.PREVIEW_TOKEN!)))
-        return error("PREVIEW_AUTH_REQUIRED", "A valid preview token is required.", 401);
+      if (!(await verifiedToken(request, env.PREVIEW_TOKEN!)) &&
+          !(sameOriginPost(request) && await adminSession(request, env)))
+        return error("PREVIEW_AUTH_REQUIRED", "A valid preview code or admin session is required.", 401);
       if (!env.GEMINI_API_KEY?.trim())
         return error("DECISION_NOT_CONFIGURED", "Gemini Decision 1 is not configured. Add GEMINI_API_KEY to Worker secrets.", 503);
       let task;
@@ -335,7 +385,27 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const { pathname } = new URL(request.url);
-    if (!pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
+    const isAdminPage = pathname === "/admin" || pathname === "/admin/" || pathname.startsWith("/admin/");
+    if (!pathname.startsWith("/api/") && !isAdminPage) return env.ASSETS.fetch(request);
+    if (isAdminPage) {
+      if (request.method !== "GET" && request.method !== "HEAD")
+        return new Response("Method not allowed.",{status:405,headers:ADMIN_RESPONSE_HEADERS});
+      if (!adminConfigured(env)) return adminPage(unconfiguredPage,503);
+      if (!(await adminSession(request,env))) return adminPage(loginPage);
+      // The public SPA bundle includes the AdminStation code, but is only served as
+      // /admin HTML after a validated session. Browser JS is never the auth boundary.
+      const indexUrl=new URL("/index.html",request.url);
+      const asset=await env.ASSETS.fetch(new Request(indexUrl,request));
+      if (!asset.ok) return adminPage(unconfiguredPage,503);
+      const html=(await asset.text())
+        .replace('<meta name="robots" content="index,follow,max-image-preview:large"/>',
+          '<meta name="robots" content="noindex,nofollow,noarchive"/>')
+        .replace('<link rel="canonical" href="https://issuelint.com/"/>','');
+      const headers=new Headers(asset.headers);
+      for(const [name,value] of Object.entries(ADMIN_RESPONSE_HEADERS)) headers.set(name,value);
+      headers.set("Content-Type","text/html; charset=utf-8");
+      return new Response(request.method==="HEAD"?null:html,{status:200,headers});
+    }
     const requestId = requestIdFrom(request);
     const started = Date.now();
     if (pathname === "/api/analyze" || pathname === "/api/analyze-v2")
@@ -344,6 +414,8 @@ export default {
     try {
       const response = await handleApi(request, env, requestId);
       response.headers.set("X-Request-ID", requestId);
+      if (pathname.startsWith("/api/admin/"))
+        for(const [name,value] of Object.entries(ADMIN_RESPONSE_HEADERS))response.headers.set(name,value);
       if (pathname === "/api/analyze" || pathname === "/api/analyze-v2" ||
           (pathname !== "/api/health" && response.status >= 400))
         logApi(response.status >= 500 ? "error" : response.status >= 400 ? "warn" : "info",

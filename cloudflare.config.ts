@@ -11,12 +11,22 @@ export default defineConfig(({ mode, isPreview }) => {
       entrypoint: "./worker/index.ts",
       compatibilityDate: "2026-11-20",
       previewUrls: false,
-      assets: { notFoundHandling: "single-page-application", runWorkerFirst: ["/api/*"] },
+      assets: { notFoundHandling: "single-page-application", runWorkerFirst: ["/api/*", "/admin", "/admin/*"] },
       env: {
         AI: bindings.ai(),
         ASSETS: bindings.assets(),
         ANALYZE_ENABLED: bindings.text(privateProduction ? "true" : "false"),
         PREVIEW_TOKEN: bindings.secret(),
+        // Login requires a separate admin identity; do not reuse PREVIEW_TOKEN.
+        // Secrets are provisioned in Cloudflare, never committed to Git.
+        ...(privateProduction ? {
+          ADMIN_USERNAME: bindings.secret(),
+          ADMIN_PASSWORD_HASH: bindings.secret(),
+          ADMIN_SESSION_SECRET: bindings.secret(),
+          ADMIN_LOGIN_RATE_LIMIT: bindings.rateLimit({
+            namespace: "20261122", simple: { limit: 5, period: 60 },
+          }),
+        } : {}),
         AI_MODEL: bindings.text("@cf/openai/gpt-oss-120b"),
         FEEDBACK_VERIFIER_MODE: bindings.text(privateProduction ? "on" : "off"),
         SAYGM_API_KEY: bindings.secret(),

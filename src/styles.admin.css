@@ -135,3 +135,8 @@
   .admin-small-counter{font-size:31px;}
   .admin-small-counter span{font-size:9px;}
 }
+
+/* Authenticated session controls; same minimalist palette. */
+.admin-header-links .admin-logout{border:1px solid var(--line);background:var(--soft);color:var(--ink);font-size:11px;font-weight:700;min-height:36px;padding:8px 12px;border-radius:6px}
+.admin-header-links .admin-logout:hover{border-color:var(--red-text)}
+.admin-access{max-width:none}.admin-access p{font-size:12px;line-height:1.6;margin:0 0 17px}.admin-access strong{color:var(--ink)}

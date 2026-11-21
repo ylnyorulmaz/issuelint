@@ -2,7 +2,6 @@ import { createSignal, For, Show, onCleanup } from 'solid-js';
 import type { ApiAnalysis, ApiDecisionResult } from '../api';
 import { analyzeLive, analyzeDecisionLive, ApiError, getHealth } from '../api';
 import { loadAdminFixture, taskForAdminReview, type AdminCase, type AdminSource, type AdminFixture } from '../admin-data';
-import { readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from '../preview-access';
 import { readAppearance, saveAppearance, type Appearance } from '../appearance';
 import { DecisionScorecard } from './DecisionScorecard';
 
@@ -51,7 +50,6 @@ function OriginalDetails(props:{value:ApiAnalysis}) {
 }
 
 export function AdminStation() {
-  const [code,setCode]=createSignal(readRememberedPreviewCode());
   const [fixture,setFixture]=createSignal<AdminFixture|null>(null);
   const [loadingSource,setLoadingSource]=createSignal<AdminSource|null>(null);
   const [loadingError,setLoadingError]=createSignal('');
@@ -73,22 +71,24 @@ export function AdminStation() {
     .catch(()=>setAvailability('disabled'));
   onCleanup(()=>{loadController?.abort();runController?.abort();});
 
-  function setAccessCode(value:string) {
-    setCode(value);
-    rememberPreviewCode(value);
-    setLoadingError('');
+  async function logout() {
+    loadController?.abort();runController?.abort();
+    try {
+      const response=await fetch('/api/admin/logout',{method:'POST',credentials:'same-origin',cache:'no-store'});
+      if(!response.ok)throw new Error('logout failed');
+      window.location.replace('/admin');
+    } catch {setLoadingError('Unable to sign out. Retry.');}
   }
   function cancelRun() {runController?.abort();}
   async function load(source:AdminSource) {
     if(loadingSource())return;
-    if(!code().trim()){setLoadingError('Enter the private access code before loading test cases.');return;}
     runController?.abort();
     loadController?.abort();
     const controller=new AbortController();
     loadController=controller;
     setLoadingSource(source);setLoadingError('');
     try {
-      const data=await loadAdminFixture(source,code(),controller.signal);
+      const data=await loadAdminFixture(source,'',controller.signal);
       if(loadController!==controller)return;
       setFixture(data);setExpanded(data.cases[0]?.id??null);setOracleShown({});setRuns({});setFilter('All');
     } catch(e) {
@@ -99,7 +99,7 @@ export function AdminStation() {
     }
   }
   async function runTest(item:AdminCase,engine:Engine) {
-    if(busy()||!code().trim())return;
+    if(busy())return;
     setExpanded(item.id);setLoadingError('');
     const controller=new AbortController();
     runController=controller;
@@ -109,12 +109,12 @@ export function AdminStation() {
       // Mirror paste-first title derivation; never send oracle or benchmark metadata.
       const payload=taskForAdminReview(item);
       if(engine==='original') {
-        const output=await analyzeLive(payload,code().trim(),controller.signal);
+        const output=await analyzeLive(payload,'',controller.signal);
         if(runController!==controller)return;
         const record:Result<ApiAnalysis>={state:'done',data:output,elapsedMs:Date.now()-started};
         setRuns(old=>({...old,[item.id]:{...old[item.id],original:record}}));
       } else {
-        const output=await analyzeDecisionLive(payload,code().trim(),controller.signal);
+        const output=await analyzeDecisionLive(payload,'',controller.signal);
         if(runController!==controller)return;
         const record:Result<ApiDecisionResult>={state:'done',data:output,elapsedMs:Date.now()-started};
         setRuns(old=>({...old,[item.id]:{...old[item.id],decision:record}}));
@@ -133,7 +133,7 @@ export function AdminStation() {
     <header class="admin-header">
       <div class="admin-header-inner">
         <div class="admin-identity"><a href="/" class="admin-brand" aria-label="IssueLint home"><img class="brand-logo" src={dark()?"/brand/logo-dark.webp":"/brand/logo-light.webp"} alt="" width="480" height="92" decoding="async"/></a><span class="admin-label">TEST STATION / ADMIN</span></div>
-        <div class="admin-header-links"><a href="/">← Back to app</a>
+        <div class="admin-header-links"><a href="/">← Back to app</a><button type="button" class="admin-logout" onClick={()=>void logout()}>Sign out</button>
           <div class="appearance-switcher" role="group" aria-label="Choose light or dark appearance">
             <span class="appearance-switcher-caption" aria-hidden="true">MODE</span>
             <button class="appearance-option" type="button" aria-pressed={!dark()} onClick={()=>chooseAppearance('light')}>Light</button>
@@ -150,27 +150,22 @@ export function AdminStation() {
       </div>
       <section class="admin-control card" aria-label="Test station access and datasets">
         <div class="admin-access">
-          <label for="admin-code">Private AI access code</label>
-          <div class="admin-code-input">
-            <input id="admin-code" type="password" autocomplete="off" value={code()} placeholder="Same code as the main app" onInput={e=>setAccessCode(e.currentTarget.value)}/>
-            <button type="button" onClick={()=>{forgetPreviewCode();setCode('');setLoadingError('');}}>Forget</button>
-          </div>
-          <p>Uses the same private preview authentication. Credentials are never bundled into this page or test datasets.</p>
+          <p><strong>Authenticated administrator session.</strong> The server protects the dashboard and its benchmark data. Session expires after eight hours.</p>
         </div>
         <div class="admin-load-buttons">
-          <button class="admin-load-button" type="button" disabled={!!loadingSource()||!!busy()||!code().trim()}
+          <button class="admin-load-button" type="button" disabled={!!loadingSource()||!!busy()}
             onClick={()=>void load('chatgpt')}>
             <span>01 / CONTROL GROUP</span>
             <strong>{loadingSource()==='chatgpt'?'Loading…':'Load test cases from ChatGPT'}</strong>
             <small>12 tasks · Software / Marketing / Sales</small>
           </button>
-          <button class="admin-load-button" type="button" disabled={!!loadingSource()||!!busy()||!code().trim()}
+          <button class="admin-load-button" type="button" disabled={!!loadingSource()||!!busy()}
             onClick={()=>void load('gemini')}>
             <span>02 / INDEPENDENT SET</span>
             <strong>{loadingSource()==='gemini'?'Loading…':'Load test cases from Gemini'}</strong>
             <small>12 reviewed Gemini-origin tasks</small>
           </button>
-          <button class="admin-load-button" type="button" disabled={!!loadingSource()||!!busy()||!code().trim()}
+          <button class="admin-load-button" type="button" disabled={!!loadingSource()||!!busy()}
             onClick={()=>void load('paste')}>
             <span>03 / PASTE ONLY</span>
             <strong>{loadingSource()==='paste'?'Loading…':'Load short paste-only cases'}</strong>
