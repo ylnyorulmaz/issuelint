@@ -252,7 +252,7 @@ export async function runAnalysis(
         { role: "user", content: taskMessage(task) },
       ],
       response_format: { type: "json_schema", json_schema: REVIEW_V2_JSON_SCHEMA },
-      reasoning_effort: "medium", max_tokens: 4700, temperature: 0.1, stream: false,
+      reasoning_effort: "low", max_tokens: 4700, temperature: 0.1, stream: false,
     });
   } catch {
     stage("primary_failed");
