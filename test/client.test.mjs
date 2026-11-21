@@ -76,6 +76,63 @@ test('blocked or unavailable localStorage does not break the analyzer', () => {
   assert.equal(readDesignTheme(), 'minimalist');
 });
 
+import { APPEARANCE_STORAGE_KEY, readAppearance, saveAppearance } from '../src/appearance.ts';
+
+test('appearance defaults to OS Light/Dark and ignores old visual-theme preferences',()=>{
+  const values=new Map([['issuelint.design-theme.v2','neobrutalist']]);
+  const storage={
+    getItem:key=>values.get(key)??null,
+    setItem:(key,value)=>values.set(key,value),
+  };
+  assert.equal(readAppearance(storage,false),'light');
+  assert.equal(readAppearance(storage,true),'dark');
+  assert.equal(values.get('issuelint.design-theme.v2'),'neobrutalist');
+  saveAppearance('light',storage);
+  assert.equal(readAppearance(storage,true),'light');
+  saveAppearance('dark',storage);
+  assert.equal(readAppearance(storage,false),'dark');
+  assert.equal(values.get(APPEARANCE_STORAGE_KEY),'dark');
+  assert.equal(values.get('issuelint.design-theme.v2'),'neobrutalist');
+});
+
+test('appearance survives reload and works when browser storage is unavailable',()=>{
+  const values=new Map();
+  const storage={
+    getItem:key=>values.get(key)??null,
+    setItem:(key,value)=>values.set(key,value),
+  };
+  saveAppearance('dark',storage);
+  assert.equal(readAppearance(storage,false),'dark');
+  saveAppearance('light',storage);
+  assert.equal(readAppearance(storage,true),'light');
+  assert.deepEqual([...values.keys()],[APPEARANCE_STORAGE_KEY]);
+  const blocked={getItem(){throw Error('blocked');},setItem(){throw Error('blocked');}};
+  assert.equal(readAppearance(blocked,true),'dark');
+  assert.equal(readAppearance(blocked,false),'light');
+  assert.doesNotThrow(()=>saveAppearance('dark',blocked));
+  assert.equal(readAppearance(undefined,false),'light');
+});
+
+test('default Light/Dark picker UI does not expose retired design modes',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const [home,admin]=await Promise.all([
+    readFile(new URL('../src/index.tsx',import.meta.url),'utf8'),
+    readFile(new URL('../src/components/AdminStation.tsx',import.meta.url),'utf8'),
+  ]);
+  for(const src of [home,admin]){
+    assert.match(src,/data-design="minimalist"/);
+    assert.match(src,/class="appearance-switcher"/);
+    assert.match(src,/aria-pressed/);
+    assert.match(src,/chooseAppearance\('light'\)/);
+    assert.match(src,/chooseAppearance\('dark'\)/);
+    assert.doesNotMatch(src,/class="design-switcher"/);
+  }
+  const archived=await readFile(new URL('../src/styles.neobrutalist.css',import.meta.url),'utf8');
+  assert.ok(archived.length>1000);
+  const legacy=await readFile(new URL('../src/design-theme.ts',import.meta.url),'utf8');
+  assert.match(legacy,/constructivist.*neobrutalist.*minimalist/);
+});
+
 test('clarification-only draft is labeled instead of silently presented as improved copy', async () => {
   globalThis.fetch = async () => new Response(JSON.stringify({ mode:'ai', analyzed:true, analysis:{
     ...analysis, rewriteStatus:'clarification_draft',
