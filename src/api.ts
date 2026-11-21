@@ -259,7 +259,8 @@ export async function analyzeDecisionLive(
   const quoteValid=(value:unknown)=>Array.isArray(value) && value.length<=2 &&
     value.every(v=>typeof v==='string' && v.length<=260);
   const checkedAudits: DecisionAuditCheck[]=[];
-  for (const [i,v] of auditChecks.entries()) {
+  for (const [i,raw] of auditChecks.entries()) {
+    const v=raw as Record<string,unknown>;
     if (!object(v) || v.dimension!==expectedSelected[i] ||
         !DECISION_ASSESSMENTS.includes(v.assessment as DecisionAssessment) ||
         typeof v.reason!=='string' || v.reason.trim().length<8 || v.reason.length>800 ||
@@ -273,7 +274,8 @@ export async function analyzeDecisionLive(
     checkedAudits.push(v as DecisionAuditCheck);
   }
   const findings:ApiFinding[]=[];
-  for (const v of auditFindings) {
+  for (const raw of auditFindings) {
+    const v=raw as Record<string,unknown>;
     if (!object(v) || !knownKinds.includes(String(v.kind)) ||
         !knownSeverities.includes(String(v.severity)) || typeof v.title!=='string' ||
         typeof v.detail!=='string' || typeof v.question!=='string' || !quoteValid(v.evidence)) fail();
