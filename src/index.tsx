@@ -13,6 +13,8 @@ import './styles.entry.css';
 import './styles.review-loading.css';
 import { ReviewLoading } from './components/ReviewLoading';
 import { DecisionScorecard } from './components/DecisionScorecard';
+import { AdminStation } from './components/AdminStation';
+import './styles.admin.css';
 import './styles.decision.css';
 import { readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from './preview-access';
 import { logClient, newRequestId, reportClientFailure } from './diagnostics';
@@ -494,4 +496,7 @@ function App() {
     </Show>
   </div>;
 }
-render(() => <App/>, document.getElementById('root')!);
+// The admin test station is a separate private-data client view. Direct /admin
+// navigation works via Cloudflare's SPA asset fallback, without touching V1/V2.
+const isAdminRoute = /^\/admin\/?$/.test(window.location.pathname);
+render(() => isAdminRoute ? <AdminStation/> : <App/>, document.getElementById('root')!);
