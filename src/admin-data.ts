@@ -1,5 +1,5 @@
 import type { Task } from './analyzer';
-import { prepareReviewTask, reviewInputValid } from './review-task';
+import { prepareReviewTask, reviewInputValid } from './review-task.ts';
 import { ApiError } from './api.ts';
 import { newRequestId } from './diagnostics.ts';
 
