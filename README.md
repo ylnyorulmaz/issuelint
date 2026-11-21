@@ -1,6 +1,6 @@
 # IssueLint
 
-Platform-independent AI review of work requests. **SolidJS + TypeScript + Cloudflare Workers + Workers AI**.
+Platform-independent AI review of work requests! **SolidJS + TypeScript + Cloudflare Workers + Workers AI**.
 
 ## Current preview
 
