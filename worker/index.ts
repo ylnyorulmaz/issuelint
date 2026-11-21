@@ -171,7 +171,8 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
       });
     }
 
-    if (pathname === "/api/analyze-v2") {
+    if (pathname === "/api/analyze-v2" || pathname === "/api/quick-scan") {
+      const quickScan = pathname === "/api/quick-scan";
       if (request.method !== "POST") return methodNotAllowed("POST");
       if (!/^application\/json(?:\s*;|\s*$)/i.test(request.headers.get("content-type") ?? ""))
         return error("UNSUPPORTED_MEDIA_TYPE", "Send application/json.", 415);
@@ -208,6 +209,22 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
           gap: result.gates.filter(g => g.assessment === "gap").length,
           notApplicable: result.gates.filter(g => g.assessment === "not_applicable").length,
         });
+        if (quickScan) {
+          // Gemini-only screen. Keep GPT-OSS, SayGM and rewrite pipelines untouched.
+          logApi("info", "issuelint.quick_scan_result", {
+            requestId, checked: result.checked, durationMs: Date.now() - started,
+            issues: result.gates.filter(g => g.assessment === "gap").length,
+          });
+          return json({
+            mode: "quick_scan", analyzed: true,
+            scan: {
+              model: result.model,
+              checked: result.checked,
+              durationMs: result.durationMs,
+              gates: result.gates.map(g => ({dimension:g.dimension,assessment:g.assessment})),
+            },
+          });
+        }
         const audit = await runSelectiveAudit(task, result, env.AI, env.AI_MODEL,
           (stage, fields) => logApi(stage === "failed" ? "warn" : "info", "issuelint.decision_audit", {requestId, stage, ...fields}));
         return json({ mode: "decision", analyzed: true, decision: {...result, audit} });
