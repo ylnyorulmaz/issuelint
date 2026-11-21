@@ -132,10 +132,31 @@ Cloudflare dashboard variable/secret changes can create a new Worker **version w
 
 Other workflows: `.github/workflows/ci.yml` runs `npm run check` on PRs and main; `export-build.yml` generates an older compatibility release bundle on main; `smoke.yml` is **manual** (`workflow_dispatch`) because GitHub push workflows can race the asynchronous Cloudflare deployment. The smoke checks a deployed 2.5 native-assets page, `on` mode configuration and unauthenticated 401; it does **not** exercise the authenticated external verifier. A passing source build is not proof the live site updated.
 
+## Diagnostics and troubleshooting
+
+**Backend (Cloudflare Workers Observability):** API analyses emit structured events with one `X-Request-ID` for the full request. Search by that ID in Workers Logs:
+
+| Event | What it records |
+| --- | --- |
+| `issuelint.request_started` / `issuelint.request_finished` | Correlation ID, endpoint category, HTTP status and total elapsed milliseconds |
+| `issuelint.inference_stage` | Primary invocation/validation, verifier patch, optional quality gate or rewrite-repair transitions; fixed stage labels only |
+| `issuelint.verifier_started` / `issuelint.verifier_result` | Independent verifier mode, 11-check count, success flag, latency, bounded failure category, safe HTTP status and token usage |
+| `issuelint.analysis_result` / `issuelint.inference_failed` | Final status, finding count, inference calls/latency, rewrite status or coarse error category |
+| `issuelint.unhandled_request_error` | Unexpected Worker boundary failure; no raw error or stack |
+| `issuelint.client_event` | Sanitized frontend failure from an authenticated browser, with the same correlation ID |
+
+**SayGM error categories:** `output_truncated` (finish reason limit), `empty_content`, `invalid_json`, `invalid_shape`, `invalid_patch`, `response_too_large`, `timeout`, `http` (plus status), `network`, `config`. Failed verifier calls fall back to validated GPT-OSS output; the failure **must not** be presented as an independently verified review. This change improves diagnosis; it does not guarantee that SayGM will return a valid patch. No retries were added; `max_tokens=1800` remains until actual failure categories indicate a change is needed.
+
+**Frontend:** browser DevTools Console contains `issuelint.client` records for health, request lifecycle, cancellation and failure. API responses include `X-Request-ID`; browser and Worker events can be correlated with it. To find the relevant failure, filter Cloudflare Workers Observability by `issuelint.verifier_result` or `issuelint.client_event`, then by the returned request ID.
+
+`POST /api/client-events` accepts **only** an authenticated Bearer request with `event`, `category`, `status`, `durationMs` (each strictly allowlisted and bounded; body capped at 1 KiB). The browser sends failure reports best-effort and stops after eight reports per page load. Missing/incorrect tokens mean frontend logs remain local only; this endpoint must **not** be opened to unauthenticated Internet clients without abuse protection.
+
+**Privacy rule:** Neither frontend nor Worker logs contain raw tasks, prompts, rewrite text, model response bodies, API keys, browser token, arbitrary exception messages, stack traces, URLs/query strings or user identifiers. Keep diagnostic fields enumerated; never dump error objects or request headers. These logs support investigation but do not prove a provider was successful unless `issuelint.verifier_result` says `ok:true`.
+
 ## Privacy and production-readiness checks
 
 - `shadow` and `on` send user-supplied task text and AI audit results to **SayGM**, a third-party provider. Review its data-processing terms and disclose this before inviting external users. No provider-side retention guarantee is made here.
-- App logs for verifier outcomes contain only `ok`, verdict count, latency, token counts or a coarse failure category under `issuelint.verifier_result`. They do not intentionally record raw submitted tasks, prompts, credentials, findings or upstream bodies.
+- App logs capture bounded request/phase/client outcomes and verifier failure codes without raw task content, credentials, prompts, findings, messages, or provider bodies. See **Diagnostics and troubleshooting** above.
 - The app has no public API rate limiter, metering quota, user authentication or abuse controls beyond the private token. Add these and review cost limits before opening public AI access.
 - A safe release requires green CI, confirmed 2.5 live health, one successful real review with a verifier success log in `on` mode, and human-reviewed golden comparisons. If quality/cost/latency degrades, switch `FEEDBACK_VERIFIER_MODE` to `off`.
 
@@ -144,8 +165,8 @@ Other workflows: `.github/workflows/ci.yml` runs `npm run check` on PRs and main
 | Area | Files |
 | --- | --- |
 | User interface, themes, loading, analytics | `src/index.tsx`, `src/style.css`, `src/styles.*.css`, `src/components/ReviewLoading.tsx`, `src/design-theme.ts`, `src/analytics.ts` |
-| Client task normalization and API | `src/review-task.ts`, `src/api.ts`, `src/analyzer.ts` |
-| HTTP, auth, health, provider logs | `worker/index.ts` |
+| Client task normalization, API and diagnostics | `src/review-task.ts`, `src/api.ts`, `src/diagnostics.ts`, `src/analyzer.ts` |
+| HTTP, auth, health, structured request/client-event logging | `worker/index.ts` |
 | Primary inference, conditional repair | `worker/inference.ts`, `worker/prompt.ts`, `worker/usage.ts` |
 | Audit, deterministic evidence and quality gate | `worker/schema.ts`, `worker/review-v2.ts`, `worker/quality-gate.ts` |
 | Independent verifier | `worker/saygm.ts`, `worker/feedback-verifier.ts`, `worker/verifier-patch.ts` |
