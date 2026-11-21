@@ -13,8 +13,11 @@ export function verifierMode(value: string | undefined): VerifierMode {
 export type SaygmUsage = { promptTokens: number; completionTokens: number; totalTokens: number };
 export type SaygmResult = { verdict: VerifierVerdict; usage: SaygmUsage; latencyMs: number };
 export class SaygmError extends Error {
-  constructor(readonly category: "config" | "timeout" | "http" | "invalid_response") {
-    super(category); this.name = "SaygmError";
+  readonly category: "config" | "timeout" | "http" | "invalid_response";
+  constructor(category: "config" | "timeout" | "http" | "invalid_response") {
+    super(category);
+    this.category = category;
+    this.name = "SaygmError";
   }
 }
 export type SaygmFetch = typeof fetch;

@@ -82,6 +82,10 @@ textarea{line-height:1.6;resize:vertical;min-height:78px}
 .preview-code label{margin-bottom:8px}
 .preview-code input{margin:0;min-height:39px}
 .preview-code p,.privacy-note{color:var(--muted);font-size:11px;line-height:1.5;margin:6px 0 0}
+.preview-code-footer{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.preview-code-footer p{flex:1}
+.preview-code-footer button{flex-shrink:0;align-self:flex-end;background:transparent;border:0;padding:4px;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer}
+.preview-code-footer button:disabled{opacity:.4;cursor:default}
 .api-error{padding:12px;border-left:3px solid var(--red);background:var(--soft);color:var(--red-text);font-size:12px;line-height:1.5;margin:10px 0}
 .actions{display:flex;gap:9px}
 .primary-actions{margin:8px 0 0}

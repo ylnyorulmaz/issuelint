@@ -16,7 +16,7 @@ This file supplements [AGENTS.md](AGENTS.md). **Read AGENTS.md first**; it is th
 - The verifier has three modes: `off`, `shadow`, `on`. Do not apply shadow patches, stack the old quality gate in on mode, bypass atomic patch validation, or add recursive model-call loops.
 - Never invent task facts, confirmed references or approval. An unresolved conflict must remain unresolved in the suggested rewrite.
 - A provider failure must not destroy an otherwise valid primary review. Test fallbacks with mocked providers, not live tokens.
-- No hardcoded secrets, API keys, preview PINs, new browser persistence of task content, or sensitive logging. Do not weaken `PREVIEW_TOKEN` verification: current code requires at least **24 characters**.
+- No hardcoded secrets, API keys, preview PINs, new browser persistence of task content, or sensitive logging. The existing test-only `src/preview-access.ts` can remember a code **entered locally by that browser user**, not provision or reveal a server secret; retain the Forget code option. Do not weaken `PREVIEW_TOKEN` verification: current code requires at least **24 characters**.
 - Do not promote UI loading phase labels as real progress telemetry.
 
 ## Validation and delivery

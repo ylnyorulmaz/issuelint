@@ -18,7 +18,7 @@
 - **Prioritized feedback:** up to five actionable findings, deduplicated by underlying issue. Critical source-verifiable contradictions take precedence. Status is recomputed from the final findings: `ready`, `needs_clarification` or `blocked`.
 - **Grounded rewrite:** outputs `rewritten`, `clarification_draft` or `unavailable`. Blocked contradictions use a clarification draft; the system must not silently choose a conflicting instruction, fabricate references or present the original task as a new rewrite.
 - **Running review:** animated loading/skeleton and elapsed time; the four focus labels are illustrative, **not** real streaming pipeline stages. Cancel aborts the browser request.
-- **Visuals:** Minimalist (default), Constructivist and Neobrutalism, with a separate light/dark toggle. Only theme preference is persisted under `issuelint.design-theme.v2`.
+- **Visuals:** Minimalist (default), Constructivist and Neobrutalism, with a separate light/dark toggle. Theme preference is persisted under `issuelint.design-theme.v2`. **For private testing**, a code manually typed into Private AI access code is also saved in that browser's `localStorage` (`issuelint.preview-access.v1`) and prefilled on later visits to the same origin. Use **Forget code** to clear it; do not use this on shared devices. The code is never hardcoded or served by the Worker. This browser-only convenience is **not** an authentication bypass.
 - **Fallback:** demo/basic structural review without Workers AI; it must not be represented as full AI analysis.
 - **Optional analytics:** GA4 and Microsoft Clarity are disabled without build-time public IDs. When configured, scripts are loaded only after opt-in; analytics events are allowlisted and contain no task text or access codes.
 
