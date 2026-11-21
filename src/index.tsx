@@ -1,7 +1,7 @@
 import { createSignal, For, Show, onMount, onCleanup } from 'solid-js';
 import { render } from 'solid-js/web';
 import { analyze, blank, examples, type Task, type TaskType, type Domain } from './analyzer';
-import { analyzeLive, getHealth, ApiError, type ApiAnalysis, type ApiFinding } from './api';
+import { analyzeLive, analyzeDecisionLive, getHealth, ApiError, type ApiAnalysis, type ApiDecisionResult, type ApiFinding } from './api';
 import './style.css';
 import './styles.neobrutalist.css';
 import './styles.minimalist.css';
@@ -12,6 +12,8 @@ import { analyticsConfigured, readAnalyticsConsent, saveAnalyticsConsent, enable
 import './styles.entry.css';
 import './styles.review-loading.css';
 import { ReviewLoading } from './components/ReviewLoading';
+import { DecisionScorecard } from './components/DecisionScorecard';
+import './styles.decision.css';
 import { readRememberedPreviewCode, rememberPreviewCode, forgetPreviewCode } from './preview-access';
 import { logClient, newRequestId, reportClientFailure } from './diagnostics';
 
@@ -44,6 +46,9 @@ function fromDemo(task: Task): View {
 function App() {
   const [task, setTask] = createSignal<Task>(blank());
   const [result, setResult] = createSignal<View | null>(null);
+  const [decisionResult, setDecisionResult] = createSignal<ApiDecisionResult | null>(null);
+  const [decisionConfigured, setDecisionConfigured] = createSignal(false);
+  const [activePipeline, setActivePipeline] = createSignal<'ai'|'decision'>('ai');
   const [error, setError] = createSignal('');
   const [loading, setLoading] = createSignal(false);
   const [available, setAvailable] = createSignal<'checking' | 'private' | 'demo'>('checking');
@@ -71,6 +76,7 @@ function App() {
     getHealth().then(health => {
       if (active) {
         setAvailable(health.aiEnabled && health.aiBindingConfigured ? 'private' : 'demo');
+        setDecisionConfigured(health.decisionConfigured);
         logClient('info', 'health_checked', {requestId:newRequestId(),status:200});
       }
     }).catch(() => {
@@ -127,29 +133,29 @@ function App() {
   }
   function chooseEntryMode(mode: 'paste' | 'build') {
     if (entryMode() === mode || loading()) return;
-    cancelRequest(); setEntryMode(mode); setDetails(false); setResult(null); setError(''); setCopied(false);
+    cancelRequest(); setEntryMode(mode); setDetails(false); setResult(null); setDecisionResult(null); setError(''); setCopied(false);
   }
   function edit<K extends keyof Task>(key: K, value: Task[K]) {
     cancelRequest();
     setTask(t => ({ ...t, [key]: value }));
-    setResult(null); setError(''); setSelected(null); setCopied(false);
+    setResult(null); setDecisionResult(null); setError(''); setSelected(null); setCopied(false);
   }
   function load(id: string) {
     const example = examples.find(e => e.id === id);
     if (!example) return;
     cancelRequest();
-    setTask({ ...example.task }); setEntryMode('paste'); setResult(null); setError('');
+    setTask({ ...example.task }); setEntryMode('paste'); setResult(null); setDecisionResult(null); setError('');
     setSelected(id); setTab('findings'); setCopied(false);
     trackAnalyticsEvent('example_loaded');
     document.getElementById('analyze')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function reset() {
-    cancelRequest(); setTask(blank()); setResult(null); setError(''); setSelected(null);
+    cancelRequest(); setTask(blank()); setResult(null); setDecisionResult(null); setError(''); setSelected(null);
     setDetails(false); setCopied(false);
   }
   function reviewDemo() {
     cancelRequest();
-    setError(''); setTab('findings'); setCopied(false);
+    setError(''); setTab('findings'); setCopied(false); setDecisionResult(null);
     setResult(fromDemo(prepareReviewTask(task())));
     trackAnalyticsEvent('review_completed');
     revealResults();
@@ -164,7 +170,7 @@ function App() {
       setError('AI is in private preview. Enter your access code or use the demo review.');
       return;
     }
-    setError(''); setResult(null); setLoading(true); setCopied(false);
+    setError(''); setResult(null); setDecisionResult(null); setActivePipeline('ai'); setLoading(true); setCopied(false);
     trackAnalyticsEvent('review_started');
     setTab('findings');
     revealResults();
@@ -205,6 +211,55 @@ function App() {
       }
     }
   }
+  /** Iteration 1: score-only Decision pipeline, separate from V1. */
+  async function runDecision() {
+    if (loading() || !reviewInputValid(task()) || available() !== 'private') return;
+    if (!decisionConfigured()) {
+      setError('Gemini Decision 1 needs GEMINI_API_KEY in Cloudflare Worker secrets.');
+      return;
+    }
+    if (!accessCode().trim()) {
+      setError('Enter the private preview access code to use Decision v2.');
+      return;
+    }
+    setError(''); setResult(null); setDecisionResult(null); setActivePipeline('decision');
+    setLoading(true); setCopied(false); setTab('findings');
+    revealResults();
+    const controller = new AbortController();
+    const requestId = newRequestId();
+    const started = Date.now();
+    requestController = controller;
+    activeRequestId = requestId;
+    logClient('info','decision_started',{requestId});
+    try {
+      const decision = await analyzeDecisionLive(
+        prepareReviewTask(task()), accessCode().trim(), controller.signal, requestId);
+      if (requestController === controller) {
+        setDecisionResult(decision);
+        logClient('info','decision_finished',{requestId,durationMs:Date.now()-started});
+        revealResults();
+      }
+    } catch (cause) {
+      if (requestController !== controller) return;
+      const message = cause instanceof ApiError ? cause.message :
+        'Decision review could not complete. Check your connection and retry.';
+      setError(message);
+      const category = cause instanceof ApiError ?
+        cause.status===401?'auth':cause.status?'http':'network' :
+        controller.signal.aborted?'timeout':'unknown';
+      reportClientFailure('review_failed',category,accessCode().trim(),
+        cause instanceof ApiError?cause.requestId:requestId,
+        cause instanceof ApiError?cause.status:0,Date.now()-started);
+      revealResults();
+    } finally {
+      if (requestController === controller) {
+        requestController = undefined;
+        activeRequestId = undefined;
+        setLoading(false);
+      }
+    }
+  }
+
   async function copy() {
     const output = result();
     if (!output) return;
@@ -293,10 +348,18 @@ function App() {
           <Show when={error()}><div class="api-error" role="alert">{error()}</div></Show>
           <div class="actions primary-actions">
             <button class="primary" type="submit" disabled={!inputValid() || loading() || available() === 'checking'}>
-              {loading() ? '◌  Analyzing…' : available() === 'private' ? '✦  Analyze with AI' : '✦  Review task'} <span>→</span>
+              {loading() && activePipeline()==='ai' ? '◌  Analyzing…' : available() === 'private' ? '✦  Analyze with AI' : '✦  Review task'} <span>→</span>
             </button>
+            <Show when={available() === 'private'}>
+              <button class="decision-action" type="button" disabled={!inputValid() || loading() || !decisionConfigured()}
+                title={decisionConfigured() ? 'Gemini Decision 1: 11-Gate classification' : 'Requires GEMINI_API_KEY in Cloudflare Worker secrets'}
+                onClick={() => void runDecision()}>◇ Analyze v2 · Decision</button>
+            </Show>
             <button class="reset" type="button" disabled={loading()} onClick={reset} aria-label="Clear task">↺</button>
           </div>
+          <Show when={available() === 'private' && !decisionConfigured()}>
+            <p class="decision-setup-note">Decision v2 is awaiting GEMINI_API_KEY in Cloudflare Worker secrets; the original AI review remains available.</p>
+          </Show>
           <Show when={available() === 'private'}>
             <button class="secondary-action" type="button" disabled={!inputValid() || loading()} onClick={reviewDemo}>Run a demo review instead</button>
           </Show>
@@ -322,13 +385,17 @@ function App() {
               {loading() ? 'Analyzing…' : available() === 'private' ? 'Analyze with AI →' : 'Review task →'}
             </button>
           </div></Show>
-          <p class="privacy-note">Live AI review sends task text to Cloudflare Workers AI. Demo review is processed in your browser.</p>
+          <p class="privacy-note">Analyze with AI uses Cloudflare Workers AI. Decision v2 sends task fields to Google Gemini Decisions via the Worker. Demo review runs in your browser.</p>
         </form>
       </div>
 
       <div class="card result-card" id="results" data-clarity-mask="true" aria-live="polite" aria-busy={loading()}>
         <div class="result-section-head"><ScreenLabel index="03">REVIEW / FINDINGS</ScreenLabel><span class="result-section-line" aria-hidden="true"/></div>
-        <Show when={!loading()} fallback={<ReviewLoading onCancel={cancelRequest}/>}>
+        <Show when={!loading()} fallback={activePipeline()==='decision'
+          ? <div class="decision-loading" role="status"><span class="decision-loading-spinner" aria-hidden="true"/><h2>Checking 11 Gates…</h2><p>Gemini Decision 1 is evaluating all dimensions in one request.</p><button type="button" onClick={cancelRequest}>Cancel review</button></div>
+          : <ReviewLoading onCancel={cancelRequest}/>}>
+          <Show when={decisionResult()}>{d => <DecisionScorecard data={d()}/>}</Show>
+          <Show when={!decisionResult()}>
           <Show when={result()} fallback={
             <Show when={error()} fallback={<div class="empty">
               <div class="empty-icon">↗</div><h2>AWAITING INPUT.</h2>
@@ -341,7 +408,7 @@ function App() {
             </div>}>
               <div class="result-failure" role="alert">
                 <span class="failure-icon">!</span><h2>Review not completed</h2><p>{error()}</p>
-                <button class="result-start" type="button" disabled={!inputValid() || loading()} onClick={() => void runAI()}>Try again →</button>
+                <button class="result-start" type="button" disabled={!inputValid() || loading()} onClick={() => void (activePipeline()==='decision'?runDecision():runAI())}>Try again →</button>
                 <span>Nothing was analyzed successfully. Check the code and retry, or use demo review.</span>
               </div>
             </Show>
@@ -397,6 +464,7 @@ function App() {
                 a().mode === 'demo' ? 'Example findings are prewritten and illustrative, not from a model.' :
                 'Basic checks cannot detect semantic ambiguity or contradictions.'}</p>
             </>}
+          </Show>
           </Show>
         </Show>
       </div>
