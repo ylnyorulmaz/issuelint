@@ -539,3 +539,50 @@ test('homepage header and footer link to About and the requested contacts withou
   assert.match(source,/void runQuickScan\(\)/);
   assert.match(source,/async function runAI\(/);
 });
+
+
+test('static SEO guide and public page metadata are crawlable, unique and linked',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const [home,about,guide,site,sitemap,robots]=await Promise.all([
+    readFile(new URL('../index.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/about/index.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/guides/how-to-write-a-clear-task/index.html',import.meta.url),'utf8'),
+    readFile(new URL('../src/index.tsx',import.meta.url),'utf8'),
+    readFile(new URL('../public/sitemap.xml',import.meta.url),'utf8'),
+    readFile(new URL('../public/robots.txt',import.meta.url),'utf8')
+  ]);
+  const pages=[
+    ['https://issuelint.com/',home],
+    ['https://issuelint.com/about/',about],
+    ['https://issuelint.com/guides/how-to-write-a-clear-task/',guide]
+  ];
+  const titles=[];
+  for (const [url,content] of pages) {
+    assert.match(content,/<html lang="en">/);
+    assert.match(content,/<meta name="description" content="[^"]{60,200}"/);
+    assert.match(content,/<meta name="robots" content="index,follow,max-image-preview:large"/);
+    assert.equal((content.match(/rel="canonical"/g)||[]).length,1);
+    assert.ok(content.includes('rel="canonical" href="'+url+'"'));
+    assert.ok(sitemap.includes('<loc>'+url+'</loc>'));
+    const title=content.match(/<title>([^<]+)<\/title>/)?.[1];
+    assert.ok(title);
+    titles.push(title);
+    const ld=content.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1];
+    assert.ok(ld);
+    assert.equal(JSON.parse(ld)['@context'],'https://schema.org');
+  }
+  assert.equal(new Set(titles).size,3,'unique public titles');
+  assert.equal((sitemap.match(/<loc>/g)||[]).length,3);
+  assert.match(robots,/Disallow: \/admin/);
+  assert.doesNotMatch(sitemap,/\/admin|\/api\//);
+  assert.match(guide,/<article class="guide-article">/);
+  assert.match(guide,/Six questions before handoff/);
+  assert.match(guide,/A lightweight task template/);
+  assert.match(guide,/It is not a guarantee/);
+  assert.match(guide,/mailto:yorulmazyln@gmail.com/);
+  assert.match(guide,/href="\/#analyze"/);
+  assert.match(about,/href="\/guides\/how-to-write-a-clear-task\/"/);
+  assert.match(site,/href="\/guides\/how-to-write-a-clear-task\/"/);
+  assert.match(home,/<noscript>[\s\S]*task-writing guide/);
+  assert.match(home,/<meta name="twitter:description"/);
+});
