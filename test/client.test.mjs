@@ -196,7 +196,7 @@ test('Decision v2 frontend sends task to separate endpoint and validates eleven 
           {clear:.1,gap:.87,not_applicable:.03} : {clear:.9,gap:.07,not_applicable:.03}})),
       audit:{
         status:'complete',model:'@cf/openai/gpt-oss-120b',threshold:.85,
-        selected:['scope'],durationMs:720,
+        selected:['scope'],unverified:[],durationMs:720,
         checks:[{dimension:'scope',assessment:'clear',
           reason:'The task specifies a single, coherent set of changes to review.',
           kind:'suggestion',severity:'suggestion',title:'',evidence:[],question:''}],
@@ -256,7 +256,7 @@ test('Decision client rejects missing reviewer state and mismatched routing rath
     const mismatch=structuredClone(base);
     mismatch.decision.audit={
       status:'complete',model:'@cf/openai/gpt-oss-120b',threshold:.85,
-      selected:['scope'],checks:[],findings:[],durationMs:4,
+      selected:['scope'],unverified:[],checks:[],findings:[],durationMs:4,
     };
     globalThis.fetch=async()=>new Response(JSON.stringify(mismatch),{status:200});
     await assert.rejects(()=>analyzeDecisionLive(validTask,'token',new AbortController().signal),
@@ -276,12 +276,58 @@ test('Decision client preserves unavailable audit warning without inventing revi
         {clear:.82,gap:.15,not_applicable:.03}:{clear:.9,gap:.08,not_applicable:.02},
     })),
     audit:{status:'unavailable',model:'@cf/openai/gpt-oss-120b',threshold:.85,
-      selected:['scope'],checks:[],findings:[],durationMs:120,errorCategory:'upstream'},
+      selected:['scope'],unverified:['scope'],checks:[],findings:[],durationMs:120,errorCategory:'upstream'},
   }}),{status:200});
   try {
     const result=await analyzeDecisionLive(validTask,'token',new AbortController().signal);
     assert.equal(result.audit.status,'unavailable');
     assert.deepEqual(result.audit.selected,['scope']);
     assert.deepEqual(result.audit.findings,[]);
+  }finally{globalThis.fetch=saved;}
+});
+
+
+test('Decision client accepts source-validated partial audit and highlights unverified gates',async()=>{
+  const saved=globalThis.fetch;
+  const dims=['contradictions','actionability','scope','granularity','behavior',
+    'completion','outcome','references','dependencies','clarity','feasibility'];
+  const response={mode:'decision',analyzed:true,decision:{
+    model:'gemini-decision-1',checked:11,durationMs:210,
+    gates:dims.map(dimension=>({dimension,assessment:'clear',confidence:.9,
+      probabilities:['scope','behavior'].includes(dimension)?
+        {clear:.6,gap:.35,not_applicable:.05}:{clear:.9,gap:.08,not_applicable:.02}})),
+    audit:{status:'partial',model:'@cf/openai/gpt-oss-120b',threshold:.85,
+      selected:['scope','behavior'],unverified:['scope'],durationMs:18000,
+      checks:[{dimension:'behavior',assessment:'gap',reason:'The theme preference is not specified for the requested feature.',severity:'important',kind:'ambiguity',title:'Unspecified dark mode activation',
+        evidence:['dark mode on web and mobile'],question:'Should dark mode follow the system preference?'}],
+      findings:[{kind:'ambiguity',severity:'important',title:'Unspecified dark mode activation',
+        detail:'The theme preference is not specified for the requested feature.',
+        evidence:['dark mode on web and mobile'],question:'Should dark mode follow the system preference?'}]
+    }
+  }};
+  globalThis.fetch=async()=>new Response(JSON.stringify(response),{status:200});
+  try {
+    const out=await analyzeDecisionLive(validTask,'token',new AbortController().signal);
+    assert.equal(out.audit.status,'partial');
+    assert.deepEqual(out.audit.unverified,['scope']);
+    assert.deepEqual(out.audit.checks.map(c=>c.dimension),['behavior']);
+    assert.equal(out.audit.findings.length,1);
+  }finally {globalThis.fetch=saved;}
+});
+
+test('Decision client rejects partial audit with secretly omitted dimensions',async()=>{
+  const saved=globalThis.fetch;
+  const dims=['contradictions','actionability','scope','granularity','behavior',
+    'completion','outcome','references','dependencies','clarity','feasibility'];
+  globalThis.fetch=async()=>new Response(JSON.stringify({mode:'decision',analyzed:true,decision:{
+    model:'gemini-decision-1',checked:11,durationMs:100,
+    gates:dims.map(dimension=>({dimension,assessment:'clear',confidence:.9,
+      probabilities:dimension==='scope'?{clear:.6,gap:.35,not_applicable:.05}:{clear:.9,gap:.08,not_applicable:.02}})),
+    audit:{status:'partial',model:'@cf/openai/gpt-oss-120b',threshold:.85,
+      selected:['scope'],unverified:[],checks:[],findings:[],durationMs:10}
+  }}),{status:200});
+  try{
+    await assert.rejects(()=>analyzeDecisionLive(validTask,'token',new AbortController().signal),
+      e=>e instanceof ApiError&&e.code==='INVALID_RESPONSE');
   }finally{globalThis.fetch=saved;}
 });
