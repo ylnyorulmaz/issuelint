@@ -55,3 +55,39 @@ test("REVISE may not silently change severity", () => {
   const { severity, ...revision } = validAdd;
   assert.equal(parse([{ ...revision, dimension: "behavior", action: "REVISE" }]).verdicts[0].action, "REVISE");
 });
+
+
+test("returns stable privacy-safe rejection codes for every contract guard", () => {
+  const reason="The current review has a documented issue to reconsider.";
+  const examples = [
+    ["unexpected_field", [{...validAdd, extra: "never log this value"}]],
+    ["invalid_dimension", [{...validAdd, dimension:"fake_dimension"}]],
+    ["invalid_action", [{...validAdd, action:"DELETE"}]],
+    ["duplicate_dimension", [validAdd,validAdd]],
+    ["unknown_check", [{...validAdd, dimension:"outcome"}]],
+    ["invalid_reason", [{...validAdd,reason:"too short"}]],
+    ["finding_not_gap", [{dimension:"scope",action:"SUPPRESS",reason}]],
+    ["critical_locked", [{dimension:"contradictions",action:"REVISE",reason}]],
+    ["add_over_gap", [{...validAdd,dimension:"behavior"}]],
+    ["invalid_downgrade", [{dimension:"behavior",action:"DOWNGRADE",severity:"important",reason}]],
+    ["invalid_title", [{...validAdd,title:"x"}]],
+    ["invalid_detail", [{...validAdd,detail:"short"}]],
+    ["invalid_question", [{...validAdd,question:"x?"}]],
+    ["invalid_evidence_format", [{...validAdd,evidence:[" "]}]],
+    ["evidence_not_in_task", [{...validAdd,evidence:["top secret fabricated quote"]}]],
+    ["invalid_add_severity", [{...validAdd,severity:"critical"}]],
+    ["duplicate_question", [{...validAdd,question:"Which screen is included?"}]],
+    ["revise_severity", [{...validAdd,dimension:"behavior",action:"REVISE"}]],
+    ["forbidden_action_field", [{dimension:"scope",action:"KEEP",reason,severity:"suggestion"}]],
+  ];
+  for (const [code,patches] of examples) {
+    assert.throws(()=>parse(patches),err=>
+      err instanceof VerifierContractError && err.code===code &&
+      err.message===code && !err.message.includes("secret"),
+      "expected safe code "+code);
+  }
+  assert.throws(
+    ()=>parseVerifierVerdict({verdicts:[],repair_needed:"maybe"},task,checks),
+    e=>e instanceof VerifierContractError && e.code==="invalid_envelope"
+  );
+});

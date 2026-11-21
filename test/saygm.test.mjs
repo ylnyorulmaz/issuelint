@@ -119,3 +119,49 @@ test("oversized streamed responses are cut off even without Content-Length", asy
     e=>e instanceof SaygmError && e.category==="response_too_large"
   );
 });
+
+
+test("reports precise verifier rejection code without exposing invalid content", async () => {
+  const invalid = {verdicts:[{
+    dimension:"scope",action:"ADD",
+    reason:"The ticket could have a missing decision.",
+    severity:"important",title:"Clarify affected screen",
+    detail:"The update needs a named affected screen before development begins.",
+    question:"Which screen should this update affect?",
+    evidence:["secret customer data that is not in source"]
+  }],repair_needed:false};
+  await assert.rejects(
+    callSaygmVerifier({apiKey:"never-log-key",task,checks,
+      fetcher:async()=>response(completion(invalid))}),
+    e=>e instanceof SaygmError && e.category==="invalid_patch" &&
+      e.validationCode==="evidence_not_in_task" &&
+      !JSON.stringify(e).includes("secret customer") &&
+      !JSON.stringify(e).includes("never-log-key"),
+  );
+});
+
+test("prompt explicitly encodes action-specific keys and grounded source evidence", async () => {
+  let system="";
+  const result=await callSaygmVerifier({
+    apiKey:"secret-key",task,checks,
+    fetcher:async(_url,init)=>{
+      const payload=JSON.parse(init.body);
+      system=payload.messages[0].content;
+      return response(completion(valid));
+    }
+  });
+  assert.deepEqual(result.verdict.verdicts,[]);
+  for(const rule of [
+    "KEEP: {dimension,action,reason}",
+    "SUPPRESS: {dimension,action,reason}",
+    "DOWNGRADE: {dimension,action,reason,severity}",
+    "REVISE: {dimension,action,reason,title,detail,question,evidence}",
+    "ADD: {dimension,action,reason,severity,title,detail,question,evidence}",
+    "Do NOT include severity",
+    "exact literal substrings",
+    "evidence: []",
+    "Never change existing critical gaps",
+    '"repair_needed":false'
+  ]) assert.ok(system.includes(rule),"missing "+rule);
+  assert.ok(!system.includes("max_tokens: 1800"));
+});

@@ -44,8 +44,23 @@ export const FEEDBACK_VERIFIER_JSON_SCHEMA = {
   required: ["verdicts", "repair_needed"],
 } as const;
 
+/** Stable, low-cardinality failure reasons. Never include model or task text. */
+export type VerifierContractCode =
+  | "invalid_envelope" | "unexpected_field" | "invalid_dimension" | "invalid_action"
+  | "duplicate_dimension" | "unknown_check" | "invalid_reason"
+  | "finding_not_gap" | "critical_locked" | "add_over_gap"
+  | "invalid_downgrade" | "invalid_title" | "invalid_detail" | "invalid_question"
+  | "invalid_evidence_format" | "evidence_not_in_task"
+  | "invalid_add_severity" | "duplicate_question" | "revise_severity"
+  | "forbidden_action_field";
 export class VerifierContractError extends Error {
-  constructor(message: string) { super(message); this.name = "VerifierContractError"; }
+  readonly code: VerifierContractCode;
+  constructor(code: VerifierContractCode) {
+    // Fixed code only; do not attach user content or arbitrary provider error.
+    super(code);
+    this.name = "VerifierContractError";
+    this.code = code;
+  }
 }
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -57,9 +72,9 @@ function literalEvidence(task: Task, quote: string): boolean {
   const source = taskSource(task).replace(/\s+/g, " ").toLocaleLowerCase();
   return source.includes(quote.replace(/\s+/g, " ").toLocaleLowerCase().trim());
 }
-function boundedText(value: unknown, field: string, min: number, max: number): string {
+function boundedText(value: unknown, field: "reason" | "title" | "detail" | "question", min: number, max: number): string {
   if (typeof value !== "string" || value.trim().length < min || value.length > max)
-    throw new VerifierContractError("Invalid " + field);
+    throw new VerifierContractError(("invalid_" + field) as VerifierContractCode);
   return value.trim();
 }
 
@@ -71,34 +86,35 @@ function boundedText(value: unknown, field: string, min: number, max: number): s
 export function parseVerifierVerdict(raw: unknown, task: Task, checks: readonly ReviewCheck[]): VerifierVerdict {
   if (!object(raw) || Object.keys(raw).some(k => !["verdicts", "repair_needed"].includes(k)) ||
       !Array.isArray(raw.verdicts) || raw.verdicts.length > 11 || typeof raw.repair_needed !== "boolean")
-    throw new VerifierContractError("Invalid verifier response");
+    throw new VerifierContractError("invalid_envelope");
   const seen = new Set<string>();
   const existingQuestions = new Set(checks.filter(c => c.assessment === "gap").map(c => normalized(c.question)).filter(Boolean));
   const verdicts: VerifierPatch[] = [];
   for (const value of raw.verdicts) {
     if (!object(value) || Object.keys(value).some(k => !["dimension","action","reason","severity","title","detail","question","evidence"].includes(k)))
-      throw new VerifierContractError("Unexpected patch field");
-    if (!REVIEW_DIMENSIONS.includes(value.dimension as ReviewDimension) ||
-        !VERIFIER_ACTIONS.includes(value.action as VerifierAction))
-      throw new VerifierContractError("Invalid dimension or action");
+      throw new VerifierContractError("unexpected_field");
+    if (!REVIEW_DIMENSIONS.includes(value.dimension as ReviewDimension))
+      throw new VerifierContractError("invalid_dimension");
+    if (!VERIFIER_ACTIONS.includes(value.action as VerifierAction))
+      throw new VerifierContractError("invalid_action");
     const dimension = value.dimension as ReviewDimension;
     const action = value.action as VerifierAction;
-    if (seen.has(dimension)) throw new VerifierContractError("Multiple patches for one dimension");
+    if (seen.has(dimension)) throw new VerifierContractError("duplicate_dimension");
     seen.add(dimension);
     const check = checks.find(c => c.dimension === dimension);
-    if (!check) throw new VerifierContractError("Unknown primary check");
+    if (!check) throw new VerifierContractError("unknown_check");
     const reason = boundedText(value.reason, "reason", 12, 600);
     const patch: VerifierPatch = { dimension, action, reason };
     if (action === "SUPPRESS" || action === "DOWNGRADE" || action === "REVISE") {
-      if (check.assessment !== "gap") throw new VerifierContractError("Cannot change an absent finding");
+      if (check.assessment !== "gap") throw new VerifierContractError("finding_not_gap");
       if (check.severity === "critical" && (action === "SUPPRESS" || action === "DOWNGRADE" || action === "REVISE"))
-        throw new VerifierContractError("Critical finding cannot be modified by verifier");
+        throw new VerifierContractError("critical_locked");
     }
     if (action === "ADD" && check.assessment === "gap")
-      throw new VerifierContractError("ADD cannot overwrite an existing gap");
+      throw new VerifierContractError("add_over_gap");
     if (action === "DOWNGRADE") {
       if (value.severity !== "suggestion" || check.severity !== "important")
-        throw new VerifierContractError("Only important to suggestion downgrade is allowed");
+        throw new VerifierContractError("invalid_downgrade");
       patch.severity = "suggestion";
     }
     if (action === "ADD" || action === "REVISE") {
@@ -106,18 +122,20 @@ export function parseVerifierVerdict(raw: unknown, task: Task, checks: readonly 
       patch.detail = boundedText(value.detail, "detail", 25, 800);
       patch.question = boundedText(value.question, "question", 12, 300);
       if (!Array.isArray(value.evidence) || value.evidence.length > 2 ||
-          value.evidence.some(q => typeof q !== "string" || !q.trim() || q.length > 260 || !literalEvidence(task, q)))
-        throw new VerifierContractError("Invalid or fabricated evidence");
+          value.evidence.some(q => typeof q !== "string" || !q.trim() || q.length > 260))
+        throw new VerifierContractError("invalid_evidence_format");
+      if (value.evidence.some(q => !literalEvidence(task, q)))
+        throw new VerifierContractError("evidence_not_in_task");
       patch.evidence = [...value.evidence] as string[];
       if (action === "ADD") {
         if (value.severity !== "important" && value.severity !== "suggestion")
-          throw new VerifierContractError("New finding requires noncritical severity");
+          throw new VerifierContractError("invalid_add_severity");
         patch.severity = value.severity;
         const q = normalized(patch.question);
-        if (existingQuestions.has(q)) throw new VerifierContractError("Duplicate clarification question");
+        if (existingQuestions.has(q)) throw new VerifierContractError("duplicate_question");
         existingQuestions.add(q);
       } else if (value.severity !== undefined) {
-        throw new VerifierContractError("REVISE cannot change severity");
+        throw new VerifierContractError("revise_severity");
       }
     }
     const permitted = action === "DOWNGRADE" ? ["dimension","action","reason","severity"] :
@@ -125,7 +143,7 @@ export function parseVerifierVerdict(raw: unknown, task: Task, checks: readonly 
       action === "REVISE" ? ["dimension","action","reason","title","detail","question","evidence"] :
       ["dimension","action","reason"];
     if (Object.keys(value).some(k => !permitted.includes(k)))
-      throw new VerifierContractError("Fields not permitted for action " + action);
+      throw new VerifierContractError("forbidden_action_field");
     verdicts.push(patch);
   }
   return { verdicts, repair_needed: raw.repair_needed };

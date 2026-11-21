@@ -909,3 +909,36 @@ test("private frontend diagnostics endpoint accepts only bounded, authenticated,
     assert.doesNotMatch(JSON.stringify(captured),/should never appear in logs/);
   }finally{console.warn=originalWarn;}
 });
+
+
+test("Worker verifier logs safe contract subcode, never raw SayGM response or task content", async () => {
+  const originalFetch=globalThis.fetch, originalWarn=console.warn;
+  const events=[];
+  const invented="CONFIDENTIAL_EXAMPLE_NOT_IN_TASK";
+  globalThis.fetch=async()=>new Response(JSON.stringify({
+    choices:[{finish_reason:"stop",message:{content:JSON.stringify({
+      verdicts:[{dimension:"scope",action:"ADD",
+        reason:"The named screen boundaries have not yet been confirmed.",
+        severity:"important",title:"Clarify screen coverage",
+        detail:"The ticket does not identify every affected area in this screen.",
+        question:"Which specific screens are affected?",
+        evidence:[invented]
+      }],repair_needed:false
+    })}}]
+  }),{status:200,headers:{"Content-Type":"application/json"}});
+  console.warn=(...args)=>events.push(args);
+  try {
+    const {env}=makeEnv({SAYGM_API_KEY:"private-secret-not-for-logs",FEEDBACK_VERIFIER_MODE:"on"});
+    const res=await worker.fetch(post(),env);
+    assert.equal(res.status,200);
+    assert.equal((await res.json()).mode,"ai");
+    const safe=JSON.stringify(events);
+    assert.match(safe,/issuelint.verifier_result/);
+    assert.match(safe,/"category":"invalid_patch"/);
+    assert.match(safe,/"validationCode":"evidence_not_in_task"/);
+    assert.doesNotMatch(safe,/CONFIDENTIAL_EXAMPLE_NOT_IN_TASK|private-secret-not-for-logs|Contact all leads today/);
+  }finally{
+    globalThis.fetch=originalFetch;
+    console.warn=originalWarn;
+  }
+});
