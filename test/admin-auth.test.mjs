@@ -37,7 +37,7 @@ test('admin settings fail closed when credentials, password hash, signer or limi
     assert.equal(adminConfigured(env(overrides)),false);
   assert.equal(adminConfigured(env()),true);
   // This exact unsupported 600k hash used to pass Node tests but fail at Cloudflare runtime.
-  assert.equal(adminConfigured(env({ADMIN_PASSWORD_HASH:HASH.replace('$100000
+  assert.equal(adminConfigured(env({ADMIN_PASSWORD_HASH: HASH.replace("100000","600000")})), false);
 });
 test('PBKDF2 verification requires correct password and username',async()=>{
   assert.equal(await checkPassword('admin',PASSWORD,env()),true);
