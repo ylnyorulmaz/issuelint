@@ -3,6 +3,7 @@ import { runAnalysis, InferenceError, type AiRunner } from "./inference.ts";
 import { parseTask, ValidationError } from "./schema.ts";
 import { callGeminiDecisions, DecisionError } from "./decision.ts";
 import { runSelectiveAudit } from "./decision-audit.ts";
+import { parseFeedbackEvent } from "./feedback.ts";
 import { adminConfigured, adminSession, adminPage, loginPage, unconfiguredPage, checkPassword, issueAdminSession, clearAdminSession, sameOriginPost, ADMIN_RESPONSE_HEADERS, type AdminEnv } from "./admin-auth.ts";
 import chatgptFixture from "../test/fixtures/task-review-control-v1.json" with { type: "json" };
 import geminiFixture from "../test/fixtures/task-review-gemini-v1.json" with { type: "json" };
@@ -18,6 +19,7 @@ interface WorkerEnv extends AdminEnv {
   SAYGM_API_KEY?: string;
   GEMINI_API_KEY?: string;
   FEEDBACK_VERIFIER_MODE?: string;
+  FEEDBACK_RATE_LIMIT?: { limit(input: { key: string }): Promise<{ success: boolean }> };
 }
 
 function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
@@ -172,6 +174,39 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
         feedbackVerifierConfigured: !!env.SAYGM_API_KEY,
         decisionConfigured: !!env.GEMINI_API_KEY?.trim(),
       });
+    }
+
+    if (pathname === "/api/feedback") {
+      if (request.method !== "POST") return methodNotAllowed("POST");
+      // Origin check and a global limiter, without collecting, storing or hashing IPs.
+      if (!sameOriginPost(request))
+        return error("FEEDBACK_ORIGIN_REQUIRED", "Same-origin request required.", 403);
+      if (!/^application\/json(?:\s*;|\s*$)/i.test(request.headers.get("content-type") ?? ""))
+        return error("UNSUPPORTED_MEDIA_TYPE", "Send application/json.", 415);
+      if (!env.FEEDBACK_RATE_LIMIT)
+        return error("FEEDBACK_UNAVAILABLE", "Feedback is temporarily unavailable.", 503);
+      try {
+        const limit = await env.FEEDBACK_RATE_LIMIT.limit({ key: "feedback-global" });
+        if (!limit.success)
+          return json({ error: "FEEDBACK_RATE_LIMITED", message: "Try again later." },
+            429, { "Retry-After": "60" });
+      } catch {
+        return error("FEEDBACK_UNAVAILABLE", "Feedback is temporarily unavailable.", 503);
+      }
+      let raw: unknown;
+      try { raw = await readBody(request, 1024); }
+      catch { return error("INVALID_FEEDBACK", "Invalid feedback.", 422); }
+      const item = parseFeedbackEvent(raw);
+      if (!item) return error("INVALID_FEEDBACK", "Invalid feedback.", 422);
+      // Only these exact four optional/required fields appear in application logs.
+      // No ticket text, request IP, browser identifiers, preview code or request headers.
+      console.info("issuelint.user_feedback", {
+        rating: item.rating,
+        ...(item.note ? { note: item.note } : {}),
+        sessionLintCount: item.sessionLintCount,
+        timestamp: item.timestamp,
+      });
+      return json({ ok: true }, 202);
     }
 
     if (pathname === "/api/client-events") {

@@ -27,6 +27,10 @@ export default defineConfig(({ mode, isPreview }) => {
             namespace: "20261122", simple: { limit: 5, period: 60 },
           }),
         } : {}),
+        // Global, approximate feedback throttling. No IP-based key is collected.
+        FEEDBACK_RATE_LIMIT: bindings.rateLimit({
+          namespace: "20261128", simple: { limit: 60, period: 60 },
+        }),
         AI_MODEL: bindings.text("@cf/openai/gpt-oss-120b"),
         FEEDBACK_VERIFIER_MODE: bindings.text(privateProduction ? "on" : "off"),
         SAYGM_API_KEY: bindings.secret(),

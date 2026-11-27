@@ -16,6 +16,9 @@ import { ReviewLoading } from './components/ReviewLoading';
 import { ReviewBrandAnimation, ReviewWaitGuidance } from './components/ReviewWaitGuidance';
 import { DecisionScorecard } from './components/DecisionScorecard';
 import { QuickScanScorecard } from './components/QuickScanScorecard';
+import { FeedbackPrompt } from './components/FeedbackPrompt';
+import { recordCompletedLint } from './feedback';
+import './styles.feedback.css';
 import { AdminStation } from './components/AdminStation';
 import './styles.admin.css';
 import './styles.appearance.css';
@@ -58,6 +61,7 @@ function App() {
   const [result, setResult] = createSignal<View | null>(null);
   const [decisionResult, setDecisionResult] = createSignal<ApiDecisionResult | null>(null);
   const [quickResult, setQuickResult] = createSignal<ApiQuickScanResult | null>(null);
+  const [feedbackLintCount, setFeedbackLintCount] = createSignal<number | null>(null);
   const [decisionConfigured, setDecisionConfigured] = createSignal(false);
   const [activePipeline, setActivePipeline] = createSignal<'ai'|'decision'|'quick'>('quick');
   const [error, setError] = createSignal('');
@@ -123,6 +127,13 @@ function App() {
     }
   }
 
+  function onLintCompleted() {
+    // Exactly one call for each successful result (including the local demo).
+    // Never reads or serializes the user's task text.
+    const state = recordCompletedLint();
+    if (state.showPrompt) setFeedbackLintCount(state.sessionLintCount);
+  }
+
   function revealResults() {
     // The result panel is beneath the form on phones/tablets.
     if (window.matchMedia('(max-width: 900px)').matches) {
@@ -168,6 +179,7 @@ function App() {
     cancelRequest();
     setError(''); setTab('findings'); setCopied(false); setDecisionResult(null); setQuickResult(null);
     setResult(fromDemo(prepareReviewTask(task())));
+    onLintCompleted();
     trackAnalyticsEvent('review_completed');
     revealResults();
   }
@@ -195,6 +207,7 @@ function App() {
       const output = await analyzeLive(prepareReviewTask(task()), accessCode().trim(), controller.signal, requestId);
       if (requestController === controller) {
         setResult(fromLive(output));
+        onLintCompleted();
         logClient('info','review_finished',{requestId,durationMs:Date.now()-started});
         trackAnalyticsEvent('review_completed');
         revealResults();
@@ -247,6 +260,7 @@ function App() {
         prepareReviewTask(task()), accessCode().trim(), controller.signal, requestId);
       if (requestController === controller) {
         setDecisionResult(decision);
+        onLintCompleted();
         logClient('info','decision_finished',{requestId,durationMs:Date.now()-started});
         revealResults();
       }
@@ -296,6 +310,7 @@ function App() {
       const scan=await analyzeQuickScanLive(prepareReviewTask(task()),accessCode().trim(),controller.signal,requestId);
       if(requestController===controller) {
         setQuickResult(scan);
+        onLintCompleted();
         logClient('info','quick_scan_finished',{requestId,durationMs:Date.now()-started});
         trackAnalyticsEvent('review_completed');revealResults();
       }
@@ -524,6 +539,9 @@ function App() {
           </Show>
           </Show>
           </Show>
+        </Show>
+        <Show when={!loading() && (quickResult() || decisionResult() || result()) && feedbackLintCount() !== null}>
+          <FeedbackPrompt sessionLintCount={feedbackLintCount()!} onDone={() => setFeedbackLintCount(null)}/>
         </Show>
       </div>
     </section>
