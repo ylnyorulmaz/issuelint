@@ -6,7 +6,7 @@ import {adminSession, issueAdminSession, checkPassword, adminConfigured} from '.
 
 const PASSWORD='unit-test-only-strong-password-12345';
 const SALT=Buffer.from('0102030405060708090a0b0c0d0e0f10','hex');
-const HASH='pbkdf2-sha256$600000$'+SALT.toString('base64url')+'$'+pbkdf2Sync(PASSWORD,SALT,600000,32,'sha256').toString('base64url');
+const HASH='pbkdf2-sha256$100000$'+SALT.toString('base64url')+'$'+pbkdf2Sync(PASSWORD,SALT,100000,32,'sha256').toString('base64url');
 const SECRET=Buffer.alloc(32,27).toString('base64url');
 const BASE='https://issuelint.example';
 const PREVIEW='separate-public-preview-code-at-least-24-chars';
@@ -36,6 +36,8 @@ test('admin settings fail closed when credentials, password hash, signer or limi
   for(const overrides of [{ADMIN_USERNAME:''},{ADMIN_PASSWORD_HASH:''},{ADMIN_SESSION_SECRET:''},{ADMIN_LOGIN_RATE_LIMIT:undefined}])
     assert.equal(adminConfigured(env(overrides)),false);
   assert.equal(adminConfigured(env()),true);
+  // This exact unsupported 600k hash used to pass Node tests but fail at Cloudflare runtime.
+  assert.equal(adminConfigured(env({ADMIN_PASSWORD_HASH: HASH.replace("100000","600000")})), false);
 });
 test('PBKDF2 verification requires correct password and username',async()=>{
   assert.equal(await checkPassword('admin',PASSWORD,env()),true);

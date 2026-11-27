@@ -9,7 +9,7 @@ import {pbkdf2Sync} from 'node:crypto';
 const validCode='admin-preview-test-token-with-24-or-more-characters';
 const password='test-admin-password-do-not-use-in-production';
 const salt=Buffer.from('0102030405060708090a0b0c0d0e0f10','hex');
-const adminHash='pbkdf2-sha256$600000$'+salt.toString('base64url')+'$'+pbkdf2Sync(password,salt,600000,32,'sha256').toString('base64url');
+const adminHash='pbkdf2-sha256$100000$'+salt.toString('base64url')+'$'+pbkdf2Sync(password,salt,100000,32,'sha256').toString('base64url');
 const sessionSecret=Buffer.alloc(32,23).toString('base64url');
 function env(overrides={}){
   return {

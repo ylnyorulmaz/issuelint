@@ -3,12 +3,15 @@
  */
 export interface AdminEnv {
   ADMIN_USERNAME?: string;
-  ADMIN_PASSWORD_HASH?: string; // pbkdf2-sha256$600000$base64url(salt)$base64url(32-byte derived key)
+  ADMIN_PASSWORD_HASH?: string; // pbkdf2-sha256$100000$base64url(salt)$base64url(32-byte derived key)
   ADMIN_SESSION_SECRET?: string; // base64url(32+ random bytes)
   ADMIN_LOGIN_RATE_LIMIT?: { limit(input: { key: string }): Promise<{ success: boolean }> };
 }
 const COOKIE = "__Host-issuelint_admin";
 const MAX_AGE_SECONDS = 8 * 60 * 60;
+// Cloudflare production Workers reject PBKDF2 iteration counts above 100,000.
+// Enforce an exact count so an unsupported hash fails configuration before login.
+const PBKDF2_ITERATIONS = 100_000;
 const UTF8 = new TextEncoder();
 const HASH_RE = /^pbkdf2-sha256\$(\d+)\$([A-Za-z0-9_-]{16,})\$([A-Za-z0-9_-]{40,})$/;
 
@@ -25,7 +28,7 @@ function hashConfig(secret: string | undefined): { iterations: number; salt: Uin
   const match = HASH_RE.exec(secret ?? "");
   if (!match) return null;
   const iterations = Number(match[1]);
-  if (iterations < 600_000 || iterations > 1_500_000) return null;
+  if (iterations !== PBKDF2_ITERATIONS) return null;
   try {
     const salt = decode64(match[2]);
     const expected = decode64(match[3]);
