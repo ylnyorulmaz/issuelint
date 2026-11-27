@@ -22,10 +22,13 @@ form?.addEventListener("submit",async event=>{
       cache:"no-store"
     });
     if(response.ok){password.value="";window.location.replace("/admin");return;}
-    status.textContent=response.status===429
-      ?"Too many login attempts. Try again later."
-      :response.status===503?"Admin login is not configured yet."
-      :"Invalid username or password.";
+    status.textContent=response.status===401
+      ?"Invalid username or password."
+      :response.status===429?"Too many login attempts. Try again in a minute."
+      :response.status===403?"Sign-in request blocked. Reload the page and retry."
+      :response.status===503?"Admin login is temporarily unavailable. Please retry."
+      :response.status>=500?"Server error during sign-in. Please try again."
+      :"Unable to sign in. Please retry.";
     password.value="";
   }catch{
     status.textContent="Unable to reach the server. Please try again.";
