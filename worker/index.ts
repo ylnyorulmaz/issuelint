@@ -181,7 +181,7 @@ async function handleApi(request: Request, env: WorkerEnv, requestId: string): P
       // Origin check and a global limiter, without collecting, storing or hashing IPs.
       if (!sameOriginPost(request))
         return error("FEEDBACK_ORIGIN_REQUIRED", "Same-origin request required.", 403);
-      if (!/^application\\/json(?:\\s*;|\\s*$)/i.test(request.headers.get("content-type") ?? ""))
+      if (!/^application\/json(?:\s*;|\s*$)/i.test(request.headers.get("content-type") ?? ""))
         return error("UNSUPPORTED_MEDIA_TYPE", "Send application/json.", 415);
       if (!env.FEEDBACK_RATE_LIMIT)
         return error("FEEDBACK_UNAVAILABLE", "Feedback is temporarily unavailable.", 503);
