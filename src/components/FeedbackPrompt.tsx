@@ -62,7 +62,7 @@ export function FeedbackPrompt(props: { sessionLintCount: number; onDone: () => 
         maxLength={MAX_FEEDBACK_NOTE} value={note()} disabled={sending()}
         placeholder="A short suggestion…" onInput={e => setNote(e.currentTarget.value)}/>
       <div class="lint-feedback-footer">
-        <p>Only your rating and optional note are sent. Don't include task text or personal data.</p>
+        <p>Only rating, note, lint count and time are sent. Don't include task text or personal data.</p>
         <button class="lint-feedback-send" type="button" disabled={!rating() || sending()}
           onClick={() => void submit()}>{sending() ? 'Sending…' : 'Send'}</button>
       </div>
