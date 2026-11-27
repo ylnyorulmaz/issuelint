@@ -109,6 +109,14 @@ The resulting task status is `ready`, `needs_clarification` or `blocked`, comput
 - Static, crawlable pages are served from `public/` by Workers Static Assets: `/about/` and `/guides/how-to-write-a-clear-task/`. They share `public/site-header.css` and `public/site-footer.css` with the SPA header/footer. `public/robots.txt` disallows `/admin`; `public/sitemap.xml` lists `/`, `/about/` and the guide. `index.html` carries SEO metadata and a no-JavaScript fallback with links to both pages.
 - GA4/Clarity scripts, when their optional **public** Vite IDs are configured, are consent-gated. Task text, model output and access codes must not be sent as analytics events.
 
+## Voluntary post-lint feedback
+
+After the **second successful lint** (Quick Scan, Analyze v2, Original AI or local demo), the homepage shows one small, dismissible feedback card directly beneath the result. A `localStorage` counter plus a `promptShown` flag mean the card appears only once per browser; `sessionStorage` counts successful lints in the current tab session. Failed or cancelled requests do not count. When persistent storage is disabled, the card is suppressed rather than repeating.
+
+The card offers **Helpful / Meh / Broken**, an optional single-line note (max 240 characters), **Send** and **Skip**. Successful submission briefly displays **Thanks**; the card then disappears. It does not interrupt the result or introduce a modal.
+
+`POST /api/feedback` accepts **only** `{rating, note?, sessionLintCount, timestamp}`, requires same-origin JSON POST, enforces a 1 KiB request limit and a global Cloudflare rate-limit binding (`FEEDBACK_RATE_LIMIT`: 60 per minute). Unknown fields, including ticket data and IP fields, are rejected. The client sends no ticket input, result, access code, cookies or IP value; the Worker does not read or log IP. Voluntary notes and the three other fields are recorded in **Cloudflare Workers Observability application logs** (not a dedicated feedback database); request-level platform networking and retention policies are separate. Ask users not to include confidential task content or personal information in notes. No external analytics opt-in is needed for this explicit feedback submission.
+
 ## 3. Private benchmark station — `/admin`
 
 Visit https://issuelint.com/admin and sign in with **a separate username and password**. The Worker protects the HTML before static assets are served; passwords are PBKDF2-HMAC-SHA256 verified and sessions use signed, HttpOnly, Secure, SameSite=Strict cookies (eight-hour validity). The login is rate-limited. A preview code no longer grants access to /admin or its private fixture datasets. Login and admin HTML/API responses carry noindex/nofollow headers.
