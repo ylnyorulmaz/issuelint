@@ -1,0 +1,63 @@
+/* IssueLint public-site footer shared by the main app and static About page.
+   Deliberately scoped; no changes to analysis, admin or the active minimalist palette. */
+.app[data-design="minimalist"] footer.site-footer,
+body.about-app footer.site-footer {
+  display:block;
+  background:var(--paper);
+  color:var(--muted);
+  border-top:1px solid var(--line);
+  padding:0 24px;
+  font-size:14px;
+  line-height:1.6;
+  letter-spacing:normal;
+}
+.site-footer .site-footer-inner {
+  max-width:1168px;
+  padding:51px 0 40px;
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);
+  gap:clamp(35px,8vw,125px);
+  align-items:start;
+}
+.site-footer .site-footer-intro {display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0}
+.site-footer .site-footer-logo {display:block;width:185px;max-width:100%;line-height:0}
+.site-footer .site-footer-logo img {width:100%;height:auto;object-fit:contain}
+.site-footer .site-footer-logo-dark {display:none}
+.app[data-theme="dark"] .site-footer-logo-light,
+html[data-theme="dark"] .site-footer-logo-light {display:none}
+.app[data-theme="dark"] .site-footer-logo-dark,
+html[data-theme="dark"] .site-footer-logo-dark {display:block}
+.site-footer .site-footer-intro p {max-width:340px;font-size:15px;line-height:1.7;margin:18px 0 18px;color:var(--muted)}
+.site-footer .site-footer-tag {font-size:11px;letter-spacing:.095em;font-weight:700;color:var(--red-text)}
+.site-footer .site-footer-nav {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:26px;min-width:0}
+.site-footer .site-footer-col {display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-width:0}
+.site-footer .site-footer-heading {color:var(--ink);font-size:12px;letter-spacing:.085em;text-transform:uppercase;font-weight:750;margin-bottom:5px}
+.site-footer .site-footer-nav a {
+  display:inline-block;max-width:100%;font-size:14px;line-height:1.5;
+  overflow-wrap:anywhere;text-decoration:none;color:var(--muted);transition:color .16s ease
+}
+.site-footer .site-footer-nav a:hover {color:var(--red-text);text-decoration:underline;text-underline-offset:4px}
+.site-footer .site-footer-nav a:focus-visible {outline:2px solid var(--red-text);outline-offset:3px;border-radius:3px}
+.site-footer .site-footer-bottom {
+  max-width:1168px;
+  margin:0 auto;
+  border-top:1px solid var(--line);
+  padding:17px 0 25px;
+  display:flex;flex-direction:row;justify-content:space-between;align-items:center;flex-wrap:wrap;
+  gap:8px 25px;color:var(--muted);font-size:12px;line-height:1.6;
+}
+.site-footer .site-footer-bottom .privacy-settings{font-size:12px}
+@media(max-width:760px){
+  .app[data-design="minimalist"] footer.site-footer,
+  body.about-app footer.site-footer {padding:0 20px}
+  .site-footer .site-footer-inner {grid-template-columns:1fr;gap:34px;padding:37px 0 29px}
+  .site-footer .site-footer-nav{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+  .site-footer .site-footer-bottom{padding:16px 0 22px;align-items:flex-start}
+}
+@media(max-width:420px){
+  .site-footer .site-footer-nav{grid-template-columns:1fr;gap:25px}
+  .site-footer .site-footer-inner{gap:27px}
+  .site-footer .site-footer-nav a{font-size:14px}
+}
+@media(prefers-reduced-motion:reduce){.site-footer .site-footer-nav a{transition:none}}
